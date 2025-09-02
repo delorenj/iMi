@@ -1,0 +1,99 @@
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(
+    name = "imi", 
+    author = "Jarad DeLorenzo <jarad@33god.ai>",
+    version,
+    about = "iMi Git Worktree Management Tool - Component of 33GOD Agentic Software Pipeline",
+    long_about = "A sophisticated worktree management tool designed for asynchronous, parallel multi-agent workflows. Features opinionated defaults and real-time visibility into worktree activities."
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// Create a new feature worktree
+    #[command(alias = "feature")]
+    Feat {
+        /// Name of the feature (will create feat-{name} worktree)
+        name: String,
+        
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Create a worktree for reviewing a pull request
+    #[command(alias = "pr")]
+    Review {
+        /// Pull request number
+        pr_number: u32,
+        
+        /// Repository name (optional, uses current repo if not specified)  
+        repo: Option<String>,
+    },
+    
+    /// Create a worktree for bug fixes
+    Fix {
+        /// Name of the fix (will create fix-{name} worktree)
+        name: String,
+        
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Create a worktree for AI operations (agents, rules, MCP configs, workflows)
+    Aiops {
+        /// Name of the aiops task (will create aiops-{name} worktree)
+        name: String,
+        
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Create a worktree for DevOps tasks (CI, repo organization, deploys)
+    Devops {
+        /// Name of the devops task (will create devops-{name} worktree)
+        name: String,
+        
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Switch to the trunk worktree (main branch)
+    Trunk {
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Show status of all worktrees
+    Status {
+        /// Repository name (optional, shows all repos if not specified)
+        repo: Option<String>,
+    },
+    
+    /// List all active worktrees
+    #[command(alias = "ls")]
+    List {
+        /// Repository name (optional, shows all repos if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Remove a worktree
+    #[command(alias = "rm")]
+    Remove {
+        /// Name of the worktree to remove
+        name: String,
+        
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+    
+    /// Start real-time monitoring of worktree activities
+    Monitor {
+        /// Repository name (optional, monitors all repos if not specified)
+        repo: Option<String>,
+    },
+}

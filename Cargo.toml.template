@@ -1,0 +1,144 @@
+[package]
+name = "iMi"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Rust-based Git worktree management tool for asynchronous, parallel multi-agent workflows"
+license = "MIT"
+repository = "https://github.com/your-org/iMi"
+keywords = ["git", "worktree", "cli", "development-tools", "agent-workflows"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# CLI framework
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Async runtime
+tokio = { version = "1.32", features = ["full"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }
+
+# File system operations
+walkdir = "2.4"
+tempfile = "3.8"
+
+# Git operations (via command execution)
+tokio-process = "0.2"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1.5", features = ["v4", "serde"] }
+
+# Path handling
+path-absolutize = "3.1"
+
+[dev-dependencies]
+# Core testing framework (built-in with Rust)
+# Additional testing utilities
+tokio-test = "0.4"
+tempdir = "0.3"
+
+# CLI testing
+assert_cmd = "2.0"
+assert_fs = "1.0"
+predicates = "3.0"
+
+# Property-based testing
+proptest = "1.0"
+
+# Mocking framework
+mockall = "0.11"
+
+# HTTP client for integration tests (if needed for remote Git operations)
+reqwest = { version = "0.11", features = ["json"] }
+
+# Test data generation
+fake = { version = "2.8", features = ["derive"] }
+rand = "0.8"
+
+# Test utilities
+serial_test = "3.0"  # For tests that can't run in parallel
+
+# Performance testing
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Code coverage (install separately: cargo install cargo-tarpaulin)
+# Run with: cargo tarpaulin --out Html
+
+[features]
+default = []
+# Feature flag for property-based testing
+proptest-impl = ["proptest"]
+
+# Performance benchmarks
+[[bench]]
+name = "worktree_operations"
+harness = false
+path = "benches/worktree_operations.rs"
+
+[[bench]]
+name = "database_operations"
+harness = false
+path = "benches/database_operations.rs"
+
+[[bench]]
+name = "cli_operations"
+harness = false
+path = "benches/cli_operations.rs"
+
+# Integration test suites
+[[test]]
+name = "integration_tests"
+path = "tests/integration/mod.rs"
+
+[[test]]
+name = "cli_tests"
+path = "tests/cli/mod.rs"
+
+[[test]]
+name = "workflow_tests"
+path = "tests/workflow/mod.rs"
+
+[[test]]
+name = "database_tests"
+path = "tests/database/mod.rs"
+
+[[test]]
+name = "performance_tests"
+path = "tests/performance/mod.rs"
+
+[profile.test]
+# Optimize for faster test compilation
+opt-level = 1
+debug = true
+
+[profile.bench]
+# Optimize benchmarks for performance
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
+
+# Database migrations directory
+# Run migrations with: sqlx migrate run
+# Create new migration: sqlx migrate add create_worktrees_table
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc", "x86_64-apple-darwin"]
