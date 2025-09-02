@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use git2::{
-    BranchType, Repository, RepositoryOpenFlags, Worktree as Git2Worktree, WorktreeAddOptions,
+    BranchType, Repository, WorktreeAddOptions,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use crate::error::ImiError;

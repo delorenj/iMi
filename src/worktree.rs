@@ -3,10 +3,10 @@ use colored::*;
 use std::env;
 use std::os::unix::fs;
 use std::path::{Path, PathBuf};
-use tokio::{fs as async_fs, time};
+use tokio::fs as async_fs;
 
 use crate::config::Config;
-use crate::database::{Database, Worktree};
+use crate::database::Database;
 use crate::error::ImiError;
 use crate::git::{GitManager, WorktreeStatus};
 

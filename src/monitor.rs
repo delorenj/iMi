@@ -51,7 +51,7 @@ impl MonitorManager {
         println!();
         
         // Set up file watchers
-        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
         let mut _watchers = Vec::new();
         let mut path_to_worktree = HashMap::new();
         
