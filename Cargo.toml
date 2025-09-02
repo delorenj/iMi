@@ -1,16 +1,23 @@
 [package]
-name = "imi"
+name = "iMi"
 version = "0.1.0"
-edition = "2021"
-authors = ["Jarad DeLorenzo <jarad@33god.ai>"]
-description = "iMi Git Worktree Management Tool - Component of 33GOD Agentic Software Pipeline"
+authors = ["Jarad DeLorenzo <jaradd@gmail.com>"]
+description = "iMi - Decentralized git worktree management tool built from the ground up for distributed agentic workflows."
 license = "MIT"
-repository = "https://github.com/33god/imi"
-keywords = ["git", "worktree", "cli", "workflow", "agents"]
+repository = "https://github.com/delorenj/iMi"
+keywords = [
+  "decentralized",
+  "distributed",
+  "git",
+  "worktree",
+  "cli",
+  "workflow",
+  "agents",
+]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "imi"
+name = "iMi"
 path = "src/main.rs"
 
 [dependencies]
@@ -24,7 +31,12 @@ tokio = { version = "1.37", features = ["full"] }
 git2 = "0.18"
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+sqlx = { version = "0.7", features = [
+  "runtime-tokio-rustls",
+  "sqlite",
+  "chrono",
+  "uuid",
+] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -67,3 +79,4 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
