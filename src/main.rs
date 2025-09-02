@@ -68,6 +68,9 @@ async fn main() -> Result<()> {
         Commands::Monitor { repo } => {
             handle_monitor_command(&worktree_manager, repo.as_deref()).await?;
         }
+        Commands::Init { force } => {
+            handle_init_command(force).await?;
+        }
     }
     
     Ok(())
@@ -197,5 +200,73 @@ async fn handle_monitor_command(
 ) -> Result<()> {
     println!("{} Starting real-time monitoring...", "👁️".bright_purple());
     manager.start_monitoring(repo).await?;
+    Ok(())
+}
+
+async fn handle_init_command(force: bool) -> Result<()> {
+    
+    println!("{} Initializing iMi for current directory...", "🔧".bright_cyan());
+    
+    // Get current directory
+    let current_dir = env::current_dir().context("Failed to get current directory")?;
+    let current_dir_name = current_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .context("Failed to get current directory name")?;
+    
+    // Check if we're in a trunk directory and determine root path
+    let root_path = if current_dir_name.starts_with("trunk-") {
+        // We're in a trunk directory, so the grandparent is the root_path
+        let repo_dir = current_dir.parent().context("Failed to get parent directory")?;
+        let root_dir = repo_dir.parent().context("Failed to get grandparent directory")?;
+        println!("{} Detected trunk directory: {}", "🔍".bright_yellow(), current_dir_name.bright_green());
+        println!("{} Repository directory: {}", "📁".bright_blue(), repo_dir.display());
+        println!("{} Root path set to: {}", "🏠".bright_green(), root_dir.display());
+        root_dir.to_path_buf()
+    } else {
+        // We're at the repo root, so the parent becomes root_path
+        let root_dir = current_dir.parent().context("Failed to get parent directory")?;
+        println!("{} Current directory is repository root", "📁".bright_blue());
+        println!("{} Root path set to: {}", "🏠".bright_green(), root_dir.display());
+        root_dir.to_path_buf()
+    };
+    
+    // Load existing config or create default
+    let config_path = Config::get_config_path()?;
+    let config_exists = config_path.exists();
+    
+    if config_exists && !force {
+        println!("{} iMi configuration already exists at: {}", "⚠️".bright_yellow(), config_path.display());
+        println!("{} Use {} to override existing configuration", "💡".bright_blue(), "--force".bright_green());
+        return Ok(());
+    }
+    
+    // Load existing config or create default, then update root path
+    let mut config = if config_exists {
+        Config::load().await.context("Failed to load existing configuration")?
+    } else {
+        Config::default()
+    };
+    
+    // Update the root path
+    let old_root = config.root_path.clone();
+    config.root_path = root_path.clone();
+    
+    // Save the updated configuration
+    config.save().await.context("Failed to save configuration")?;
+    
+    // Success messages
+    if config_exists {
+        println!("{} Updated iMi root path:", "⚙️".bright_green());
+        println!("   {} {}", "From:".bright_yellow(), old_root.display());
+        println!("   {} {}", "To:".bright_green(), root_path.display());
+    } else {
+        println!("{} Created new iMi configuration", "✨".bright_green());
+        println!("{} Repository root: {}", "🏠".bright_blue(), root_path.display());
+    }
+    
+    println!("{} Configuration saved to: {}", "💾".bright_cyan(), config_path.display());
+    println!("{} iMi initialization complete!", "✅".bright_green());
+    
     Ok(())
 }

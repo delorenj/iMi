@@ -110,7 +110,7 @@ impl Config {
         Ok(())
     }
     
-    fn get_config_path() -> Result<PathBuf> {
+    pub fn get_config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .context("Could not find config directory")?
             .join("imi");

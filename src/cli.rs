@@ -96,4 +96,11 @@ pub enum Commands {
         /// Repository name (optional, monitors all repos if not specified)
         repo: Option<String>,
     },
+    
+    /// Initialize iMi in the current directory (detects trunk- prefix and registers parent as root)
+    Init {
+        /// Force initialization even if configuration already exists
+        #[arg(long)]
+        force: bool,
+    },
 }
