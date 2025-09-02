@@ -1,6 +1,6 @@
 # iMi - Git Worktree Management Tool
 
-iMi is a sophisticated Rust-based Git worktree management tool designed for asynchronous, parallel multi-agent workflows. It's a key component of the [33GOD](https://github.com/33god/33god) Agentic Software Pipeline.
+iMi is a sophisticated Rust-based Git worktree management tool designed for asynchronous, parallel multi-agent workflows. It's a key component of the [33GOD](https://github.com/delorenj/33god) Agentic Software Pipeline.
 
 ## 🚀 Features
 
@@ -16,15 +16,15 @@ iMi is a sophisticated Rust-based Git worktree management tool designed for asyn
 ### From Source
 
 ```bash
-git clone https://github.com/33god/imi.git
-cd imi
+git clone https://github.com/delorenj/iMi
+cd iMi
 cargo install --path .
 ```
 
 ### Using Cargo
 
 ```bash
-cargo install imi
+cargo install iMi
 ```
 
 ## 🎯 Quick Start
@@ -33,48 +33,48 @@ cargo install imi
 
 ```bash
 # Create a feature worktree
-imi feat user-authentication
+iMi feat user-authentication
 
 # Review a pull request
-imi review 42
+iMi review 42
 
 # Create a bug fix worktree
-imi fix critical-security-issue
+iMi fix critical-security-issue
 
 # DevOps tasks
-imi devops ci-pipeline-update
+iMi devops ci-pipeline-update
 
 # AI operations (agents, rules, workflows)
-imi aiops new-agent-workflow
+iMi aiops new-agent-workflow
 ```
 
 ### Monitor Activity
 
 ```bash
 # Real-time monitoring of all worktrees
-imi monitor
+iMi monitor
 
 # Show status of all worktrees
-imi status
+iMi status
 
 # List active worktrees
-imi list
+iMi list
 ```
 
 ## 📋 Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `imi feat <name>` | Create feature worktree | `imi feat user-login` |
-| `imi review <pr>` | Create PR review worktree | `imi review 123` |
-| `imi fix <name>` | Create bugfix worktree | `imi fix auth-bug` |
-| `imi aiops <name>` | Create AI operations worktree | `imi aiops agent-config` |
-| `imi devops <name>` | Create DevOps worktree | `imi devops ci-update` |
-| `imi trunk` | Switch to trunk worktree | `imi trunk` |
-| `imi status` | Show worktree status | `imi status` |
-| `imi list` | List all worktrees | `imi list` |
-| `imi remove <name>` | Remove a worktree | `imi remove feat-old` |
-| `imi monitor` | Start real-time monitoring | `imi monitor` |
+| `iMi feat <name>` | Create feature worktree | `iMi feat user-login` |
+| `iMi review <pr>` | Create PR review worktree | `iMi review 123` |
+| `iMi fix <name>` | Create bugfix worktree | `iMi fix auth-bug` |
+| `iMi aiops <name>` | Create AI operations worktree | `iMi aiops agent-config` |
+| `iMi devops <name>` | Create DevOps worktree | `iMi devops ci-update` |
+| `iMi trunk` | Switch to trunk worktree | `iMi trunk` |
+| `iMi status` | Show worktree status | `iMi status` |
+| `iMi list` | List all worktrees | `iMi list` |
+| `iMi remove <name>` | Remove a worktree | `iMi remove feat-old` |
+| `iMi monitor` | Start real-time monitoring | `iMi monitor` |
 
 ## 🏗️ Directory Structure
 
@@ -94,13 +94,12 @@ iMi follows a standardized directory convention:
     │   └── stack-specific.md
     └── repo/                # Repository-specific sync
         ├── .env
-        ├── .jarad-config
         └── .vscode/
 ```
 
 ## ⚙️ Configuration
 
-iMi uses convention over configuration but allows customization via `~/.config/imi/config.toml`:
+iMi uses convention over configuration but allows customization via `~/.config/iMi/config.toml`:
 
 ```toml
 [sync_settings]
@@ -123,7 +122,6 @@ track_agent_activity = true
 # Files to symlink across worktrees
 symlink_files = [
     ".env",
-    ".jarad-config", 
     ".vscode/settings.json",
     ".gitignore.local"
 ]
@@ -142,19 +140,19 @@ iMi is designed for multi-agent workflows:
 
 ```bash
 # Agent 1: Feature development
-imi feat payment-integration
+iMi feat payment-integration
 # -> Creates feat-payment-integration/ worktree
 
 # Agent 2: Code review
-imi review 456  
+iMi review 456  
 # -> Creates pr-456/ worktree
 
 # Agent 3: Bug fix
-imi fix payment-bug
+iMi fix payment-bug
 # -> Creates fix-payment-bug/ worktree
 
 # Monitor all activities
-imi monitor
+iMi monitor
 # -> Real-time view of all agents
 ```
 
@@ -163,7 +161,7 @@ imi monitor
 ### Real-time Monitoring
 
 ```bash
-imi monitor
+iMi monitor
 ```
 
 Shows:
@@ -175,7 +173,7 @@ Shows:
 ### Status Dashboard
 
 ```bash
-imi status
+iMi status
 ```
 
 Displays:
@@ -193,27 +191,27 @@ Displays:
 # Ensure you're in a Git repository
 git status
 # Or specify the repository explicitly
-imi --repo my-project feat new-feature
+iMi --repo my-project feat new-feature
 ```
 
 **Permission errors**
 ```bash
 # Check directory permissions
-ls -la ~/.config/imi/
+ls -la ~/.config/iMi/
 # Reset configuration
-rm ~/.config/imi/config.toml
+rm ~/.config/iMi/config.toml
 ```
 
 **Database corruption**
 ```bash
 # Reset the database
-rm ~/.config/imi/imi.db
+rm ~/.config/iMi/iMi.db
 ```
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch: `imi feat my-new-feature`
+2. Create your feature branch: `iMi feat my-new-feature`
 3. Commit your changes: `git commit -am 'Add some feature'`
 4. Push to the branch: `git push origin feat/my-new-feature`
 5. Submit a pull request
@@ -224,15 +222,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Related Projects
 
-- [33GOD](https://github.com/33god/33god) - The complete agentic software pipeline
-- [Claude Flow](https://github.com/ruvnet/claude-flow) - Multi-agent coordination framework
+- [33GOD](https://github.com/delorenj/33GOD)
 
 ## 📞 Support
 
-- Issues: [GitHub Issues](https://github.com/33god/imi/issues)
-- Documentation: [GitHub Wiki](https://github.com/33god/imi/wiki)
+- Issues: [GitHub Issues](https://github.com/33god/iMi/issues)
+- Documentation: [GitHub Wiki](https://github.com/33god/iMi/wiki)
 - Discord: [33GOD Community](https://discord.gg/33god)
 
 ---
 
-Built with ❤️ for the 33GOD Agentic Software Pipeline
+Built with ❤️
