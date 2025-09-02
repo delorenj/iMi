@@ -48,6 +48,7 @@ impl GitManager {
     }
     
     /// Get the default branch name
+    #[allow(dead_code)]
     pub fn get_default_branch(&self, repo: &Repository) -> Result<String> {
         // Try to get the default branch from remote HEAD
         if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
@@ -130,6 +131,7 @@ impl GitManager {
     }
     
     /// List all worktrees for a repository
+    #[allow(dead_code)]
     pub fn list_worktrees(&self, repo: &Repository) -> Result<Vec<String>> {
         let worktrees = repo.worktrees()?;
         let mut result = Vec::new();
@@ -159,6 +161,7 @@ impl GitManager {
     }
     
     /// Check if a branch exists (local or remote)
+    #[allow(dead_code)]
     pub fn branch_exists(&self, repo: &Repository, branch_name: &str) -> bool {
         repo.find_branch(branch_name, BranchType::Local).is_ok() ||
         repo.find_branch(&format!("origin/{}", branch_name), BranchType::Remote).is_ok()

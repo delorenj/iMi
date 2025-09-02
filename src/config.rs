@@ -141,6 +141,7 @@ impl Config {
         }
     }
     
+    #[allow(dead_code)]
     pub async fn ensure_database_directory(&self) -> Result<()> {
         if let Some(parent) = self.database_path.parent() {
             fs::create_dir_all(parent).await

@@ -128,7 +128,7 @@ impl WorktreeManager {
         let worktree_path = self.config.get_worktree_path(&repo_name, worktree_name);
         
         // Check if worktree already exists
-        if let Some(existing) = self.db.get_worktree(&repo_name, worktree_name).await? {
+        if let Some(_existing) = self.db.get_worktree(&repo_name, worktree_name).await? {
             if worktree_path.exists() {
                 println!("{} Worktree already exists: {}", "ℹ️".bright_blue(), worktree_path.display());
                 return Ok(worktree_path);
@@ -179,7 +179,7 @@ impl WorktreeManager {
         let trunk_path = self.config.get_trunk_path(&repo_name);
         
         // Try to checkout PR using gh CLI
-        let repo = self.git.find_repository(Some(&trunk_path))?;
+        let _repo = self.git.find_repository(Some(&trunk_path))?;
         self.git.checkout_pr(&trunk_path, pr_number, &worktree_path)?;
         
         // Create sync directories and symlinks
@@ -397,7 +397,7 @@ impl WorktreeManager {
         if let Some(dir_name) = current_dir.file_name() {
             if let Some(name) = dir_name.to_str() {
                 // Handle worktree directory names (feat-name, pr-123, etc.)
-                if let Some(captures) = regex::Regex::new(r"^(feat|pr|fix|aiops|devops|trunk)-.*$")
+                if let Some(_captures) = regex::Regex::new(r"^(feat|pr|fix|aiops|devops|trunk)-.*$")
                     .unwrap()
                     .captures(name) 
                 {

@@ -2,6 +2,7 @@ use std::io;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum ImiError {
     #[error("Git operation failed: {0}")]
     GitError(#[from] git2::Error),
@@ -51,4 +52,5 @@ pub enum ImiError {
     AgentCommunicationError(String),
 }
 
+#[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, ImiError>;

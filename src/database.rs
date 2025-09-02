@@ -145,6 +145,7 @@ impl Database {
     }
     
     // Repository operations
+    #[allow(dead_code)]
     pub async fn create_repository(
         &self,
         name: &str,
@@ -187,6 +188,7 @@ impl Database {
         Ok(repo)
     }
     
+    #[allow(dead_code)]
     pub async fn get_repository(&self, name: &str) -> Result<Option<Repository>> {
         let row = sqlx::query("SELECT * FROM repositories WHERE name = ? AND active = TRUE")
             .bind(name)

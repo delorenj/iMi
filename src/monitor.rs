@@ -135,7 +135,7 @@ impl MonitorManager {
             
             // Every 30 seconds, show a summary
             if last_status_check.elapsed() >= Duration::from_secs(30) {
-                self.display_status_summary(&worktrees).await;
+                let _ = self.display_status_summary(&worktrees).await;
                 last_status_check = Instant::now();
             }
         }
@@ -288,6 +288,7 @@ impl MonitorManager {
     }
     
     /// Show real-time Git statistics
+    #[allow(dead_code)]
     pub async fn show_git_stats(&self, repo: Option<&str>) -> Result<()> {
         let worktrees = self.worktree_manager.db.list_worktrees(repo).await?;
         
