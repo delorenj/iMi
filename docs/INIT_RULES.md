@@ -1,70 +1,38 @@
 # iMi Init Command Rules
 
-## Two-Root Architecture
+## Init Flow
 
-### Global iMi Root
-- **Purpose**: Where agents get cloned and managed
-- **Location**: User preference (default: `~/.iMi`, preferred: `/home/delorenj/code`)
-- **Storage**: `~/.config/iMi/config.toml` → `root_path`
+**When run outside of a repository:**
+- It creates a default configuration file if one does not exist or updates it if the `--force` flag is provided.
+- It creates the local database if it does not exist or updates it if the `--force` flag is provided.
+- [TBD LATER] If discovery is enabled, it registers itself with the 33GOD server (Jelmore) as an iMi-capable host.
+
+**When run in a repository** 
+- it does all of the above
+- it checks the directory structure to ensure it adhere's to iMi's conventions
+  - If it doesn't
+    - it exits with an error.
+  - If if does
+    - it registers the repository in the database 
+      - if that repo is already registered
+        - it exits with an error
+      - if it's not registered
+        - it registers the iMi path with the database
+          - the iMi path is the parent directory of all the branches (e.g. `repo` in `/path/to/repo/trunk-main`)
+        - it creates a .iMi/ dir in the iMi path. This is kinda like a `.git/` dir. Contents TBD.
+
+## Global iMi Config
+- **Storage**: `~/.config/iMi/config.toml`
 - **Scope**: System-wide, one per host
-
-### Repository Path
-- **Purpose**: Individual repository being initialized
-- **Location**: The actual repository directory
-- **Storage**: Database `repositories.path` field
-- **Scope**: Per repository
 
 ## Path Detection Logic
 
 ### When in Trunk Directory (`trunk-*`)
-```rust
-// Current: /path/to/repo/trunk-main
-// Repository path: /path/to/repo (parent)
-// Repository name: repo
-let repo_dir = current_dir.parent()?;
-let repo_name = repo_dir.file_name()?.to_str()?;
-```
+Consider a repo `delorenj/coolode` cloned with this command: `gh repo clone delorenj/coolcode /path/to/coolcode/trunk-main`
 
-### When at Repository Root
-```rust
-// Current: /path/to/repo
-// Repository path: /path/to/repo (current)
-// Repository name: repo
-let repo_name = current_dir.file_name()?.to_str()?;
-```
+Here's the naming convention and terminology:
 
-## Database Operations
+- REPOSITORY_PATH: /path/to/coolcode/trunk-main (implicitly, refers to the main branch)
+- REPOSITORY_NAME: coolcode
+- IMI_PATH: /path/to/coolcode (parent of trunk-main, and all other branches/worktrees)
 
-### Repository Registration
-- Check existence: `database.get_repository(&repo_name)`
-- Create only if not exists
-- Store repository path (not parent or grandparent)
-
-### Worktree Registration
-- Only for trunk directories
-- Extract branch from directory name (`trunk-main` → `main`)
-- Store current directory path for worktree
-
-## Configuration Management
-
-### New Installation
-- Set `root_path = "/home/delorenj/code"`
-- Create default config structure
-
-### Force Flag Behavior
-- Override existing configuration
-- Update global iMi root path
-- Preserve database integrity
-
-### No Force Flag
-- Skip if config exists
-- Show current configuration
-- Exit gracefully (not an error)
-
-## Validation Rules
-
-1. **Never go up more than one level** from current directory
-2. **Global root ≠ Repository path** (two separate concepts)
-3. **Database stores repository paths**, not parent directories
-4. **Config stores global root**, not repository-specific paths
-5. **Trunk detection**: Directory name starts with `trunk-`
