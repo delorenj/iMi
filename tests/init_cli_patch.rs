@@ -6,7 +6,7 @@ mod implementation_guide {
     use std::path::PathBuf;
 
     /// Add this to src/cli.rs Commands enum (after Monitor command)
-    #[test] 
+    #[test]
     fn cli_enum_addition() {
         let code_to_add = r#"
     /// Initialize iMi in the current trunk directory
@@ -94,9 +94,9 @@ mod implementation_guide {
     }
 
     /// Add this new module to src/ directory
-    #[test] 
+    #[test]
     fn init_module_creation() {
-        let code_to_add = r#"// File: src/init.rs
+        let code_to_add = r##"// File: src/init.rs
 
 use anyhow::{Context, Result};
 use colored::*;
@@ -428,7 +428,7 @@ auto_fetch = {}
 
         Ok(())
     }
-}"#;
+}"##;
 
         println!("Create this file as src/init.rs:\n{}", code_to_add);
     }
@@ -502,8 +502,14 @@ This file contains guidelines specific to your technology stack.
 ---
 *This file is automatically created by `iMi init` and should be customized for your specific technology stack.*"#;
 
-        println!("Create templates/coding-rules.md:\n{}", coding_rules_template);
-        println!("\nCreate templates/stack-specific.md:\n{}", stack_specific_template);
+        println!(
+            "Create templates/coding-rules.md:\n{}",
+            coding_rules_template
+        );
+        println!(
+            "\nCreate templates/stack-specific.md:\n{}",
+            stack_specific_template
+        );
     }
 
     /// Add required imports to main.rs

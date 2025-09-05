@@ -21,6 +21,13 @@ categories = ["command-line-utilities", "development-tools"]
 name = "iMi"
 path = "src/main.rs"
 
+[lib]
+name = "imi"
+path = "src/lib.rs"
+
+[features]
+testing = []
+
 [dependencies]
 # CLI framework
 clap = { version = "4.5", features = ["derive", "cargo"] }

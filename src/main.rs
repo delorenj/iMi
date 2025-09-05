@@ -8,6 +8,7 @@ mod config;
 mod database;
 mod error;
 mod git;
+mod init;
 mod monitor;
 mod worktree;
 
@@ -15,27 +16,30 @@ use cli::{Cli, Commands};
 use config::Config;
 use database::Database;
 use git::GitManager;
+use init::InitCommand;
 use worktree::WorktreeManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize the CLI
     let cli = Cli::parse();
-    
+
     // Load configuration
-    let config = Config::load().await.context("Failed to load configuration")?;
-    
+    let config = Config::load()
+        .await
+        .context("Failed to load configuration")?;
+
     // Initialize database
     let db = Database::new(&config.database_path)
         .await
         .context("Failed to initialize database")?;
-    
+
     // Initialize Git manager
     let git_manager = GitManager::new();
-    
+
     // Initialize worktree manager
     let worktree_manager = WorktreeManager::new(git_manager, db, config.clone());
-    
+
     // Handle commands
     match cli.command {
         Commands::Feat { name, repo } => {
@@ -72,7 +76,7 @@ async fn main() -> Result<()> {
             handle_init_command(force).await?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -81,14 +85,26 @@ async fn handle_feature_command(
     name: &str,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Creating feature worktree: {}", "🚀".bright_cyan(), name.bright_green());
+    println!(
+        "{} Creating feature worktree: {}",
+        "🚀".bright_cyan(),
+        name.bright_green()
+    );
     let worktree_path = manager.create_feature_worktree(name, repo).await?;
-    println!("{} Feature worktree created at: {}", "✅".bright_green(), worktree_path.display());
-    
+    println!(
+        "{} Feature worktree created at: {}",
+        "✅".bright_green(),
+        worktree_path.display()
+    );
+
     // Change to the worktree directory
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
@@ -97,13 +113,25 @@ async fn handle_review_command(
     pr_number: u32,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Creating review worktree for PR: {}", "🔍".bright_yellow(), pr_number.to_string().bright_green());
+    println!(
+        "{} Creating review worktree for PR: {}",
+        "🔍".bright_yellow(),
+        pr_number.to_string().bright_green()
+    );
     let worktree_path = manager.create_review_worktree(pr_number, repo).await?;
-    println!("{} Review worktree created at: {}", "✅".bright_green(), worktree_path.display());
-    
+    println!(
+        "{} Review worktree created at: {}",
+        "✅".bright_green(),
+        worktree_path.display()
+    );
+
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
@@ -112,13 +140,25 @@ async fn handle_fix_command(
     name: &str,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Creating fix worktree: {}", "🔧".bright_red(), name.bright_green());
+    println!(
+        "{} Creating fix worktree: {}",
+        "🔧".bright_red(),
+        name.bright_green()
+    );
     let worktree_path = manager.create_fix_worktree(name, repo).await?;
-    println!("{} Fix worktree created at: {}", "✅".bright_green(), worktree_path.display());
-    
+    println!(
+        "{} Fix worktree created at: {}",
+        "✅".bright_green(),
+        worktree_path.display()
+    );
+
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
@@ -127,13 +167,25 @@ async fn handle_aiops_command(
     name: &str,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Creating aiops worktree: {}", "🤖".bright_magenta(), name.bright_green());
+    println!(
+        "{} Creating aiops worktree: {}",
+        "🤖".bright_magenta(),
+        name.bright_green()
+    );
     let worktree_path = manager.create_aiops_worktree(name, repo).await?;
-    println!("{} Aiops worktree created at: {}", "✅".bright_green(), worktree_path.display());
-    
+    println!(
+        "{} Aiops worktree created at: {}",
+        "✅".bright_green(),
+        worktree_path.display()
+    );
+
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
@@ -142,42 +194,49 @@ async fn handle_devops_command(
     name: &str,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Creating devops worktree: {}", "⚙️".bright_blue(), name.bright_green());
+    println!(
+        "{} Creating devops worktree: {}",
+        "⚙️".bright_blue(),
+        name.bright_green()
+    );
     let worktree_path = manager.create_devops_worktree(name, repo).await?;
-    println!("{} Devops worktree created at: {}", "✅".bright_green(), worktree_path.display());
-    
+    println!(
+        "{} Devops worktree created at: {}",
+        "✅".bright_green(),
+        worktree_path.display()
+    );
+
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
-async fn handle_trunk_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-) -> Result<()> {
+async fn handle_trunk_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
     println!("{} Switching to trunk worktree", "🌳".bright_green());
     let worktree_path = manager.get_trunk_worktree(repo).await?;
-    
+
     env::set_current_dir(&worktree_path)?;
-    println!("{} Changed to trunk directory: {}", "📁".bright_blue(), worktree_path.display());
-    
+    println!(
+        "{} Changed to trunk directory: {}",
+        "📁".bright_blue(),
+        worktree_path.display()
+    );
+
     Ok(())
 }
 
-async fn handle_status_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-) -> Result<()> {
+async fn handle_status_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
     println!("{} Worktree Status", "📊".bright_cyan());
     manager.show_status(repo).await?;
     Ok(())
 }
 
-async fn handle_list_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-) -> Result<()> {
+async fn handle_list_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
     println!("{} Active Worktrees", "📋".bright_cyan());
     manager.list_worktrees(repo).await?;
     Ok(())
@@ -188,85 +247,29 @@ async fn handle_remove_command(
     name: &str,
     repo: Option<&str>,
 ) -> Result<()> {
-    println!("{} Removing worktree: {}", "🗑️".bright_red(), name.bright_yellow());
+    println!(
+        "{} Removing worktree: {}",
+        "🗑️".bright_red(),
+        name.bright_yellow()
+    );
     manager.remove_worktree(name, repo).await?;
     println!("{} Worktree removed successfully", "✅".bright_green());
     Ok(())
 }
 
-async fn handle_monitor_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-) -> Result<()> {
+async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
     println!("{} Starting real-time monitoring...", "👁️".bright_purple());
     manager.start_monitoring(repo).await?;
     Ok(())
 }
 
 async fn handle_init_command(force: bool) -> Result<()> {
+    let init_cmd = InitCommand::new(force);
+    let result = init_cmd.execute().await?;
     
-    println!("{} Initializing iMi for current directory...", "🔧".bright_cyan());
-    
-    // Get current directory
-    let current_dir = env::current_dir().context("Failed to get current directory")?;
-    let current_dir_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .context("Failed to get current directory name")?;
-    
-    // Check if we're in a trunk directory and determine root path
-    let root_path = if current_dir_name.starts_with("trunk-") {
-        // We're in a trunk directory, so the grandparent is the root_path
-        let repo_dir = current_dir.parent().context("Failed to get parent directory")?;
-        let root_dir = repo_dir.parent().context("Failed to get grandparent directory")?;
-        println!("{} Detected trunk directory: {}", "🔍".bright_yellow(), current_dir_name.bright_green());
-        println!("{} Repository directory: {}", "📁".bright_blue(), repo_dir.display());
-        println!("{} Root path set to: {}", "🏠".bright_green(), root_dir.display());
-        root_dir.to_path_buf()
-    } else {
-        // We're at the repo root, so the parent becomes root_path
-        let root_dir = current_dir.parent().context("Failed to get parent directory")?;
-        println!("{} Current directory is repository root", "📁".bright_blue());
-        println!("{} Root path set to: {}", "🏠".bright_green(), root_dir.display());
-        root_dir.to_path_buf()
-    };
-    
-    // Load existing config or create default
-    let config_path = Config::get_config_path()?;
-    let config_exists = config_path.exists();
-    
-    if config_exists && !force {
-        println!("{} iMi configuration already exists at: {}", "⚠️".bright_yellow(), config_path.display());
-        println!("{} Use {} to override existing configuration", "💡".bright_blue(), "--force".bright_green());
-        return Ok(());
+    if !result.success {
+        anyhow::bail!("{}", result.message);
     }
-    
-    // Load existing config or create default, then update root path
-    let mut config = if config_exists {
-        Config::load().await.context("Failed to load existing configuration")?
-    } else {
-        Config::default()
-    };
-    
-    // Update the root path
-    let old_root = config.root_path.clone();
-    config.root_path = root_path.clone();
-    
-    // Save the updated configuration
-    config.save().await.context("Failed to save configuration")?;
-    
-    // Success messages
-    if config_exists {
-        println!("{} Updated iMi root path:", "⚙️".bright_green());
-        println!("   {} {}", "From:".bright_yellow(), old_root.display());
-        println!("   {} {}", "To:".bright_green(), root_path.display());
-    } else {
-        println!("{} Created new iMi configuration", "✨".bright_green());
-        println!("{} Repository root: {}", "🏠".bright_blue(), root_path.display());
-    }
-    
-    println!("{} Configuration saved to: {}", "💾".bright_cyan(), config_path.display());
-    println!("{} iMi initialization complete!", "✅".bright_green());
     
     Ok(())
 }

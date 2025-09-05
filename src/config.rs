@@ -40,10 +40,10 @@ pub struct MonitoringSettings {
 impl Default for Config {
     fn default() -> Self {
         let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        let config_dir = home_dir.join(".config").join("imi");
-        
+        let config_dir = home_dir.join(".config").join("iMi");
+
         Self {
-            database_path: config_dir.join("imi.db"),
+            database_path: config_dir.join("iMi.db"),
             root_path: home_dir.join("code"),
             sync_settings: SyncSettings {
                 enabled: true,
@@ -75,15 +75,15 @@ impl Default for Config {
 impl Config {
     pub async fn load() -> Result<Self> {
         let config_path = Self::get_config_path()?;
-        
+
         if config_path.exists() {
             let contents = fs::read_to_string(&config_path)
                 .await
                 .context("Failed to read config file")?;
-            
-            let config: Config = toml::from_str(&contents)
-                .context("Failed to parse config file")?;
-            
+
+            let config: Config =
+                toml::from_str(&contents).context("Failed to parse config file")?;
+
             Ok(config)
         } else {
             let config = Self::default();
@@ -91,60 +91,63 @@ impl Config {
             Ok(config)
         }
     }
-    
+
     pub async fn save(&self) -> Result<()> {
         let config_path = Self::get_config_path()?;
-        
+
         // Ensure config directory exists
         if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent).await
+            fs::create_dir_all(parent)
+                .await
                 .context("Failed to create config directory")?;
         }
-        
-        let contents = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
-            
-        fs::write(&config_path, contents).await
+
+        let contents = toml::to_string_pretty(self).context("Failed to serialize config")?;
+
+        fs::write(&config_path, contents)
+            .await
             .context("Failed to write config file")?;
-        
+
         Ok(())
     }
-    
+
     pub fn get_config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .context("Could not find config directory")?
-            .join("imi");
-        
+            .join("iMi");
+
         Ok(config_dir.join("config.toml"))
     }
-    
+
     pub fn get_repo_path(&self, repo_name: &str) -> PathBuf {
         self.root_path.join(repo_name)
     }
-    
+
     pub fn get_trunk_path(&self, repo_name: &str) -> PathBuf {
         let main_branch = &self.git_settings.default_branch;
-        self.get_repo_path(repo_name).join(format!("trunk-{}", main_branch))
+        self.get_repo_path(repo_name)
+            .join(format!("trunk-{}", main_branch))
     }
-    
+
     pub fn get_worktree_path(&self, repo_name: &str, worktree_name: &str) -> PathBuf {
         self.get_repo_path(repo_name).join(worktree_name)
     }
-    
+
     pub fn get_sync_path(&self, repo_name: &str, is_global: bool) -> PathBuf {
         let repo_path = self.get_repo_path(repo_name);
-        
+
         if is_global {
             repo_path.join(&self.sync_settings.global_sync_path)
         } else {
             repo_path.join(&self.sync_settings.repo_sync_path)
         }
     }
-    
+
     #[allow(dead_code)]
     pub async fn ensure_database_directory(&self) -> Result<()> {
         if let Some(parent) = self.database_path.parent() {
-            fs::create_dir_all(parent).await
+            fs::create_dir_all(parent)
+                .await
                 .context("Failed to create database directory")?;
         }
         Ok(())
@@ -155,7 +158,7 @@ impl Config {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[tokio::test]
     async fn test_config_default() {
         let config = Config::default();
@@ -163,18 +166,18 @@ mod tests {
         assert!(config.monitoring_settings.enabled);
         assert!(config.sync_settings.enabled);
     }
-    
+
     #[tokio::test]
     async fn test_config_paths() {
         let config = Config::default();
         let repo_name = "test-repo";
-        
+
         let repo_path = config.get_repo_path(repo_name);
         assert!(repo_path.to_string_lossy().contains("test-repo"));
-        
+
         let trunk_path = config.get_trunk_path(repo_name);
         assert!(trunk_path.to_string_lossy().contains("trunk-main"));
-        
+
         let worktree_path = config.get_worktree_path(repo_name, "feat-test");
         assert!(worktree_path.to_string_lossy().contains("feat-test"));
     }

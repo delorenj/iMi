@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePool, Sqlite, Row};
+use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePool, Row, Sqlite};
 use std::path::Path;
 use uuid::Uuid;
 
@@ -50,22 +50,38 @@ pub struct Repository {
 impl Database {
     pub async fn new<P: AsRef<Path>>(database_path: P) -> Result<Self> {
         let database_url = format!("sqlite:{}", database_path.as_ref().display());
-        
+
+        // Ensure parent directory exists
+        if let Some(parent) = database_path.as_ref().parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create database directory: {}", parent.display()))?;
+        }
+
         // Create database if it doesn't exist
-        if !Sqlite::database_exists(&database_url).await.unwrap_or(false) {
-            Sqlite::create_database(&database_url).await
+        if !Sqlite::database_exists(&database_url)
+            .await
+            .unwrap_or(false)
+        {
+            Sqlite::create_database(&database_url)
+                .await
                 .context("Failed to create database")?;
         }
-        
-        let pool = SqlitePool::connect(&database_url).await
+
+        let pool = SqlitePool::connect(&database_url)
+            .await
             .context("Failed to connect to database")?;
-        
+
         let db = Self { pool };
         db.run_migrations().await?;
-        
+
         Ok(db)
     }
-    
+
+    /// Ensure database tables exist - public method for external use
+    pub async fn ensure_tables(&self) -> Result<()> {
+        self.run_migrations().await
+    }
+
     async fn run_migrations(&self) -> Result<()> {
         // Create repositories table
         sqlx::query(
@@ -85,7 +101,7 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to create repositories table")?;
-        
+
         // Create worktrees table
         sqlx::query(
             r#"
@@ -108,7 +124,7 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to create worktrees table")?;
-        
+
         // Create agent_activities table
         sqlx::query(
             r#"
@@ -127,23 +143,23 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to create agent_activities table")?;
-        
+
         // Create indexes for performance
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_worktrees_repo_name ON worktrees (repo_name)")
             .execute(&self.pool)
             .await?;
-            
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_worktrees_active ON worktrees (active)")
             .execute(&self.pool)
             .await?;
-            
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_agent_activities_worktree_id ON agent_activities (worktree_id)")
             .execute(&self.pool)
             .await?;
-        
+
         Ok(())
     }
-    
+
     // Repository operations
     #[allow(dead_code)]
     pub async fn create_repository(
@@ -155,7 +171,7 @@ impl Database {
     ) -> Result<Repository> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         let repo = Repository {
             id: id.clone(),
             name: name.to_string(),
@@ -166,7 +182,7 @@ impl Database {
             updated_at: now,
             active: true,
         };
-        
+
         sqlx::query(
             r#"
             INSERT INTO repositories (id, name, path, remote_url, default_branch, created_at, updated_at, active)
@@ -184,10 +200,10 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to insert repository")?;
-        
+
         Ok(repo)
     }
-    
+
     #[allow(dead_code)]
     pub async fn get_repository(&self, name: &str) -> Result<Option<Repository>> {
         let row = sqlx::query("SELECT * FROM repositories WHERE name = ? AND active = TRUE")
@@ -195,7 +211,7 @@ impl Database {
             .fetch_optional(&self.pool)
             .await
             .context("Failed to fetch repository")?;
-        
+
         if let Some(row) = row {
             Ok(Some(Repository {
                 id: row.get("id"),
@@ -213,7 +229,7 @@ impl Database {
             Ok(None)
         }
     }
-    
+
     // Worktree operations
     pub async fn create_worktree(
         &self,
@@ -226,7 +242,7 @@ impl Database {
     ) -> Result<Worktree> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         let worktree = Worktree {
             id: id.clone(),
             repo_name: repo_name.to_string(),
@@ -239,7 +255,7 @@ impl Database {
             active: true,
             agent_id: agent_id.map(|s| s.to_string()),
         };
-        
+
         sqlx::query(
             r#"
             INSERT OR REPLACE INTO worktrees 
@@ -260,20 +276,24 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to insert worktree")?;
-        
+
         Ok(worktree)
     }
-    
-    pub async fn get_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<Option<Worktree>> {
+
+    pub async fn get_worktree(
+        &self,
+        repo_name: &str,
+        worktree_name: &str,
+    ) -> Result<Option<Worktree>> {
         let row = sqlx::query(
-            "SELECT * FROM worktrees WHERE repo_name = ? AND worktree_name = ? AND active = TRUE"
+            "SELECT * FROM worktrees WHERE repo_name = ? AND worktree_name = ? AND active = TRUE",
         )
         .bind(repo_name)
         .bind(worktree_name)
         .fetch_optional(&self.pool)
         .await
         .context("Failed to fetch worktree")?;
-        
+
         if let Some(row) = row {
             Ok(Some(Worktree {
                 id: row.get("id"),
@@ -293,7 +313,7 @@ impl Database {
             Ok(None)
         }
     }
-    
+
     pub async fn list_worktrees(&self, repo_name: Option<&str>) -> Result<Vec<Worktree>> {
         let query = if let Some(repo) = repo_name {
             sqlx::query("SELECT * FROM worktrees WHERE repo_name = ? AND active = TRUE ORDER BY created_at DESC")
@@ -301,10 +321,12 @@ impl Database {
         } else {
             sqlx::query("SELECT * FROM worktrees WHERE active = TRUE ORDER BY created_at DESC")
         };
-        
-        let rows = query.fetch_all(&self.pool).await
+
+        let rows = query
+            .fetch_all(&self.pool)
+            .await
             .context("Failed to fetch worktrees")?;
-        
+
         let mut worktrees = Vec::new();
         for row in rows {
             worktrees.push(Worktree {
@@ -322,10 +344,10 @@ impl Database {
                 agent_id: row.get("agent_id"),
             });
         }
-        
+
         Ok(worktrees)
     }
-    
+
     pub async fn deactivate_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<()> {
         sqlx::query(
             "UPDATE worktrees SET active = FALSE, updated_at = ? WHERE repo_name = ? AND worktree_name = ?"
@@ -336,10 +358,10 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to deactivate worktree")?;
-        
+
         Ok(())
     }
-    
+
     // Agent activity operations
     pub async fn log_agent_activity(
         &self,
@@ -351,7 +373,7 @@ impl Database {
     ) -> Result<AgentActivity> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         let activity = AgentActivity {
             id: id.clone(),
             agent_id: agent_id.to_string(),
@@ -361,7 +383,7 @@ impl Database {
             description: description.to_string(),
             created_at: now,
         };
-        
+
         sqlx::query(
             r#"
             INSERT INTO agent_activities (id, agent_id, worktree_id, activity_type, file_path, description, created_at)
@@ -378,11 +400,15 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to insert agent activity")?;
-        
+
         Ok(activity)
     }
-    
-    pub async fn get_recent_activities(&self, worktree_id: Option<&str>, limit: i64) -> Result<Vec<AgentActivity>> {
+
+    pub async fn get_recent_activities(
+        &self,
+        worktree_id: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<AgentActivity>> {
         let query = if let Some(wt_id) = worktree_id {
             sqlx::query(
                 "SELECT * FROM agent_activities WHERE worktree_id = ? ORDER BY created_at DESC LIMIT ?"
@@ -390,10 +416,13 @@ impl Database {
         } else {
             sqlx::query("SELECT * FROM agent_activities ORDER BY created_at DESC LIMIT ?")
         };
-        
-        let rows = query.bind(limit).fetch_all(&self.pool).await
+
+        let rows = query
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
             .context("Failed to fetch agent activities")?;
-        
+
         let mut activities = Vec::new();
         for row in rows {
             activities.push(AgentActivity {
@@ -407,7 +436,7 @@ impl Database {
                     .with_timezone(&Utc),
             });
         }
-        
+
         Ok(activities)
     }
 }

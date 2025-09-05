@@ -35,7 +35,7 @@ mod cli_integration_tests {
             .expect("Failed to run iMi --help");
 
         let help_text = String::from_utf8_lossy(&output.stdout);
-        
+
         // This test will initially fail until init command is added to CLI
         // assert!(help_text.contains("init"), "Help should mention init command");
         // For now, just verify the binary runs
@@ -47,7 +47,9 @@ mod cli_integration_tests {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("cli-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
-        fs::create_dir_all(&trunk_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&trunk_dir)
+            .await
+            .expect("Failed to create directories");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -64,8 +66,14 @@ mod cli_integration_tests {
         // This will initially fail as init command doesn't exist yet
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            assert!(stdout.contains("initialized"), "Output should indicate success");
-            assert!(trunk_dir.join(".imi").exists(), ".imi directory should be created");
+            assert!(
+                stdout.contains("initialized"),
+                "Output should indicate success"
+            );
+            assert!(
+                trunk_dir.join(".imi").exists(),
+                ".imi directory should be created"
+            );
         } else {
             // For now, just verify we get a reasonable error
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -78,7 +86,9 @@ mod cli_integration_tests {
     async fn test_cli_init_in_non_trunk_directory() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let non_trunk_dir = temp_dir.path().join("feature-branch");
-        fs::create_dir_all(&non_trunk_dir).await.expect("Failed to create directory");
+        fs::create_dir_all(&non_trunk_dir)
+            .await
+            .expect("Failed to create directory");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -97,8 +107,10 @@ mod cli_integration_tests {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if !stderr.contains("command") && !stderr.contains("subcommand") {
                 // If it's not a "command not found" error, check for our validation
-                assert!(stderr.contains("trunk-") || stderr.contains("directory"), 
-                    "Should provide helpful error about trunk- requirement");
+                assert!(
+                    stderr.contains("trunk-") || stderr.contains("directory"),
+                    "Should provide helpful error about trunk- requirement"
+                );
             }
         }
     }
@@ -115,8 +127,14 @@ mod cli_integration_tests {
         // This will fail until init command is added
         if output.status.success() {
             let help_text = String::from_utf8_lossy(&output.stdout);
-            assert!(help_text.contains("Initialize"), "Help should explain what init does");
-            assert!(help_text.contains("trunk-"), "Help should mention trunk- requirement");
+            assert!(
+                help_text.contains("Initialize"),
+                "Help should explain what init does"
+            );
+            assert!(
+                help_text.contains("trunk-"),
+                "Help should mention trunk- requirement"
+            );
         } else {
             println!("Expected: init command not yet implemented");
         }
@@ -127,7 +145,9 @@ mod cli_integration_tests {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("verbose-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
-        fs::create_dir_all(&trunk_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&trunk_dir)
+            .await
+            .expect("Failed to create directories");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -151,7 +171,9 @@ mod cli_integration_tests {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("dry-run-repo");
         let trunk_dir = repo_dir.join("trunk-main");
-        fs::create_dir_all(&trunk_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&trunk_dir)
+            .await
+            .expect("Failed to create directories");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -168,8 +190,10 @@ mod cli_integration_tests {
 
         // In dry-run mode, no files should be created
         if output.status.success() {
-            assert!(!trunk_dir.join(".imi").exists(), 
-                "Dry run should not create actual files");
+            assert!(
+                !trunk_dir.join(".imi").exists(),
+                "Dry run should not create actual files"
+            );
         }
 
         println!("Dry run test - init command not yet implemented");
@@ -181,7 +205,9 @@ mod cli_integration_tests {
         let repo_dir = temp_dir.path().join("force-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
         let imi_dir = trunk_dir.join(".imi");
-        fs::create_dir_all(&imi_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&imi_dir)
+            .await
+            .expect("Failed to create directories");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -200,12 +226,14 @@ mod cli_integration_tests {
         println!("Force flag test - init command not yet implemented");
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_cli_init_config_option() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("config-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
-        fs::create_dir_all(&trunk_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&trunk_dir)
+            .await
+            .expect("Failed to create directories");
 
         build_test_binary().expect("Failed to build binary");
 
@@ -226,13 +254,15 @@ mod cli_integration_tests {
     #[tokio::test]
     async fn test_cli_init_exit_codes() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         build_test_binary().expect("Failed to build binary");
 
         // Test success case (trunk directory)
         let repo_dir = temp_dir.path().join("exit-code-repo");
         let trunk_dir = repo_dir.join("trunk-main");
-        fs::create_dir_all(&trunk_dir).await.expect("Failed to create directories");
+        fs::create_dir_all(&trunk_dir)
+            .await
+            .expect("Failed to create directories");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
         env::set_current_dir(&trunk_dir).expect("Failed to change directory");
@@ -244,14 +274,20 @@ mod cli_integration_tests {
 
         // Should exit with code 0 on success (when implemented)
         if output.status.success() {
-            assert_eq!(output.status.code(), Some(0), "Should exit with code 0 on success");
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "Should exit with code 0 on success"
+            );
         }
 
         env::set_current_dir(&original_dir).expect("Failed to restore directory");
 
         // Test failure case (non-trunk directory)
         let non_trunk_dir = temp_dir.path().join("not-trunk");
-        fs::create_dir_all(&non_trunk_dir).await.expect("Failed to create directory");
+        fs::create_dir_all(&non_trunk_dir)
+            .await
+            .expect("Failed to create directory");
         env::set_current_dir(&non_trunk_dir).expect("Failed to change directory");
 
         let output = Command::new(IMI_BINARY)
@@ -262,8 +298,14 @@ mod cli_integration_tests {
         env::set_current_dir(original_dir).expect("Failed to restore directory");
 
         // Should exit with non-zero code on error (when implemented)
-        if !output.status.success() && !String::from_utf8_lossy(&output.stderr).contains("subcommand") {
-            assert_ne!(output.status.code(), Some(0), "Should exit with non-zero code on error");
+        if !output.status.success()
+            && !String::from_utf8_lossy(&output.stderr).contains("subcommand")
+        {
+            assert_ne!(
+                output.status.code(),
+                Some(0),
+                "Should exit with non-zero code on error"
+            );
         }
     }
 }
@@ -286,24 +328,24 @@ mod expected_behavior_tests {
         //   --verbose, -v        Show detailed output
         //   --config <FILE>      Use custom config file
         //   --help, -h           Show help message
-        
+
         println!("Expected CLI signature documented");
-        
+
         // This should be added to cli.rs:
         /*
         Init {
             /// Force initialization even if already initialized
             #[arg(long, short)]
             force: bool,
-            
+
             /// Show what would be done without making changes
             #[arg(long, short = 'n')]
             dry_run: bool,
-            
+
             /// Show detailed output
             #[arg(long, short)]
             verbose: bool,
-            
+
             /// Use custom config file
             #[arg(long)]
             config: Option<PathBuf>,
@@ -315,7 +357,7 @@ mod expected_behavior_tests {
     #[tokio::test]
     async fn document_expected_error_messages() {
         // Expected error messages:
-        
+
         // 1. Not in trunk- directory:
         let expected_error_1 = r#"
 Error: iMi init must be run from a directory starting with 'trunk-'

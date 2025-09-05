@@ -1,8 +1,7 @@
 /// Comprehensive specification for the iMi init command
-/// 
+///
 /// This file serves as both documentation and test specification
 /// for the expected behavior of the `iMi init` command.
-
 use std::path::PathBuf;
 
 /// Expected CLI command structure that should be added to cli.rs
@@ -11,7 +10,7 @@ mod init_command_specification {
     use super::*;
 
     /// The Init command should be added to the Commands enum in cli.rs
-    /// 
+    ///
     /// ```rust,ignore
     /// /// Initialize iMi in the current trunk directory
     /// Init {
@@ -59,15 +58,15 @@ mod functional_requirements {
     #[test]
     fn requirement_1_trunk_directory_validation() {
         // REQUIREMENT: Must run from trunk-* directory
-        // 
+        //
         // The command MUST:
         // - Check current directory name starts with "trunk-"
         // - Extract branch name from "trunk-<branch>" pattern
         // - Fail with clear error if not in trunk directory
-        
+
         let valid_trunk_names = vec![
             "trunk-main",
-            "trunk-develop", 
+            "trunk-develop",
             "trunk-staging",
             "trunk-feature-branch",
             "trunk-v1.0",
@@ -75,11 +74,11 @@ mod functional_requirements {
 
         let invalid_trunk_names = vec![
             "main",
-            "trunk",  // missing branch suffix
+            "trunk", // missing branch suffix
             "feat-something",
             "pr-123",
             "fix-bug",
-            "trunk_main",  // underscore instead of dash
+            "trunk_main", // underscore instead of dash
         ];
 
         println!("Documented trunk directory validation requirements");
@@ -93,7 +92,7 @@ mod functional_requirements {
         // - Use parent directory name as repository name
         // - Validate parent directory exists
         // - Handle edge cases like root directory or symlinks
-        
+
         println!("Documented repository discovery requirements");
     }
 
@@ -106,7 +105,7 @@ mod functional_requirements {
         // - Read existing configuration if present
         // - Provide clear error message with timestamp
         // - Support --force flag to reinitialize
-        
+
         println!("Documented initialization state check requirements");
     }
 
@@ -119,12 +118,8 @@ mod functional_requirements {
         // - sync/global/ (shared across all repos)
         // - sync/repo/ (repository-specific sync)
         // - Parent directories as needed
-        
-        let required_directories = vec![
-            ".imi",
-            "sync/global", 
-            "sync/repo",
-        ];
+
+        let required_directories = vec![".imi", "sync/global", "sync/repo"];
 
         println!("Documented directory creation requirements");
     }
@@ -137,7 +132,7 @@ mod functional_requirements {
         // - .imi/repo.toml (repository configuration)
         // - sync/global/coding-rules.md (if doesn't exist)
         // - sync/global/stack-specific.md (if doesn't exist)
-        
+
         let required_files = vec![
             ".imi/repo.toml",
             "sync/global/coding-rules.md",
@@ -156,7 +151,7 @@ mod functional_requirements {
         // - Create worktree entry for trunk directory
         // - Set worktree type to "trunk"
         // - Record initialization timestamp
-        
+
         println!("Documented database initialization requirements");
     }
 
@@ -169,7 +164,7 @@ mod functional_requirements {
         // - Save global config if it doesn't exist
         // - Use configured paths for sync directories
         // - Respect configured default branch name
-        
+
         println!("Documented global config integration requirements");
     }
 }
@@ -357,7 +352,7 @@ Global configuration:
         println!("Documented dry run output specification");
     }
 
-    #[test] 
+    #[test]
     fn force_reinitialize_output() {
         let expected_output = r#"⚠️  Force mode - reinitializing existing repository
 
@@ -505,7 +500,7 @@ mod integration_specifications {
 
     #[test]
     fn integration_with_trunk_command() {
-        // After init, 'iMi trunk' should work properly  
+        // After init, 'iMi trunk' should work properly
         // - Should be able to switch to trunk
         // - Should find trunk worktree path
         // - Should work from any worktree
@@ -534,7 +529,7 @@ mod performance_specifications {
         // - Should handle large numbers of existing worktrees
         // - Should be atomic (all-or-nothing)
         // - Should provide progress indication for long operations
-        
+
         println!("Documented performance requirements");
     }
 
@@ -545,7 +540,7 @@ mod performance_specifications {
         // - Should clean up on failure (no partial state)
         // - Should validate all inputs before making changes
         // - Should provide clear error messages with recovery suggestions
-        
+
         println!("Documented reliability requirements");
     }
 
@@ -556,7 +551,7 @@ mod performance_specifications {
         // - Database should handle concurrent access
         // - File creation should be atomic where possible
         // - Should detect and handle race conditions
-        
+
         println!("Documented concurrency requirements");
     }
 }
