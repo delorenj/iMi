@@ -157,11 +157,6 @@ impl WorktreeManager {
         let trunk_path = self.config.get_trunk_path(&repo_name);
         let repo = self.git.find_repository(Some(&trunk_path))?;
 
-        // Create the worktree directory
-        async_fs::create_dir_all(&worktree_path)
-            .await
-            .context("Failed to create worktree directory")?;
-
         // Create the Git worktree
         self.git
             .create_worktree(

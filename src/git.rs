@@ -94,6 +94,9 @@ impl GitManager {
             repo.branch(branch, &base_commit, false)?;
         }
 
+        // Clean up any existing worktree artifacts before creation
+        self.cleanup_worktree_artifacts(repo, name, path)?;
+
         // Add the worktree
         let mut options = WorktreeAddOptions::new();
         let worktree = repo.worktree(name, path, Some(&mut options))?;
@@ -123,6 +126,41 @@ impl GitManager {
             }
         }
 
+        Ok(())
+    }
+
+    /// Clean up any existing worktree files and directories before creation
+    pub fn cleanup_worktree_artifacts(&self, repo: &Repository, name: &str, path: &Path) -> Result<()> {
+        println!("🧹 Cleaning up worktree artifacts for: {}", name);
+        
+        // Remove the git worktree entry if it exists
+        if let Ok(worktree) = repo.find_worktree(name) {
+            println!("📝 Found existing git worktree entry, removing...");
+            if worktree.is_prunable(None)? {
+                worktree.prune(None)?;
+                println!("✅ Git worktree entry pruned");
+            }
+        }
+
+        // Remove the filesystem directory if it exists
+        if path.exists() {
+            println!("📁 Removing filesystem directory: {}", path.display());
+            std::fs::remove_dir_all(path)
+                .context("Failed to remove existing worktree directory")?;
+            println!("✅ Filesystem directory removed");
+        }
+
+        // Remove any stale git worktree administrative directories
+        let git_dir = repo.path();
+        let worktree_admin_dir = git_dir.join("worktrees").join(name);
+        if worktree_admin_dir.exists() {
+            println!("⚙️ Removing git admin directory: {}", worktree_admin_dir.display());
+            std::fs::remove_dir_all(worktree_admin_dir)
+                .context("Failed to remove git worktree admin directory")?;
+            println!("✅ Git admin directory removed");
+        }
+
+        println!("🎯 Cleanup complete for: {}", name);
         Ok(())
     }
 
