@@ -221,7 +221,7 @@ impl EndToEndTests {
         result.integration_points.push("Config->Database->Repository->Worktree".to_string());
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("test-repo", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"test-repo", "main").await?;
         
         // Change to trunk directory
         let original_dir = env::current_dir()?;
@@ -311,7 +311,7 @@ impl EndToEndTests {
         result.integration_points.push("Force->Config->Database->Override".to_string());
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("force-repo", "develop").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"force-repo", "develop").await?;
         
         // First, do a normal init
         let original_dir = env::current_dir()?;
@@ -351,7 +351,7 @@ impl EndToEndTests {
         
         let env = TestEnvironment::new().await?;
         let config_path = env.simulate_existing_config().await?;
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("config-repo", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"config-repo", "main").await?;
         
         // Set config path environment variable (if the system uses it)
         env::set_var("IMIT_CONFIG_PATH", config_path);
@@ -436,8 +436,8 @@ impl EndToEndTests {
         let env = TestEnvironment::new().await?;
         
         // Create multiple repository structures
-        let (repo1_dir, trunk1_dir) = env.create_mock_repo_structure("repo-one", "main").await?;
-        let (repo2_dir, trunk2_dir) = env.create_mock_repo_structure("repo-two", "develop").await?;
+        let (repo1_dir, trunk1_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"repo-one", "main").await?;
+        let (repo2_dir, trunk2_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"repo-two", "develop").await?;
         
         let original_dir = env::current_dir()?;
         
@@ -571,7 +571,7 @@ impl ComponentInteractionTests {
         result.integration_points.push("Init<->WorktreeManager".to_string());
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("worktree-repo", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"worktree-repo", "main").await?;
         
         // Execute init and verify worktree manager can use the result
         let original_dir = env::current_dir()?;
@@ -705,7 +705,7 @@ impl WorkflowTests {
         
         // Simulate first-time developer setup
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("first-project", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"first-project", "main").await?;
         
         // First time - no existing config
         let original_dir = env::current_dir()?;
@@ -781,7 +781,7 @@ impl WorkflowTests {
         let environments = vec!["dev", "staging", "prod"];
         
         for env_name in &environments {
-            let (repo_dir, trunk_dir) = env.create_mock_repo_structure(
+            let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),
                 &format!("project-{}", env_name), 
                 env_name
             ).await?;
@@ -828,7 +828,7 @@ database_path = "/old/database.db"
 "#).await?;
         
         // Run migration (simulated through force init)
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("migration-repo", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"migration-repo", "main").await?;
         
         let original_dir = env::current_dir()?;
         env::set_current_dir(&trunk_dir)?;
@@ -855,7 +855,7 @@ database_path = "/old/database.db"
         let env = TestEnvironment::new().await?;
         
         // Create initial setup
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("recovery-repo", "main").await?;
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"recovery-repo", "main").await?;
         
         let original_dir = env::current_dir()?;
         env::set_current_dir(&trunk_dir)?;
@@ -1178,7 +1178,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_repo_structure_creation() {
         let env = TestEnvironment::new().await.unwrap();
-        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("test", "main").await.unwrap();
+        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"test", "main").await.unwrap();
         
         assert!(repo_dir.exists());
         assert!(trunk_dir.exists());

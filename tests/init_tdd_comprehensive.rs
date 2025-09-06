@@ -8,7 +8,8 @@ use std::{env, path::PathBuf};
 use tempfile::TempDir;
 use tokio::fs;
 
-use imi::test_utils::{create_mock_repo_structure, setup_test_env};
+mod common;
+use common::{create_mock_repo_structure, setup_test_env};
 use imi::{Config, Database, GitManager};
 
 /// Init command implementation that follows TDD patterns
@@ -355,7 +356,7 @@ mod tdd_tests {
     async fn test_ac001_init_succeeds_in_trunk_directory() {
         // AC-001: iMi init succeeds when run from trunk-* directory
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -392,7 +393,7 @@ mod tdd_tests {
     async fn test_ac002_detect_already_initialized() {
         // AC-002: Detect and handle already initialized repositories
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         // Pre-create .imi directory to simulate already initialized
         let imi_dir = trunk_dir.join(".imi");
@@ -414,7 +415,7 @@ mod tdd_tests {
     async fn test_ac003_force_reinitialize() {
         // AC-003: Force flag allows reinitialization
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         // Pre-create .imi directory
         let imi_dir = trunk_dir.join(".imi");
@@ -437,7 +438,7 @@ mod tdd_tests {
     async fn test_ac004_create_required_directories() {
         // AC-004: Create all required directory structure
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -466,7 +467,7 @@ mod tdd_tests {
     async fn test_ac005_create_configuration_files() {
         // AC-005: Create required configuration files
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -494,7 +495,7 @@ mod tdd_tests {
     async fn test_ac006_database_initialization() {
         // AC-006: Database is properly initialized and updated
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -520,7 +521,7 @@ mod tdd_tests {
     async fn test_ac007_different_branch_names() {
         // AC-007: Support different trunk branch names
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "test-repo", "develop").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "test-repo", "develop").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -569,7 +570,7 @@ mod tdd_tests {
         use std::time::Instant;
 
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "perf-test", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "perf-test", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -635,7 +636,7 @@ mod integration_tests {
     async fn test_integration_init_enables_status_command() {
         // After init, status command should work
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "integration-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "integration-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
@@ -658,7 +659,7 @@ mod integration_tests {
     async fn test_integration_init_enables_worktree_creation() {
         // After init, worktree creation should work 
         let (temp_dir, config, db, git) = setup_test_env().await.unwrap();
-        let (_, trunk_dir) = create_mock_repo_structure(temp_dir.path(), "integration-repo", "main").await.unwrap();
+        let (_, trunk_dir) = create_mock_repo_structure(&temp_dir.path().to_path_buf(), "integration-repo", "main").await.unwrap();
 
         let original_dir = env::current_dir().unwrap();
         env::set_current_dir(&trunk_dir).unwrap();
