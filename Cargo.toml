@@ -31,6 +31,7 @@ testing = []
 [dependencies]
 # CLI framework
 clap = { version = "4.5", features = ["derive", "cargo"] }
+clap_complete = "4.5"
 
 # Async runtime
 tokio = { version = "1.37", features = ["full"] }

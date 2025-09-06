@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::Shell;
 
 #[derive(Parser)]
 #[command(
@@ -93,6 +94,14 @@ pub enum Commands {
 
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
+
+        /// Keep local branch after removing worktree
+        #[arg(long)]
+        keep_branch: bool,
+
+        /// Keep remote branch after removing worktree (requires --keep-branch)
+        #[arg(long)]
+        keep_remote: bool,
     },
 
     /// Start real-time monitoring of worktree activities
@@ -106,5 +115,19 @@ pub enum Commands {
         /// Force initialization even if configuration already exists
         #[arg(long)]
         force: bool,
+    },
+
+    /// Generate shell completions for iMi
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+
+    /// Clean up stale worktree references from Git
+    #[command(alias = "cleanup")]
+    Prune {
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
     },
 }
