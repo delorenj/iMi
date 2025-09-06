@@ -24,61 +24,62 @@ async fn main() -> Result<()> {
     // Initialize the CLI
     let cli = Cli::parse();
 
-    // Handle commands
-    match cli.command {
-        Commands::Init { force } => {
-            handle_init_command(force).await?;
-        }
-        _ => {
-            // Load configuration
-            let config = Config::load()
-                .await
-                .context("Failed to load configuration. Have you run 'imi init'?")?;
+    if let Some(command) = cli.command {
+        match command {
+            Commands::Init { force } => {
+                handle_init_command(force).await?;
+            }
+            _ => {
+                // Load configuration
+                let config = Config::load()
+                    .await
+                    .context("Failed to load configuration. Have you run 'imi init'?")?;
 
-            // Initialize database
-            let db = Database::new(&config.database_path)
-                .await
-                .context("Failed to initialize database")?;
+                // Initialize database
+                let db = Database::new(&config.database_path)
+                    .await
+                    .context("Failed to initialize database")?;
 
-            // Initialize Git manager
-            let git_manager = GitManager::new();
+                // Initialize Git manager
+                let git_manager = GitManager::new();
 
-            // Initialize worktree manager
-            let worktree_manager = WorktreeManager::new(git_manager, db, config.clone());
+                // Initialize worktree manager
+                let worktree_manager = WorktreeManager::new(git_manager, db, config.clone());
 
-            match cli.command {
-                Commands::Feat { name, repo } => {
-                    handle_feature_command(&worktree_manager, &name, repo.as_deref()).await?;
-                }
-                Commands::Review { pr_number, repo } => {
-                    handle_review_command(&worktree_manager, pr_number, repo.as_deref()).await?;
-                }
-                Commands::Fix { name, repo } => {
-                    handle_fix_command(&worktree_manager, &name, repo.as_deref()).await?;
-                }
-                Commands::Aiops { name, repo } => {
-                    handle_aiops_command(&worktree_manager, &name, repo.as_deref()).await?;
-                }
-                Commands::Devops { name, repo } => {
-                    handle_devops_command(&worktree_manager, &name, repo.as_deref()).await?;
-                }
-                Commands::Trunk { repo } => {
-                    handle_trunk_command(&worktree_manager, repo.as_deref()).await?;
-                }
-                Commands::Status { repo } => {
-                    handle_status_command(&worktree_manager, repo.as_deref()).await?;
-                }
-                Commands::List { repo } => {
-                    handle_list_command(&worktree_manager, repo.as_deref()).await?;
-                }
-                Commands::Remove { name, repo } => {
-                    handle_remove_command(&worktree_manager, &name, repo.as_deref()).await?;
-                }
-                Commands::Monitor { repo } => {
-                    handle_monitor_command(&worktree_manager, repo.as_deref()).await?;
-                }
-                Commands::Init { .. } => {
-                    // Already handled
+                match command {
+                    Commands::Feat { name, repo } => {
+                        handle_feature_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
+                    Commands::Review { pr_number, repo } => {
+                        handle_review_command(&worktree_manager, pr_number, repo.as_deref()).await?;
+                    }
+                    Commands::Fix { name, repo } => {
+                        handle_fix_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
+                    Commands::Aiops { name, repo } => {
+                        handle_aiops_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
+                    Commands::Devops { name, repo } => {
+                        handle_devops_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
+                    Commands::Trunk { repo } => {
+                        handle_trunk_command(&worktree_manager, repo.as_deref()).await?;
+                    }
+                    Commands::Status { repo } => {
+                        handle_status_command(&worktree_manager, repo.as_deref()).await?;
+                    }
+                    Commands::List { repo } => {
+                        handle_list_command(&worktree_manager, repo.as_deref()).await?;
+                    }
+                    Commands::Remove { name, repo } => {
+                        handle_remove_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
+                    Commands::Monitor { repo } => {
+                        handle_monitor_command(&worktree_manager, repo.as_deref()).await?;
+                    }
+                    Commands::Init { .. } => {
+                        // Already handled
+                    }
                 }
             }
         }

@@ -6,11 +6,15 @@ use clap::{Parser, Subcommand};
     author = "Jarad DeLorenzo <jarad@33god.ai>",
     version,
     about = "iMi Git Worktree Management Tool - Component of 33GOD Agentic Software Pipeline",
-    long_about = "A sophisticated worktree management tool designed for asynchronous, parallel multi-agent workflows. Features opinionated defaults and real-time visibility into worktree activities."
+    long_about = "A sophisticated worktree management tool designed for asynchronous, parallel multi-agent workflows. Features opinionated defaults and real-time visibility into worktree activities.",
+    disable_version_flag = true
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: Option<bool>,
 }
 
 #[derive(Subcommand)]
