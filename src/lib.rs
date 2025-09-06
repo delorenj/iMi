@@ -17,7 +17,7 @@ pub use config::Config;
 pub use database::{Database, Repository, Worktree, AgentActivity};
 pub use error::ImiError;
 pub use git::{GitManager, WorktreeStatus};
-pub use init::{InitCommand, InitResult, ValidationResult};
+pub use init::{InitCommand, InitResult};
 pub use worktree::WorktreeManager;
 
 /// Version information

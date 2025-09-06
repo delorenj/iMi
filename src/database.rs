@@ -185,7 +185,7 @@ impl Database {
 
         sqlx::query(
             r#"
-            INSERT INTO repositories (id, name, path, remote_url, default_branch, created_at, updated_at, active)
+            INSERT OR REPLACE INTO repositories (id, name, path, remote_url, default_branch, created_at, updated_at, active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )

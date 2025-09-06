@@ -13,6 +13,23 @@ impl GitManager {
         Self
     }
 
+    pub fn is_in_repository(&self, path: &Path) -> bool {
+        Repository::discover(path).is_ok()
+    }
+
+    pub async fn get_remote_url(&self, path: &Path) -> Result<String> {
+        let repo = self.find_repository(Some(path))?;
+        let remote = repo.find_remote("origin")?;
+        Ok(remote.url().unwrap_or_default().to_string())
+    }
+
+    pub async fn get_default_branch(&self, path: &Path) -> Result<String> {
+        let repo = self.find_repository(Some(path))?;
+        let head = repo.head()?;
+        let head_name = head.shorthand().unwrap_or("main");
+        Ok(head_name.to_string())
+    }
+
     /// Find the Git repository from the current directory or a specified path
     pub fn find_repository(&self, path: Option<&Path>) -> Result<Repository> {
         let search_path = path.unwrap_or_else(|| Path::new("."));
@@ -47,29 +64,6 @@ impl GitManager {
             .trim_end_matches(".git");
 
         Ok(name.to_string())
-    }
-
-    /// Get the default branch name
-    #[allow(dead_code)]
-    pub fn get_default_branch(&self, repo: &Repository) -> Result<String> {
-        // Try to get the default branch from remote HEAD
-        if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
-            if let Some(target) = reference.symbolic_target() {
-                if let Some(branch_name) = target.strip_prefix("refs/remotes/origin/") {
-                    return Ok(branch_name.to_string());
-                }
-            }
-        }
-
-        // Fallback: check common default branch names
-        for branch_name in &["main", "master", "develop"] {
-            if repo.find_branch(branch_name, BranchType::Local).is_ok() {
-                return Ok(branch_name.to_string());
-            }
-        }
-
-        // Last resort: use "main" as default
-        Ok("main".to_string())
     }
 
     /// Create a new worktree
