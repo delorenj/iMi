@@ -10,7 +10,6 @@ use anyhow::{Context, Result};
 use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tokio::fs;
 
 use imi::config::Config;
 use imi::database::Database;

@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use tokio::fs;
 
@@ -16,12 +16,10 @@ use common::create_mock_repo_structure;
 // Import the modules we're testing
 use imi::{
     config::Config,
-    database::{Database, Repository, Worktree},
-    error::ImiError,
-    init::{InitCommand, InitResult},
+    database::{Database, Repository},
+    init::InitCommand,
     git::GitManager,
     worktree::WorktreeManager,
-    defaults,
 };
 
 /// Comprehensive integration test suite structure

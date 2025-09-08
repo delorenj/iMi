@@ -11,7 +11,7 @@ use tokio::fs;
 
 use imi::{
     config::Config,
-    database::{Database, Repository, Worktree},
+    database::Database,
     git::GitManager,
     worktree::WorktreeManager,
 };

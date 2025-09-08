@@ -11,8 +11,8 @@ use tokio::fs;
 
 use imi::{
     config::Config,
-    database::{Database, Repository},
-    init::{InitCommand, InitResult},
+    database::Database,
+    init::InitCommand,
     git::GitManager,
 };
 

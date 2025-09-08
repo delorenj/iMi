@@ -314,7 +314,7 @@ mod cli_integration_tests {
 /// These are "documentation tests" that show what the CLI should do
 #[cfg(test)]
 mod expected_behavior_tests {
-    use super::*;
+    
 
     /// This test documents the expected CLI signature for the init command
     #[tokio::test]

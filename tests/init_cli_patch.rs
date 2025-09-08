@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod implementation_guide {
-    use std::path::PathBuf;
+    
 
     /// Add this to src/cli.rs Commands enum (after Monitor command)
     #[test]

@@ -7,14 +7,12 @@
 /// - Database error handling
 /// - Data consistency and validation
 use anyhow::{Context, Result};
-use std::env;
 use std::path::Path;
 use tempfile::TempDir;
 use tokio::fs;
 
 use imi::config::Config;
 use imi::database::{Database, Worktree};
-use imi::git::GitManager;
 
 /// Helper for database-focused init testing
 pub struct DatabaseInitHelper {

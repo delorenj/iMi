@@ -12,12 +12,11 @@
 /// - Error handling and edge cases
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tokio::fs;
 
-use imi::database::{Database, Worktree, AgentActivity, Repository};
+use imi::database::Database;
 
 /// Test helper for database operations
 struct DatabaseTestHelper {

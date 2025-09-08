@@ -4,7 +4,7 @@
 //! including CRUD operations, error scenarios, concurrent access, and data integrity.
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serial_test::serial;
 use std::path::PathBuf;
 use tempfile::TempDir;
