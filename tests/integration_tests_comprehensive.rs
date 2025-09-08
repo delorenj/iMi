@@ -10,12 +10,15 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tokio::fs;
 
+mod common;
+use common::create_mock_repo_structure;
+
 // Import the modules we're testing
 use imi::{
     config::Config,
     database::{Database, Repository, Worktree},
     error::ImiError,
-    init::{InitCommand, InitResult, ValidationResult},
+    init::{InitCommand, InitResult},
     git::GitManager,
     worktree::WorktreeManager,
     defaults,
@@ -988,7 +991,10 @@ impl StateManagementTests {
         ];
         
         // Execute operations concurrently
-        let results = futures::future::join_all(concurrent_operations).await;
+        let mut results = Vec::new();
+        for task in concurrent_operations {
+            results.push(task.await);
+        }
         
         // Check all operations succeeded
         let all_succeeded = results.iter().all(|r| r.is_ok());

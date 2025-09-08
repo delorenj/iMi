@@ -16,6 +16,7 @@ impl GitManager {
     }
 
     /// Get GitHub authentication credentials
+    #[allow(dead_code)]
     fn get_github_credentials(&self) -> Option<Cred> {
         // Check for GitHub Personal Access Token
         if let Ok(token) = env::var("GITHUB_PERSONAL_ACCESS_TOKEN") {
@@ -62,7 +63,7 @@ impl GitManager {
     }
 
     /// Create authentication callbacks for git operations
-    fn create_auth_callbacks(&self) -> RemoteCallbacks {
+    fn create_auth_callbacks(&self) -> RemoteCallbacks<'_> {
         let mut callbacks = RemoteCallbacks::new();
         
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
@@ -441,7 +442,7 @@ impl GitManager {
         let refspecs: Vec<&str> = refspecs.iter().filter_map(|s| s).collect();
 
         // Create authentication callbacks
-        let mut callbacks = self.create_auth_callbacks();
+        let callbacks = self.create_auth_callbacks();
         
         // Create fetch options with authentication
         let mut fetch_options = git2::FetchOptions::new();

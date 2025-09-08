@@ -395,9 +395,10 @@ async fn test_complete_documentation_coverage() -> Result<()> {
     println!("\n{}", report);
     
     // Assert coverage goals
-    assert!(results.overall_coverage.coverage_percentage >= 90.0, 
+    let coverage_percentage = results.overall_coverage.coverage_percentage;
+    assert!(coverage_percentage >= 90.0, 
         "Documentation coverage should be at least 90%, got {:.1}%", 
-        results.overall_coverage.coverage_percentage
+        coverage_percentage
     );
     
     Ok(())

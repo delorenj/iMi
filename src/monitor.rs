@@ -11,7 +11,8 @@ use crate::worktree::WorktreeManager;
 
 #[derive(Debug, Clone)]
 pub struct MonitorManager {
-    worktree_manager: WorktreeManager,
+    pub worktree_manager: WorktreeManager,
+    pub config: crate::config::Config,
 }
 
 #[derive(Debug, Clone)]
@@ -23,8 +24,8 @@ pub struct ActivityEvent {
 }
 
 impl MonitorManager {
-    pub fn new(worktree_manager: WorktreeManager) -> Self {
-        Self { worktree_manager }
+    pub fn new(worktree_manager: WorktreeManager, config: crate::config::Config) -> Self {
+        Self { worktree_manager, config }
     }
 
     /// Start real-time monitoring of worktree activities
@@ -157,7 +158,7 @@ impl MonitorManager {
     }
 
     /// Process a file system event into an activity event
-    async fn process_file_event(
+    pub async fn process_file_event(
         &self,
         event: &Event,
         path_to_worktree: &HashMap<PathBuf, Worktree>,
@@ -218,7 +219,7 @@ impl MonitorManager {
     }
 
     /// Log activity to database
-    async fn log_activity_to_db(&self, activity: &ActivityEvent) -> Result<()> {
+    pub async fn log_activity_to_db(&self, activity: &ActivityEvent) -> Result<()> {
         let description = if let Some(file_path) = &activity.file_path {
             format!("File {}: {}", activity.event_type, file_path)
         } else {
@@ -240,7 +241,7 @@ impl MonitorManager {
     }
 
     /// Display periodic status summary
-    async fn display_status_summary(&self, worktrees: &[Worktree]) -> Result<()> {
+    pub async fn display_status_summary(&self, worktrees: &[Worktree]) -> Result<()> {
         let timestamp = chrono::Utc::now().format("%H:%M:%S");
 
         println!(

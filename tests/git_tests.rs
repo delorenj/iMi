@@ -55,17 +55,19 @@ impl GitTestHelper {
         
         // Create tree
         let tree_id = index.write_tree()?;
-        let tree = repo.find_tree(tree_id)?;
         
         // Create initial commit
-        repo.commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            "Initial commit",
-            &tree,
-            &[],
-        )?;
+        {
+            let tree = repo.find_tree(tree_id)?;
+            repo.commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "Initial commit",
+                &tree,
+                &[],
+            )?;
+        }
 
         let git_manager = GitManager::new();
 
@@ -849,8 +851,8 @@ mod edge_cases_and_error_handling_tests {
         Ok(())
     }
 
-    #[test]
-    fn test_repository_with_no_commits() -> Result<()> {
+    #[tokio::test]
+    async fn test_repository_with_no_commits() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let empty_repo_path = temp_dir.path().join("empty-repo");
         
@@ -863,7 +865,7 @@ mod edge_cases_and_error_handling_tests {
         let current_branch_result = git_manager.get_current_branch(&empty_repo_path);
         assert!(current_branch_result.is_err(), "Empty repo should not have current branch");
         
-        let default_branch = git_manager.get_default_branch(&repo)?;
+        let default_branch = git_manager.get_default_branch(&empty_repo_path).await?;
         assert_eq!(default_branch, "main", "Should fallback to main for empty repo");
 
         Ok(())

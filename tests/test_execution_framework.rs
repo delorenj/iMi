@@ -950,7 +950,7 @@ pub struct QualityAssessment {
 }
 
 // Placeholder types for missing imports
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PropertyTestResults {
     pub directory_name_tests: TestCategoryResult,
     pub path_structure_tests: TestCategoryResult,
@@ -962,7 +962,7 @@ pub struct PropertyTestResults {
     pub coverage_percentage: f64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ErrorTestResults {
     pub filesystem_errors: TestCategoryResult,
     pub database_errors: TestCategoryResult,
@@ -973,6 +973,18 @@ pub struct ErrorTestResults {
     pub total_scenarios_tested: usize,
     pub total_scenarios_passed: usize,
     pub coverage_percentage: f64,
+}
+
+impl PropertyTestResults {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl ErrorTestResults {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug, Default)]

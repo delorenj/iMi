@@ -173,9 +173,11 @@ impl WorktreeManager {
         // Find the repository - use current directory and register if needed
         let current_dir = env::current_dir()?;
         let repo = self.git.find_repository(Some(&current_dir))?;
+        let repo_root = repo.workdir()
+            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
         
         // Auto-register repository if not in database
-        self.ensure_repository_registered(&repo_name, &repo).await?;
+        self.ensure_repository_registered(&repo_name, repo_root).await?;
 
         // Create the Git worktree
         self.git
@@ -495,7 +497,7 @@ impl WorktreeManager {
     pub async fn start_monitoring(&self, repo: Option<&str>) -> Result<()> {
         use crate::monitor::MonitorManager;
 
-        let monitor = MonitorManager::new(self.clone());
+        let monitor = MonitorManager::new(self.clone(), self.config.clone());
         monitor.start(repo).await
     }
 
@@ -581,27 +583,25 @@ impl WorktreeManager {
     }
 
     /// Ensure repository is registered in the database
-    async fn ensure_repository_registered(&self, repo_name: &str, repo: &git2::Repository) -> Result<()> {
+    async fn ensure_repository_registered(&self, repo_name: &str, repo_path: &Path) -> Result<()> {
         // Check if already registered
         if self.db.get_repository(repo_name).await?.is_some() {
             return Ok(());
         }
 
         // Get repository information
-        let repo_root = repo.workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
-        let remote_url = self.git.get_remote_url(repo_root).await.unwrap_or_else(|_| "".to_string());
-        let default_branch = self.git.get_default_branch(repo_root).await.unwrap_or_else(|_| "main".to_string());
+        let remote_url = self.git.get_remote_url(repo_path).await.unwrap_or_else(|_| "".to_string());
+        let default_branch = self.git.get_default_branch(repo_path).await.unwrap_or_else(|_| "main".to_string());
 
         // Register the repository
         self.db.create_repository(
             repo_name,
-            repo_root.to_str().unwrap(),
+            repo_path.to_str().unwrap(),
             &remote_url,
             &default_branch
         ).await?;
 
-        println!("📝 Registered repository: {} at {}", repo_name.bright_green(), repo_root.display());
+        println!("📝 Registered repository: {} at {}", repo_name.bright_green(), repo_path.display());
         Ok(())
     }
 

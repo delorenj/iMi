@@ -157,7 +157,6 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_config_default() {

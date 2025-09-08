@@ -10,7 +10,8 @@ use tempfile::TempDir;
 use tokio::fs;
 
 use imi::error::ImiError;
-use crate::test_utilities::{TestEnvironment, AssertionUtils};
+mod common;
+use common::{TestEnvironment, AssertionUtils};
 
 /// Test utilities for error testing scenarios
 pub struct ErrorTestUtils {
@@ -66,44 +67,44 @@ impl ErrorTestUtils {
 #[serial]
 async fn test_error_creation_and_display() -> Result<()> {
     // Test GitError
-    let git_error = ImiError::GitError("Failed to clone repository".to_string());
+    let git_error = ImiError::GitError(git2::Error::from_str("Failed to clone repository"));
     let git_display = format!("{}", git_error);
     assert!(git_display.contains("Git operation failed"));
     
     // Test DatabaseError  
-    let db_error = ImiError::DatabaseError("Connection failed".to_string());
+    let db_error = ImiError::DatabaseError(sqlx::Error::Protocol("Connection failed".to_string()));
     let db_display = format!("{}", db_error);
     assert!(db_display.contains("Database operation failed"));
     
     // Test IoError
-    let io_error = ImiError::IoError("File not found".to_string());
+    let io_error = ImiError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"));
     let io_display = format!("{}", io_error);
     assert!(io_display.contains("IO operation failed"));
     
     // Test ConfigurationError
-    let config_error = ImiError::ConfigurationError("Invalid setting".to_string());
+    let config_error = ImiError::ConfigError("Invalid setting".to_string());
     let config_display = format!("{}", config_error);
     assert!(config_display.contains("Configuration error"));
     
-    // Test ValidationError
-    let validation_error = ImiError::ValidationError("Invalid input".to_string());
+    // Test ConfigError
+    let validation_error = ImiError::ConfigError("Invalid input".to_string());
     let validation_display = format!("{}", validation_error);
-    assert!(validation_display.contains("Validation failed"));
+    assert!(validation_display.contains("Configuration error"));
     
     // Test WorktreeError
-    let worktree_error = ImiError::WorktreeError("Creation failed".to_string());
+    let worktree_error = ImiError::WorktreeNotFound { repo: "test".to_string(), name: "Creation failed".to_string() };
     let worktree_display = format!("{}", worktree_error);
     assert!(worktree_display.contains("Worktree operation failed"));
     
     // Test AuthenticationError
-    let auth_error = ImiError::AuthenticationError("Credentials invalid".to_string());
+    let auth_error = ImiError::ConfigError("Credentials invalid".to_string());
     let auth_display = format!("{}", auth_error);
     assert!(auth_display.contains("Authentication failed"));
     
-    // Test NetworkError
-    let network_error = ImiError::NetworkError("Connection timeout".to_string());
+    // Test ConfigError
+    let network_error = ImiError::ConfigError("Connection timeout".to_string());
     let network_display = format!("{}", network_error);
-    assert!(network_display.contains("Network operation failed"));
+    assert!(network_display.contains("Configuration error"));
     
     Ok(())
 }
@@ -120,14 +121,14 @@ async fn test_error_conversion_and_propagation() -> Result<()> {
     let io_result: Result<String, std::io::Error> = std::fs::read_to_string(utils.non_existent_path());
     match io_result {
         Err(io_err) => {
-            let imi_error = ImiError::IoError(io_err.to_string());
+            let imi_error = ImiError::IoError(io_err);
             assert!(format!("{}", imi_error).contains("IO operation failed"));
         },
         Ok(_) => panic!("Expected IO error"),
     }
     
     // Test anyhow integration
-    let anyhow_result: Result<()> = Err(ImiError::ValidationError("Test error".to_string()).into());
+    let anyhow_result: Result<()> = Err(ImiError::ConfigError("Test error".to_string()).into());
     assert!(anyhow_result.is_err());
     
     let error_chain = format!("{:?}", anyhow_result.unwrap_err());
@@ -353,7 +354,7 @@ async fn test_error_recovery_mechanisms() -> Result<()> {
     let mut attempt_count = 0;
     let max_attempts = 3;
     
-    let result = loop {
+    let result: Result<&str, ImiError> = loop {
         attempt_count += 1;
         
         // Simulate a transient failure that succeeds on the 3rd attempt
@@ -392,9 +393,9 @@ async fn test_error_context_and_debug() -> Result<()> {
     // Test that errors include sufficient context for debugging
     
     // Create a chain of errors
-    let root_cause = ImiError::IoError("File not found: /path/to/file".to_string());
-    let wrapped_error = ImiError::GitError(format!("Failed to read git config: {}", root_cause));
-    let final_error = ImiError::ConfigurationError(format!("Config initialization failed: {}", wrapped_error));
+    let root_cause = ImiError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found: /path/to/file"));
+    let wrapped_error = ImiError::GitError(git2::Error::from_str("Failed to read git config"));
+    let final_error = ImiError::ConfigError(format!("Config initialization failed: {}", wrapped_error));
     
     // Test error chain formatting
     let debug_output = format!("{:?}", final_error);
@@ -425,7 +426,7 @@ async fn test_async_error_propagation() -> Result<()> {
     async fn failing_operation() -> Result<String, ImiError> {
         // Simulate an async operation that fails
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        Err(ImiError::NetworkError("Async operation failed".to_string()))
+        Err(ImiError::ConfigError("Async operation failed".to_string()))
     }
     
     async fn wrapper_operation() -> Result<String, ImiError> {
@@ -438,10 +439,10 @@ async fn test_async_error_propagation() -> Result<()> {
     assert!(result.is_err());
     
     match result.unwrap_err() {
-        ImiError::NetworkError(msg) => {
+        ImiError::ConfigError(msg) => {
             assert!(msg.contains("Async operation failed"));
         },
-        _ => panic!("Expected NetworkError"),
+        _ => panic!("Expected ConfigError"),
     }
     
     Ok(())
@@ -456,12 +457,13 @@ async fn test_concurrent_error_handling() -> Result<()> {
     let tasks = (0..5).map(|i| {
         tokio::spawn(async move {
             // Simulate operations that fail with different error types
-            match i % 3 {
-                0 => Err(ImiError::GitError(format!("Git error {}", i))),
-                1 => Err(ImiError::DatabaseError(format!("Database error {}", i))),
-                2 => Err(ImiError::IoError(format!("IO error {}", i))),
+            let result: Result<(), ImiError> = match i % 3 {
+                0 => Err(ImiError::GitError(git2::Error::from_str(&format!("Git error {}", i)))),
+                1 => Err(ImiError::DatabaseError(sqlx::Error::Protocol(format!("Database error {}", i)))),
+                2 => Err(ImiError::IoError(std::io::Error::new(std::io::ErrorKind::Other, format!("IO error {}", i)))),
                 _ => unreachable!(),
-            }
+            };
+            result
         })
     });
     
@@ -503,9 +505,9 @@ async fn test_error_serialization() -> Result<()> {
     // Test that errors can be serialized for logging/storage
     
     let errors = vec![
-        ImiError::GitError("Git test error".to_string()),
-        ImiError::DatabaseError("Database test error".to_string()),
-        ImiError::ConfigurationError("Config test error".to_string()),
+        ImiError::GitError(git2::Error::from_str("Git test error")),
+        ImiError::DatabaseError(sqlx::Error::Protocol("Database test error".to_string())),
+        ImiError::ConfigError("Config test error".to_string()),
     ];
     
     for error in errors {
@@ -538,7 +540,7 @@ async fn test_error_handling_performance() -> Result<()> {
     // Measure error creation time
     let start = Instant::now();
     for i in 0..1000 {
-        let _error = ImiError::ValidationError(format!("Error {}", i));
+        let _error = ImiError::ConfigError(format!("Error {}", i));
     }
     let error_creation_time = start.elapsed();
     
@@ -547,19 +549,19 @@ async fn test_error_handling_performance() -> Result<()> {
            "Error creation took too long: {}ms", error_creation_time.as_millis());
     
     // Measure error propagation time
-    async fn propagate_error(depth: usize) -> Result<(), ImiError> {
+    fn propagate_error(depth: usize) -> Result<(), ImiError> {
         if depth == 0 {
-            Err(ImiError::IoError("Base error".to_string()))
+            Err(ImiError::IoError(std::io::Error::new(std::io::ErrorKind::Other, "Base error")))
         } else {
-            propagate_error(depth - 1).await.map_err(|e| {
-                ImiError::ConfigurationError(format!("Wrapped at depth {}: {}", depth, e))
+            propagate_error(depth - 1).map_err(|e| {
+                ImiError::ConfigError(format!("Wrapped at depth {}: {}", depth, e))
             })
         }
     }
     
     let start = Instant::now();
     for _ in 0..100 {
-        let _result = propagate_error(5).await;
+        let _result = propagate_error(5);
     }
     let propagation_time = start.elapsed();
     
