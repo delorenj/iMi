@@ -1,0 +1,11 @@
+[tasks.test-unit]
+description = "Run unit tests"
+run = "cargo test --test unit_tests_comprehensive"
+
+[tasks.test-integration]
+description = "Run integration tests"
+run = "cargo test --test integration_tests_comprehensive"
+
+[tasks.test-cli]
+description = "Run CLI tests"
+run = "cargo test --test cli_init_integration"

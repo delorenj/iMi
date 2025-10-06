@@ -61,6 +61,17 @@ impl DatabaseInitHelper {
             .and_then(|n| n.to_str())
             .context("Invalid trunk directory name")?;
 
+        // First, create repository entry (required for foreign key constraint)
+        let repo_path = trunk_path.parent().context("No parent directory")?;
+        self.db
+            .create_repository(
+                repo_name,
+                repo_path.to_str().context("Invalid repo path")?,
+                &format!("https://github.com/test/{}.git", repo_name),
+                &self.config.git_settings.default_branch,
+            )
+            .await?;
+
         // Create worktree entry for trunk
         let worktree = self
             .db
@@ -277,6 +288,19 @@ mod worktree_registration_tests {
 
             let trunk_dir = helper.create_test_repo_structure(repo_name).await.unwrap();
 
+            // First create repository for foreign key constraint
+            let repo_path = trunk_dir.parent().unwrap();
+            helper
+                .db
+                .create_repository(
+                    repo_name,
+                    repo_path.to_str().unwrap(),
+                    &format!("https://github.com/test/{}.git", repo_name),
+                    branch_name,
+                )
+                .await
+                .unwrap();
+
             // Create worktree with custom branch name
             let worktree = helper
                 .db
@@ -486,6 +510,19 @@ mod database_consistency_tests {
 
         let trunk_dir = helper.create_test_repo_structure(repo_name).await.unwrap();
 
+        // First create repository
+        let repo_path = trunk_dir.parent().unwrap();
+        helper
+            .db
+            .create_repository(
+                repo_name,
+                repo_path.to_str().unwrap(),
+                "https://github.com/test/unique-constraint-test.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Create first worktree
         let worktree1 = helper
             .db
@@ -590,6 +627,16 @@ mod database_performance_tests {
             init_duration.as_millis() < 1000,
             "Database init should complete within 1 second"
         );
+
+        // First create repository for foreign key constraint
+        db.create_repository(
+            "perf-test-repo",
+            "/test/repo",
+            "https://github.com/test/perf-test-repo.git",
+            "main",
+        )
+        .await
+        .unwrap();
 
         // Test worktree creation performance
         let worktree_start = Instant::now();

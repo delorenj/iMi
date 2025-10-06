@@ -1,0 +1,34 @@
+[tools]
+
+[settings]
+experimental = true
+
+[env]
+_.file = [".env", ".env.local"]
+
+[tasks.test]
+description = "Run all tests"
+run = "cargo test"
+
+[tasks.test-ci]
+description = "Run all tests in CI"
+run = "cargo test -- --nocapture"
+
+[tasks.test-watch]
+description = "Run all tests in watch mode"
+run = "cargo watch -x test"
+
+[tasks.lint]
+description = "Lint all files"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks.format]
+description = "Format all files"
+run = "cargo fmt --all"
+
+[tasks.ci]
+description = "Run all CI checks"
+depends = ["lint", "test-ci"]
+
+[tasks]
+include = ["./.mise/tasks.toml"]
