@@ -18,6 +18,45 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use tokio::fs;
 
+#[derive(Debug, Clone, Default)]
+pub struct FullWorkflowTests;
+#[derive(Debug, Clone, Default)]
+pub struct DatabaseIntegrationTests;
+#[derive(Debug, Clone, Default)]
+pub struct FilesystemIntegrationTests;
+#[derive(Debug, Clone, Default)]
+pub struct ConfigIntegrationTests;
+#[derive(Debug, Clone, Default)]
+pub struct PathPropertyTests;
+#[derive(Debug, Clone, Default)]
+pub struct ConfigPropertyTests;
+#[derive(Debug, Clone, Default)]
+pub struct DatabasePropertyTests;
+#[derive(Debug, Clone, Default)]
+pub struct FilesystemErrorTests;
+#[derive(Debug, Clone, Default)]
+pub struct DatabaseErrorTests;
+#[derive(Debug, Clone, Default)]
+pub struct NetworkErrorTests;
+#[derive(Debug, Clone, Default)]
+pub struct PermissionErrorTests;
+#[derive(Debug, Clone, Default)]
+pub struct LatencyTests;
+#[derive(Debug, Clone, Default)]
+pub struct ThroughputTests;
+#[derive(Debug, Clone, Default)]
+pub struct MemoryTests;
+#[derive(Debug, Clone, Default)]
+pub struct ConcurrencyTests;
+#[derive(Debug, Clone, Default)]
+pub struct CoreFunctionalityTests;
+#[derive(Debug, Clone, Default)]
+pub struct EdgeCaseTests;
+#[derive(Debug, Clone, Default)]
+pub struct UserExperienceTests;
+#[derive(Debug, Clone, Default)]
+pub struct CompatibilityTests;
+
 /// Test Architecture Components
 #[derive(Debug, Clone)]
 pub struct TestArchitecture {
@@ -30,7 +69,7 @@ pub struct TestArchitecture {
 }
 
 /// Unit Test Suite - Testing individual functions and components
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UnitTestSuite {
     pub path_validation_tests: PathValidationTests,
     pub config_management_tests: ConfigManagementTests,
@@ -39,7 +78,7 @@ pub struct UnitTestSuite {
 }
 
 /// Integration Test Suite - Testing component interactions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IntegrationTestSuite {
     pub full_workflow_tests: FullWorkflowTests,
     pub database_integration_tests: DatabaseIntegrationTests,
@@ -48,7 +87,7 @@ pub struct IntegrationTestSuite {
 }
 
 /// Property-Based Test Suite - Testing properties and invariants
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PropertyTestSuite {
     pub path_property_tests: PathPropertyTests,
     pub config_property_tests: ConfigPropertyTests,
@@ -56,7 +95,7 @@ pub struct PropertyTestSuite {
 }
 
 /// Error Test Suite - Testing all failure scenarios
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ErrorTestSuite {
     pub filesystem_error_tests: FilesystemErrorTests,
     pub database_error_tests: DatabaseErrorTests,
@@ -65,7 +104,7 @@ pub struct ErrorTestSuite {
 }
 
 /// Performance Test Suite - Testing non-functional requirements
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PerformanceTestSuite {
     pub latency_tests: LatencyTests,
     pub throughput_tests: ThroughputTests,
@@ -74,7 +113,7 @@ pub struct PerformanceTestSuite {
 }
 
 /// Acceptance Test Suite - Testing all 64+ acceptance criteria
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AcceptanceTestSuite {
     pub core_functionality_tests: CoreFunctionalityTests,
     pub edge_case_tests: EdgeCaseTests,
@@ -135,7 +174,7 @@ pub enum ErrorType {
 pub struct TestExecutionContext {
     pub temp_dirs: Vec<TempDir>,
     pub test_databases: Vec<PathBuf>,
-    pub cleanup_handlers: Vec<Box<dyn FnOnce() -> Result<()>>>,
+    pub cleanup_handlers: Vec<Box<dyn FnOnce() -> Result<()>>>, 
 }
 
 impl TestExecutionContext {
@@ -165,12 +204,12 @@ impl TestExecutionContext {
 impl TestArchitecture {
     pub fn new() -> Self {
         Self {
-            unit_tests: UnitTestSuite::new(),
-            integration_tests: IntegrationTestSuite::new(),
-            property_tests: PropertyTestSuite::new(),
-            error_tests: ErrorTestSuite::new(),
-            performance_tests: PerformanceTestSuite::new(),
-            acceptance_tests: AcceptanceTestSuite::new(),
+            unit_tests: UnitTestSuite::default(),
+            integration_tests: IntegrationTestSuite::default(),
+            property_tests: PropertyTestSuite::default(),
+            error_tests: ErrorTestSuite::default(),
+            performance_tests: PerformanceTestSuite::default(),
+            acceptance_tests: AcceptanceTestSuite::default(),
         }
     }
 
@@ -218,15 +257,14 @@ impl TestArchitecture {
     /// Generate comprehensive test report
     pub fn generate_test_report(&self, results: &TestResults) -> String {
         format!(
-            r#"
-# iMi Init Test Architecture Report
+            r"# iMi Init Test Architecture Report
 
 ## Test Coverage Summary
 - **Total Tests**: {}
 - **Passed**: {} ({:.1}%)
 - **Failed**: {} ({:.1}%)
 - **Coverage**: {:.1}%
-- **Duration**: {:?}
+- **Duration**: {{:?}}
 
 ## Test Suite Breakdown
 - **Unit Tests**: {} tests
@@ -247,20 +285,17 @@ impl TestArchitecture {
 {}
 
 ## Performance Metrics
-- **Average Init Time**: {:?}
+- **Average Init Time**: {{:?}}
 - **Memory Usage**: {} MB
-- **Database Operations**: {} ops/sec
 
 ## Recommendations
-{}
-"#,
+{}",
             results.total_tests,
             results.passed_tests,
             (results.passed_tests as f64 / results.total_tests as f64) * 100.0,
             results.failed_tests,
             (results.failed_tests as f64 / results.total_tests as f64) * 100.0,
             results.coverage_percentage,
-            results.total_duration,
             results.unit_test_count,
             results.integration_test_count,
             results.property_test_count,
@@ -273,9 +308,7 @@ impl TestArchitecture {
             results.performance_coverage,
             results.user_experience_coverage,
             self.format_acceptance_criteria_status(&results),
-            results.average_init_time,
             results.memory_usage_mb,
-            results.database_ops_per_sec,
             self.generate_recommendations(&results)
         )
     }
@@ -403,7 +436,7 @@ impl TestResults {
 /// Specific test suite implementations follow...
 
 // Path Validation Tests
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PathValidationTests;
 
 impl PathValidationTests {
@@ -450,7 +483,7 @@ impl PathValidationTests {
 }
 
 // Configuration Management Tests  
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConfigManagementTests;
 
 impl ConfigManagementTests {
@@ -471,7 +504,7 @@ impl ConfigManagementTests {
 }
 
 // Database Operation Tests
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DatabaseOperationTests;
 
 impl DatabaseOperationTests {
@@ -492,7 +525,7 @@ impl DatabaseOperationTests {
 }
 
 // CLI Parsing Tests
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CliParsingTests;
 
 impl CliParsingTests {
@@ -532,7 +565,7 @@ macro_rules! impl_test_suite {
     ($suite:ident) => {
         impl $suite {
             pub fn new() -> Self {
-                Self {}
+                Self::default()
             }
 
             pub async fn execute(&self) -> Result<TestResults> {

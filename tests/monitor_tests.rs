@@ -16,17 +16,11 @@ use imi::worktree::WorktreeManager;
 async fn create_test_database() -> Database {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let db_path = temp_dir.path().join("test.db");
-    Database::new(&db_path.to_string_lossy()).await.unwrap()
+    Database::new(&db_path).await.unwrap()
 }
 
 async fn create_test_config() -> Config {
-    Config {
-        default_branch: "main".to_string(),
-        git_hooks_enabled: false,
-        auto_sync: false,
-        max_worktrees: 10,
-        cleanup_threshold: 30,
-    }
+    Config::default()
 }
 
 async fn create_test_monitor_manager() -> (MonitorManager, TempDir) {
@@ -35,8 +29,8 @@ async fn create_test_monitor_manager() -> (MonitorManager, TempDir) {
     let git = GitManager::new();
     let config = create_test_config().await;
     
-    let worktree_manager = WorktreeManager::new(git, db, config);
-    let monitor = MonitorManager::new(worktree_manager);
+    let worktree_manager = WorktreeManager::new(git, db, config.clone());
+    let monitor = MonitorManager::new(worktree_manager, config);
     
     (monitor, temp_dir)
 }
@@ -46,20 +40,22 @@ async fn create_test_worktree(db: &Database, name: &str, wt_type: &str, path: &P
         id: format!("test-{}", name),
         repo_name: "test-repo".to_string(),
         worktree_name: name.to_string(),
+        branch_name: "main".to_string(),
         worktree_type: wt_type.to_string(),
         path: path.to_string_lossy().to_string(),
-        branch: "test-branch".to_string(),
         created_at: chrono::Utc::now(),
-        last_accessed: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        active: true,
+        agent_id: None,
     };
     
     db.create_worktree(
-        &worktree.id,
         &worktree.repo_name,
         &worktree.worktree_name,
+        &worktree.branch_name,
         &worktree.worktree_type,
         &worktree.path,
-        &worktree.branch,
+        worktree.agent_id.as_deref(),
     ).await.unwrap();
     
     worktree
@@ -98,9 +94,9 @@ mod monitor_manager_creation_tests {
         let db = create_test_database().await;
         let git = GitManager::new();
         let config = create_test_config().await;
-        let worktree_manager = WorktreeManager::new(git, db, config);
+        let worktree_manager = WorktreeManager::new(git, db, config.clone());
         
-        let monitor = MonitorManager::new(worktree_manager);
+        let monitor = MonitorManager::new(worktree_manager, config);
         
         // Verify monitor creation with custom WorktreeManager
         assert!(std::ptr::addr_of!(monitor).is_aligned());
@@ -571,11 +567,13 @@ mod status_reporting_tests {
             id: "test-nonexistent".to_string(),
             repo_name: "test-repo".to_string(),
             worktree_name: "nonexistent".to_string(),
+            branch_name: "nonexistent".to_string(),
             worktree_type: "feat".to_string(),
             path: "/nonexistent/path".to_string(),
-            branch: "test-branch".to_string(),
             created_at: chrono::Utc::now(),
-            last_accessed: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            active: true,
+            agent_id: None,
         };
         
         let worktrees = vec![worktree];
@@ -656,11 +654,13 @@ mod error_handling_tests {
             id: "error-test".to_string(),
             repo_name: "test-repo".to_string(),
             worktree_name: "error-test".to_string(),
+            branch_name: "main".to_string(),
             worktree_type: "feat".to_string(),
             path: worktree_path.to_string_lossy().to_string(),
-            branch: "test-branch".to_string(),
             created_at: chrono::Utc::now(),
-            last_accessed: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            active: true,
+            agent_id: None,
         };
         
         let mut path_to_worktree = HashMap::new();

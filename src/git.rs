@@ -1,3 +1,25 @@
+
+#[derive(Debug, Clone)]
+pub struct GitCredentials {
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub ssh_key: Option<String>,
+}
+
+impl GitCredentials {
+    pub fn new(
+        username: Option<String>,
+        password: Option<String>,
+        ssh_key: Option<String>,
+    ) -> Self {
+        Self {
+            username,
+            password,
+            ssh_key,
+        }
+    }
+}
+
 use anyhow::{Context, Result};
 use git2::{BranchType, Repository, WorktreeAddOptions, Cred, RemoteCallbacks};
 use git2::build::CheckoutBuilder;
@@ -141,9 +163,20 @@ impl GitManager {
 
     pub async fn get_default_branch(&self, path: &Path) -> Result<String> {
         let repo = self.find_repository(Some(path))?;
-        let head = repo.head()?;
-        let head_name = head.shorthand().unwrap_or("main");
-        Ok(head_name.to_string())
+
+        // Handle empty repositories (no commits yet)
+        let head_name = match repo.head() {
+            Ok(head) => {
+                head.shorthand().unwrap_or("main").to_string()
+            }
+            Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
+                // Repository exists but has no commits, fallback to "main"
+                "main".to_string()
+            }
+            Err(e) => return Err(e.into())
+        };
+
+        Ok(head_name)
     }
 
     /// Find the Git repository from the current directory or a specified path
@@ -163,7 +196,7 @@ impl GitManager {
         let remote = repo
             .find_remote("origin")
             .or_else(|_| {
-                repo.remotes()?
+                repo.remotes()? 
                     .get(0)
                     .ok_or(git2::Error::from_str("No remotes found"))
                     .and_then(|name| repo.find_remote(name))
@@ -176,7 +209,7 @@ impl GitManager {
         let name = url
             .split('/')
             .last()
-            .context("Could not extract repository name from URL")?
+            .context("Could not extract repository name from URL")? 
             .trim_end_matches(".git");
 
         Ok(name.to_string())

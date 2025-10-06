@@ -101,7 +101,7 @@ impl MonitorManager {
     }
 
     /// Main monitoring loop for file system events
-    async fn monitor_loop(
+    pub async fn monitor_loop(
         &self,
         mut rx: tokio::sync::mpsc::Receiver<Event>,
         path_to_worktree: HashMap<PathBuf, Worktree>,
@@ -138,7 +138,7 @@ impl MonitorManager {
     }
 
     /// Periodic status updates
-    async fn periodic_status_update(
+    pub async fn periodic_status_update(
         &self,
         _repo: Option<&str>,
         worktrees: Vec<Worktree>,
@@ -197,7 +197,7 @@ impl MonitorManager {
     }
 
     /// Display activity event
-    async fn display_activity(&self, activity: &ActivityEvent) {
+    pub async fn display_activity(&self, activity: &ActivityEvent) {
         let timestamp = chrono::Utc::now().format("%H:%M:%S");
         let icon = match activity.event_type.as_str() {
             "created" => "➕".bright_green(),
@@ -321,7 +321,7 @@ impl MonitorManager {
     }
 
     /// Get icon for worktree type
-    fn get_type_icon(&self, worktree_type: &str) -> colored::ColoredString {
+    pub fn get_type_icon(&self, worktree_type: &str) -> colored::ColoredString {
         match worktree_type {
             "feat" => "🚀".bright_cyan(),
             "pr" => "🔍".bright_yellow(),

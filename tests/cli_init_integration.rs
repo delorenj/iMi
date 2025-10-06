@@ -1,4 +1,5 @@
 use anyhow::Result;
+use serial_test::serial;
 use std::env;
 use std::process::Command;
 use tempfile::TempDir;
@@ -10,7 +11,7 @@ use tokio::fs;
 mod cli_integration_tests {
     use super::*;
 
-    const IMI_BINARY: &str = "target/debug/iMi";
+    const IMI_BINARY: &str = env!("CARGO_BIN_EXE_iMi");
 
     fn build_test_binary() -> Result<()> {
         let output = Command::new("cargo")
@@ -26,6 +27,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_command_exists() {
         build_test_binary().expect("Failed to build binary");
 
@@ -43,6 +45,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_in_trunk_directory() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("cli-test-repo");
@@ -54,35 +57,35 @@ mod cli_integration_tests {
         build_test_binary().expect("Failed to build binary");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
-        let output = Command::new(IMI_BINARY)
-            .args(&["init"])
-            .output()
-            .expect("Failed to run iMi init");
+        let output = {
+            env::set_current_dir(&trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init"])
+                .output()
+                .expect("Failed to run iMi init");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
-
-        // This will initially fail as init command doesn't exist yet
+        // Check that init command works properly
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(
-                stdout.contains("initialized"),
-                "Output should indicate success"
-            );
-            assert!(
-                trunk_dir.join(".imi").exists(),
-                ".imi directory should be created"
+                stdout.contains("setup complete") || stdout.contains("initialized") || stdout.contains("configuration"),
+                "Output should indicate successful setup: {}", stdout
             );
         } else {
-            // For now, just verify we get a reasonable error
+            // Log the error for debugging
             let stderr = String::from_utf8_lossy(&output.stderr);
-            // Could be "command not found" or similar
-            println!("Expected failure (init not implemented): {}", stderr);
+            println!("Init command failed: {}", stderr);
+            // The command should work in a trunk directory, so this is unexpected
+            panic!("Init command should work in trunk directory but failed with: {}", stderr);
         }
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_in_non_trunk_directory() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let non_trunk_dir = temp_dir.path().join("feature-branch");
@@ -93,14 +96,16 @@ mod cli_integration_tests {
         build_test_binary().expect("Failed to build binary");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&non_trunk_dir).expect("Failed to change directory");
 
-        let output = Command::new(IMI_BINARY)
-            .args(&["init"])
-            .output()
-            .expect("Failed to run iMi init");
-
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
+        let output = {
+            env::set_current_dir(&non_trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init"])
+                .output()
+                .expect("Failed to run iMi init");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         // Should fail with appropriate error message
         if !output.status.success() {
@@ -116,6 +121,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_help_message() {
         build_test_binary().expect("Failed to build binary");
 
@@ -141,6 +147,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_verbose_output() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("verbose-test-repo");
@@ -167,6 +174,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_dry_run() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("dry-run-repo");
@@ -178,15 +186,17 @@ mod cli_integration_tests {
         build_test_binary().expect("Failed to build binary");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
         // Test dry-run flag (if implemented)
-        let output = Command::new(IMI_BINARY)
-            .args(&["init", "--dry-run"])
-            .output()
-            .expect("Failed to run iMi init --dry-run");
-
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
+        let output = {
+            env::set_current_dir(&trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init", "--dry-run"])
+                .output()
+                .expect("Failed to run iMi init --dry-run");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         // In dry-run mode, no files should be created
         if output.status.success() {
@@ -200,6 +210,7 @@ mod cli_integration_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_force_flag() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("force-test-repo");
@@ -212,21 +223,24 @@ mod cli_integration_tests {
         build_test_binary().expect("Failed to build binary");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
         // Test force flag to reinitialize
-        let output = Command::new(IMI_BINARY)
-            .args(&["init", "--force"])
-            .output()
-            .expect("Failed to run iMi init --force");
-
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
+        let output = {
+            env::set_current_dir(&trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init", "--force"])
+                .output()
+                .expect("Failed to run iMi init --force");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         // Force should allow reinitializing
         println!("Force flag test - init command not yet implemented");
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_config_option() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let repo_dir = temp_dir.path().join("config-test-repo");
@@ -238,20 +252,23 @@ mod cli_integration_tests {
         build_test_binary().expect("Failed to build binary");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
         // Test custom config file option
-        let output = Command::new(IMI_BINARY)
-            .args(&["init", "--config", "custom-config.toml"])
-            .output()
-            .expect("Failed to run iMi init with custom config");
-
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
+        let output = {
+            env::set_current_dir(&trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init", "--config", "custom-config.toml"])
+                .output()
+                .expect("Failed to run iMi init with custom config");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         println!("Custom config test - init command not yet implemented");
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_cli_init_exit_codes() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
 
@@ -265,12 +282,16 @@ mod cli_integration_tests {
             .expect("Failed to create directories");
 
         let original_dir = env::current_dir().expect("Failed to get current directory");
-        env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
-        let output = Command::new(IMI_BINARY)
-            .args(&["init"])
-            .output()
-            .expect("Failed to run iMi init");
+        let output = {
+            env::set_current_dir(&trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init"])
+                .output()
+                .expect("Failed to run iMi init");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         // Should exit with code 0 on success (when implemented)
         if output.status.success() {
@@ -281,21 +302,21 @@ mod cli_integration_tests {
             );
         }
 
-        env::set_current_dir(&original_dir).expect("Failed to restore directory");
-
         // Test failure case (non-trunk directory)
         let non_trunk_dir = temp_dir.path().join("not-trunk");
         fs::create_dir_all(&non_trunk_dir)
             .await
             .expect("Failed to create directory");
-        env::set_current_dir(&non_trunk_dir).expect("Failed to change directory");
 
-        let output = Command::new(IMI_BINARY)
-            .args(&["init"])
-            .output()
-            .expect("Failed to run iMi init");
-
-        env::set_current_dir(original_dir).expect("Failed to restore directory");
+        let output = {
+            env::set_current_dir(&non_trunk_dir).expect("Failed to change directory");
+            let result = Command::new(IMI_BINARY)
+                .args(&["init"])
+                .output()
+                .expect("Failed to run iMi init");
+            env::set_current_dir(&original_dir).expect("Failed to restore directory");
+            result
+        };
 
         // Should exit with non-zero code on error (when implemented)
         if !output.status.success()

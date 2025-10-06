@@ -24,15 +24,18 @@ impl GitTestUtils {
     /// Create a new test environment for git tests
     pub async fn new() -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create test config with temp paths
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
         config.root_path = temp_dir.path().to_path_buf();
-        
+
         let git_manager = GitManager::new();
         let repo_path = temp_dir.path().join("test-repo");
-        
+
+        // Create the repo directory
+        fs::create_dir_all(&repo_path).await?;
+
         Ok(Self {
             temp_dir,
             config,
@@ -327,8 +330,10 @@ async fn test_invalid_branch_names() -> Result<()> {
                         invalid_branch.ends_with('/') ||
                         invalid_branch.contains(' ') ||
                         invalid_branch.contains('\t') ||
-                        invalid_branch.contains('\n');
-        
+                        invalid_branch.contains('\n') ||
+                        invalid_branch.starts_with('.') ||  // Git doesn't allow branches starting with '.'
+                        invalid_branch.ends_with('.');      // Git doesn't allow branches ending with '.'
+
         assert!(is_invalid, "Branch should be detected as invalid: {}", invalid_branch);
     }
     

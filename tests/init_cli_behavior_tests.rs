@@ -7,6 +7,7 @@
 /// - Exit codes and return values
 /// - Integration with the actual command handler
 use anyhow::{Context, Result};
+use serial_test::serial;
 use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -27,6 +28,14 @@ impl CliTestHelper {
     pub async fn new() -> Result<Self> {
         let temp_dir = TempDir::new().context("Failed to create temp directory")?;
         let original_dir = env::current_dir().context("Failed to get current directory")?;
+
+        // Isolate config to temp directory
+        std::env::set_var("HOME", temp_dir.path());
+        std::env::set_var("XDG_CONFIG_HOME", temp_dir.path().join(".config"));
+
+        // Create config directories
+        let config_dir = temp_dir.path().join(".config").join("iMi");
+        tokio::fs::create_dir_all(&config_dir).await?;
 
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("cli_test.db");
@@ -155,6 +164,7 @@ mod basic_cli_behavior_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_init_success_in_trunk_directory_with_output() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -172,6 +182,7 @@ mod basic_cli_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_init_success_from_repository_root() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -190,6 +201,7 @@ mod basic_cli_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_init_detects_trunk_directory_correctly() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -212,6 +224,7 @@ mod force_flag_behavior_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_force_flag_prevents_error_on_existing_config() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -238,6 +251,7 @@ mod force_flag_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_helpful_error_message_without_force() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -265,6 +279,7 @@ mod force_flag_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_force_flag_updates_root_path_correctly() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -298,6 +313,7 @@ mod error_message_formatting_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_clear_success_messages() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -318,6 +334,7 @@ mod error_message_formatting_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_progress_indication() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -339,6 +356,7 @@ mod error_message_formatting_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_informative_directory_detection_messages() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -367,6 +385,7 @@ mod directory_structure_validation_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_various_trunk_directory_names() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -378,13 +397,14 @@ mod directory_structure_validation_tests {
             "trunk-feature-branch",
         ];
 
-        for trunk_name in trunk_variations {
+        for (idx, trunk_name) in trunk_variations.iter().enumerate() {
             let trunk_dir = helper
                 .setup_test_directory(&format!("variation-repo-{}", trunk_name), trunk_name)
                 .unwrap();
 
             helper.change_to_directory(&trunk_dir).unwrap();
-            let result = helper.simulate_handle_init_command(false).await;
+            // Use force flag after first iteration since config will exist
+            let result = helper.simulate_handle_init_command(idx > 0).await;
             helper.restore_directory().unwrap();
 
             assert!(
@@ -398,6 +418,7 @@ mod directory_structure_validation_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_complex_repository_names() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -409,13 +430,14 @@ mod directory_structure_validation_tests {
             "project123",
         ];
 
-        for repo_name in repo_names {
+        for (idx, repo_name) in repo_names.iter().enumerate() {
             let trunk_dir = helper
                 .setup_test_directory(repo_name, "trunk-main")
                 .unwrap();
             helper.change_to_directory(&trunk_dir).unwrap();
 
-            let result = helper.simulate_handle_init_command(false).await;
+            // Use force flag after first iteration since config will exist
+            let result = helper.simulate_handle_init_command(idx > 0).await;
 
             helper.restore_directory().unwrap();
 
@@ -426,6 +448,7 @@ mod directory_structure_validation_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_nested_directory_structures() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -459,6 +482,7 @@ mod configuration_behavior_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_creates_configuration_file() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -484,6 +508,7 @@ mod configuration_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_updates_root_path_in_configuration() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -512,6 +537,7 @@ mod configuration_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_preserves_existing_configuration_settings() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -552,6 +578,7 @@ mod integration_validation_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_init_enables_worktree_manager_functionality() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -575,6 +602,7 @@ mod integration_validation_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_init_from_different_working_directories() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -604,19 +632,21 @@ mod integration_validation_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_multiple_repository_initialization() {
         let helper = CliTestHelper::new().await.unwrap();
 
         let repositories = vec!["repo-1", "repo-2", "repo-3"];
         let mut results = Vec::new();
 
-        for repo_name in &repositories {
+        for (idx, repo_name) in repositories.iter().enumerate() {
             let trunk_dir = helper
                 .setup_test_directory(repo_name, "trunk-main")
                 .unwrap();
             helper.change_to_directory(&trunk_dir).unwrap();
 
-            let result = helper.simulate_handle_init_command(false).await;
+            // Use force flag after first iteration since config will exist
+            let result = helper.simulate_handle_init_command(idx > 0).await;
             results.push((repo_name, result.is_ok()));
 
             helper.restore_directory().unwrap();
@@ -640,6 +670,7 @@ mod edge_case_behavior_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_unicode_in_directory_names() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -670,6 +701,7 @@ mod edge_case_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_very_long_directory_paths() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -696,6 +728,7 @@ mod edge_case_behavior_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_handles_special_characters_in_paths() {
         let helper = CliTestHelper::new().await.unwrap();
 
@@ -705,10 +738,11 @@ mod edge_case_behavior_tests {
             ("project.with.dots", "trunk-main"),
         ];
 
-        for (repo_name, trunk_name) in special_names {
+        for (idx, (repo_name, trunk_name)) in special_names.iter().enumerate() {
             if let Ok(trunk_dir) = helper.setup_test_directory(repo_name, trunk_name) {
                 helper.change_to_directory(&trunk_dir).unwrap();
-                let result = helper.simulate_handle_init_command(false).await;
+                // Use force flag after first iteration since config will exist
+                let result = helper.simulate_handle_init_command(idx > 0).await;
                 helper.restore_directory().unwrap();
 
                 assert!(

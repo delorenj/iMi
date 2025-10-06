@@ -10,6 +10,7 @@ use tempfile::TempDir;
 use tokio::fs;
 
 use imi::config::{Config, SyncSettings, GitSettings, MonitoringSettings};
+use std::os::unix::fs::PermissionsExt;
 
 /// Test utilities for config testing
 pub struct ConfigTestUtils {
@@ -53,6 +54,7 @@ impl ConfigTestUtils {
         let config_content = r#"
 database_path = "/tmp/test-imi.db"
 root_path = "/tmp/test-code"
+symlink_files = [".env", ".vscode/settings.json"]
 
 [sync_settings]
 enabled = true
@@ -70,8 +72,6 @@ enabled = true
 refresh_interval_ms = 1000
 watch_file_changes = true
 track_agent_activity = true
-
-symlink_files = [".env", ".vscode/settings.json"]
 "#;
         self.create_invalid_config_file(config_content).await
     }
@@ -99,7 +99,7 @@ mod config_unit_tests {
         
         // Test default values are reasonable
         assert!(config.database_path.file_name().unwrap().to_str().unwrap().contains("iMi.db"));
-        assert!(config.root_path.file_name().unwrap() == Some(std::ffi::OsStr::new("code")));
+        assert!(config.root_path.file_name().unwrap() == std::ffi::OsStr::new("code"));
         
         // Test sync settings defaults
         assert!(config.sync_settings.enabled);
@@ -415,6 +415,103 @@ database_path = "/tmp/test.db"
         assert_eq!(monitoring_settings.refresh_interval_ms, 1000);
         assert!(monitoring_settings.watch_file_changes);
         assert!(monitoring_settings.track_agent_activity);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_config_serialization_roundtrip() -> Result<()> {
+        let mut config = Config::default();
+        config.git_settings.default_branch = "develop".to_string();
+        config.monitoring_settings.enabled = false;
+        config.sync_settings.repo_sync_path = PathBuf::from("custom/sync");
+
+        let toml_string = toml::to_string_pretty(&config)?;
+        let deserialized_config: Config = toml::from_str(&toml_string)?;
+
+        assert_eq!(config.git_settings.default_branch, deserialized_config.git_settings.default_branch);
+        assert_eq!(config.monitoring_settings.enabled, deserialized_config.monitoring_settings.enabled);
+        assert_eq!(config.sync_settings.repo_sync_path, deserialized_config.sync_settings.repo_sync_path);
+        assert_eq!(config.database_path, deserialized_config.database_path);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_config_save_permission_error() -> Result<()> {
+        let utils = ConfigTestUtils::new()?;
+        let config = Config::default();
+        let config_path = utils.get_config_path();
+        let config_dir = config_path.parent().unwrap();
+        
+        fs::create_dir_all(config_dir).await?;
+        
+        // Set directory to read-only
+        let mut perms = fs::metadata(config_dir).await?.permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(config_dir, perms).await?;
+
+        let result = config.save().await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to write config file"));
+
+        // Cleanup: make writable again to allow deletion
+        let mut perms = fs::metadata(config_dir).await?.permissions();
+        perms.set_readonly(false);
+        fs::set_permissions(config_dir, perms).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_config_load_permission_error() -> Result<()> {
+        let utils = ConfigTestUtils::new()?;
+        let config_path = utils.create_valid_config_file().await?;
+
+        // Set file to read-only, but owner can't read
+        let perms = std::fs::Permissions::from_mode(0o000); // No permissions
+        fs::set_permissions(&config_path, perms).await?;
+
+        let result = Config::load().await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to read config file"));
+
+        // Cleanup: make writable again to allow deletion
+        let perms = std::fs::Permissions::from_mode(0o644);
+        fs::set_permissions(&config_path, perms).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_ensure_database_directory_permission_error() -> Result<()> {
+        let utils = ConfigTestUtils::new()?;
+        let mut config = Config::default();
+        let read_only_dir = utils.temp_dir.path().join("read-only");
+        fs::create_dir(&read_only_dir).await?;
+
+        // Set directory to read-only
+        let mut perms = fs::metadata(&read_only_dir).await?.permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(&read_only_dir, perms).await?;
+
+        config.database_path = read_only_dir.join("db/test.db");
+
+        let result = config.ensure_database_directory().await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to create database directory"));
+
+        // Cleanup
+        let mut perms = fs::metadata(&read_only_dir).await?.permissions();
+        perms.set_readonly(false);
+        fs::set_permissions(&read_only_dir, perms).await?;
+
+        Ok(())
     }
 
     // Integration-like tests for complete config workflow

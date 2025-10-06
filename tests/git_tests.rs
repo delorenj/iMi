@@ -13,8 +13,8 @@
 /// - Git command execution: execute_git_command(), checkout_pr()
 /// - Error handling and edge cases
 
-use anyhow::{Context, Result};
-use git2::{Repository, Oid, Signature, Time, ObjectType};
+use anyhow::Result;
+use git2::{Repository, Oid, Signature, Time};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -36,7 +36,7 @@ impl GitTestHelper {
         
         // Initialize a bare repo first, then clone it
         let bare_repo_path = temp_dir.path().join("bare-repo.git");
-        let bare_repo = Repository::init_bare(&bare_repo_path)?;
+        let _bare_repo = Repository::init_bare(&bare_repo_path)?;
         
         // Clone the bare repo to create a working repository
         let repo = Repository::clone(&format!("file://{}", bare_repo_path.display()), &repo_path)?;
@@ -85,6 +85,10 @@ impl GitTestHelper {
 
     /// Add a remote to the repository
     fn add_remote(&self, name: &str, url: &str) -> Result<()> {
+        // Remove remote if it exists (clone creates 'origin' automatically)
+        if self.repo.find_remote(name).is_ok() {
+            self.repo.remote_delete(name)?;
+        }
         self.repo.remote(name, url)?;
         Ok(())
     }
@@ -164,7 +168,7 @@ mod repository_discovery_tests {
         
         // Verify we found the correct repository
         assert_eq!(
-            found_repo.path().parent().unwrap(),
+            found_repo.path(),
             helper.repo_path.join(".git")
         );
 
@@ -183,7 +187,7 @@ mod repository_discovery_tests {
         
         // Should find the parent repository
         assert_eq!(
-            found_repo.path().parent().unwrap(),
+            found_repo.path(),
             helper.repo_path.join(".git")
         );
 
@@ -219,8 +223,10 @@ mod repository_discovery_tests {
         assert!(result.is_err(), "Should fail to find repository in nonexistent path");
         
         // Verify error type (should be our custom error)
-        let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Git repository not found") || error_msg.contains("repository"));
+        if let Err(e) = result {
+            let error_msg = e.to_string();
+            assert!(error_msg.contains("Git repository not found") || error_msg.contains("repository"));
+        }
     }
 
     #[test]
@@ -298,34 +304,37 @@ mod repository_information_tests {
     #[test]
     fn test_get_repository_name_no_remotes() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
+        // Remove the origin remote (created by clone)
+        helper.repo.remote_delete("origin")?;
+
         let result = helper.git_manager.get_repository_name(&helper.repo);
-        
+
         assert!(result.is_err(), "Should fail when no remotes exist");
 
         Ok(())
     }
 
-    #[test]
-    fn test_get_default_branch_main() -> Result<()> {
+    #[tokio::test]
+    async fn test_get_default_branch_main() -> Result<()> {
         let helper = GitTestHelper::new()?;
         
         // The test repo is initialized with main branch
-        let default_branch = helper.git_manager.get_default_branch(&helper.repo)?;
+        let default_branch = helper.git_manager.get_default_branch(&helper.repo_path).await?;
         
         assert_eq!(default_branch, "main");
 
         Ok(())
     }
 
-    #[test]
-    fn test_get_default_branch_with_master() -> Result<()> {
+    #[tokio::test]
+    async fn test_get_default_branch_with_master() -> Result<()> {
         let helper = GitTestHelper::new()?;
         
         // Create master branch
         helper.create_branch("master")?;
         
-        let default_branch = helper.git_manager.get_default_branch(&helper.repo)?;
+        let default_branch = helper.git_manager.get_default_branch(&helper.repo_path).await?;
         
         // Should find main (current branch) or master
         assert!(default_branch == "main" || default_branch == "master");
@@ -333,16 +342,16 @@ mod repository_information_tests {
         Ok(())
     }
 
-    #[test]
-    fn test_get_default_branch_fallback() -> Result<()> {
+    #[tokio::test]
+    async fn test_get_default_branch_fallback() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let repo_path = temp_dir.path().join("empty-repo");
         
         // Create empty repository (no branches)
-        let repo = Repository::init(&repo_path)?;
+        let _repo = Repository::init(&repo_path)?;
         
         let git_manager = GitManager::new();
-        let default_branch = git_manager.get_default_branch(&repo)?;
+        let default_branch = git_manager.get_default_branch(&repo_path).await?;
         
         // Should fallback to "main"
         assert_eq!(default_branch, "main");
@@ -431,14 +440,17 @@ mod worktree_operations_tests {
     #[test]
     fn test_list_worktrees() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         let worktrees = helper.git_manager.list_worktrees(&helper.repo)?;
-        
-        // Should at least have the main worktree
-        assert!(!worktrees.is_empty(), "Should have at least main worktree");
-        
-        // Main repo shows up as worktree path
+
+        // Note: git2::Repository::worktrees() only returns linked worktrees
+        // (those created with 'git worktree add'), not the main repository
+        // A fresh repo with no linked worktrees will return an empty list
         println!("Found worktrees: {:?}", worktrees);
+
+        // Test should succeed whether worktrees list is empty or not
+        // The fact that the call doesn't error is the success condition
+        assert!(worktrees.is_empty(), "Fresh repo should have no linked worktrees");
 
         Ok(())
     }
@@ -811,7 +823,7 @@ mod edge_cases_and_error_handling_tests {
         
         // Create repository with unicode path
         fs::create_dir_all(&unicode_repo_path)?;
-        let repo = Repository::init(&unicode_repo_path)?;
+        let _repo = Repository::init(&unicode_repo_path)?;
         
         let git_manager = GitManager::new();
         
@@ -857,7 +869,7 @@ mod edge_cases_and_error_handling_tests {
         let empty_repo_path = temp_dir.path().join("empty-repo");
         
         // Create empty repository
-        let repo = Repository::init(&empty_repo_path)?;
+        let _repo = Repository::init(&empty_repo_path)?;
         
         let git_manager = GitManager::new();
         

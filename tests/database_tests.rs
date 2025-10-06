@@ -69,6 +69,18 @@ mod database_creation_tests {
     async fn test_database_new_with_existing_database() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create a repository first
+        helper
+            .db
+            .create_repository(
+                "test-repo",
+                "/path/to/test-repo",
+                "https://github.com/user/test-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Create a worktree to populate database
         let worktree = helper
             .db
@@ -240,6 +252,18 @@ mod worktree_operations_tests {
     async fn test_create_worktree_success() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "test-repo",
+                "/path/to/test-repo",
+                "https://github.com/user/test-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         let worktree = helper
             .db
             .create_worktree(
@@ -273,6 +297,18 @@ mod worktree_operations_tests {
     async fn test_create_worktree_without_agent_id() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "test-repo",
+                "/path/to/test-repo",
+                "https://github.com/user/test-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         let worktree = helper
             .db
             .create_worktree(
@@ -293,6 +329,18 @@ mod worktree_operations_tests {
     #[tokio::test]
     async fn test_create_worktree_insert_or_replace() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "replace-repo",
+                "/path/to/replace-repo",
+                "https://github.com/user/replace-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Create first worktree
         let worktree1 = helper
@@ -343,6 +391,18 @@ mod worktree_operations_tests {
     async fn test_get_worktree_existing() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "get-repo",
+                "/path/to/get-repo",
+                "https://github.com/user/get-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Create a worktree
         let created = helper
             .db
@@ -387,6 +447,29 @@ mod worktree_operations_tests {
     async fn test_list_worktrees_all() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repositories first
+        helper
+            .db
+            .create_repository(
+                "repo-1",
+                "/path/to/repo-1",
+                "https://github.com/user/repo-1.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
+        helper
+            .db
+            .create_repository(
+                "repo-2",
+                "/path/to/repo-2",
+                "https://github.com/user/repo-2.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Create multiple worktrees
         let worktrees_data = vec![
             ("repo-1", "trunk-main", "trunk"),
@@ -428,6 +511,29 @@ mod worktree_operations_tests {
     #[tokio::test]
     async fn test_list_worktrees_by_repo() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repositories first
+        helper
+            .db
+            .create_repository(
+                "filter-repo-1",
+                "/path/to/filter-repo-1",
+                "https://github.com/user/filter-repo-1.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
+        helper
+            .db
+            .create_repository(
+                "filter-repo-2",
+                "/path/to/filter-repo-2",
+                "https://github.com/user/filter-repo-2.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Create worktrees for different repos
         helper
@@ -473,6 +579,18 @@ mod worktree_operations_tests {
     #[tokio::test]
     async fn test_deactivate_worktree() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "deactivate-repo",
+                "/path/to/deactivate-repo",
+                "https://github.com/user/deactivate-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Create a worktree
         let created = helper
@@ -531,6 +649,18 @@ mod agent_activity_tests {
     async fn test_log_agent_activity_success() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "activity-repo",
+                "/path/to/activity-repo",
+                "https://github.com/user/activity-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Create a worktree first
         let worktree = helper
             .db
@@ -576,6 +706,18 @@ mod agent_activity_tests {
     async fn test_log_agent_activity_without_file_path() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "activity-repo",
+                "/path/to/activity-repo",
+                "https://github.com/user/activity-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         let worktree = helper
             .db
             .create_worktree("activity-repo", "feat-test", "feat/test", "feat", "/path", None)
@@ -602,6 +744,29 @@ mod agent_activity_tests {
     #[tokio::test]
     async fn test_get_recent_activities_with_worktree_filter() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repositories first
+        helper
+            .db
+            .create_repository(
+                "repo1",
+                "/path/to/repo1",
+                "https://github.com/user/repo1.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
+        helper
+            .db
+            .create_repository(
+                "repo2",
+                "/path/to/repo2",
+                "https://github.com/user/repo2.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Create two worktrees
         let worktree1 = helper
@@ -669,6 +834,18 @@ mod agent_activity_tests {
     async fn test_get_recent_activities_all_with_limit() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "limit-repo",
+                "/path/to/limit-repo",
+                "https://github.com/user/limit-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         let worktree = helper
             .db
             .create_worktree("limit-repo", "trunk-main", "main", "trunk", "/path", None)
@@ -727,6 +904,18 @@ mod worktree_types_tests {
     #[tokio::test]
     async fn test_all_worktree_types() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "types-repo",
+                "/path/to/types-repo",
+                "https://github.com/user/types-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         let worktree_types = vec![
             ("trunk", "trunk-main"),
@@ -793,6 +982,18 @@ mod error_handling_tests {
     async fn test_database_operations_with_unicode() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "测试-repo",
+                "/路径/到/测试-repo",
+                "https://github.com/用户/测试-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Test unicode in various fields
         let worktree = helper
             .db
@@ -828,6 +1029,18 @@ mod error_handling_tests {
         // Create very long strings
         let long_repo_name = "a".repeat(1000);
         let long_description = "Very long description: ".to_string() + &"x".repeat(10000);
+
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                &long_repo_name,
+                "/path/to/very/long/repo",
+                "https://github.com/user/very-long-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         let worktree = helper
             .db
@@ -869,6 +1082,18 @@ mod database_edge_cases_tests {
     async fn test_concurrent_worktree_creation() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
+        // Create repository first
+        helper
+            .db
+            .create_repository(
+                "concurrent-repo",
+                "/path/to/concurrent-repo",
+                "https://github.com/user/concurrent-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
+
         // Simulate concurrent creation attempts
         let handles: Vec<_> = (0..10)
             .map(|i| {
@@ -909,6 +1134,18 @@ mod database_edge_cases_tests {
     #[tokio::test]
     async fn test_empty_string_fields() {
         let helper = DatabaseTestHelper::new().await.unwrap();
+
+        // Create repository first with empty name
+        helper
+            .db
+            .create_repository(
+                "",
+                "/path/to/empty-repo",
+                "https://github.com/user/empty-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Test with empty strings (should work but may not be practical)
         let worktree = helper

@@ -6,7 +6,7 @@
 
 use anyhow::{Context, Result};
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tempfile::TempDir;
 use tokio::fs;
 
@@ -17,6 +17,89 @@ pub struct PropertyTestGenerator {
     pub path_structure_generator: PathStructureGenerator,
     pub config_generator: ConfigGenerator,
     pub error_scenario_generator: ErrorScenarioGenerator,
+}
+
+impl PropertyTestGenerator {
+    pub fn new() -> Self {
+        Self {
+            directory_name_generator: DirectoryNameGenerator,
+            path_structure_generator: PathStructureGenerator,
+            config_generator: ConfigGenerator,
+            error_scenario_generator: ErrorScenarioGenerator,
+        }
+    }
+
+    pub async fn run_property_tests(&self) -> Result<PropertyTestResults> {
+        let mut executor = PropertyTestExecutor::new();
+
+        // Run all property test categories
+        let directory_name_results = executor.test_directory_name_properties().await?;
+        let path_structure_results = executor.test_path_structure_properties().await?;
+        let config_results = executor.test_configuration_properties().await?;
+        let error_scenario_results = executor.test_error_scenario_properties().await?;
+
+        // Calculate overall results
+        let total_generated = directory_name_results.total_tests +
+                             path_structure_results.total_tests +
+                             config_results.total_tests +
+                             error_scenario_results.total_tests;
+
+        let total_tested = directory_name_results.successes +
+                          path_structure_results.successes +
+                          config_results.successes +
+                          error_scenario_results.successes;
+
+        let edge_cases_found = 0; // TODO: Add edge_cases_found to individual result structures
+
+        let coverage_percentage = if total_generated > 0 {
+            (total_tested as f64 / total_generated as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(PropertyTestResults {
+            directory_name_tests: TestCategoryResult {
+                passed: directory_name_results.successes,
+                failed: directory_name_results.failures.len(),
+                total: directory_name_results.total_tests,
+                coverage: if directory_name_results.total_tests > 0 {
+                    (directory_name_results.successes as f64 / directory_name_results.total_tests as f64) * 100.0
+                } else { 0.0 },
+                failures: directory_name_results.failures,
+            },
+            path_structure_tests: TestCategoryResult {
+                passed: path_structure_results.successes,
+                failed: path_structure_results.failures.len(),
+                total: path_structure_results.total_tests,
+                coverage: if path_structure_results.total_tests > 0 {
+                    (path_structure_results.successes as f64 / path_structure_results.total_tests as f64) * 100.0
+                } else { 0.0 },
+                failures: path_structure_results.failures,
+            },
+            config_tests: TestCategoryResult {
+                passed: config_results.successes,
+                failed: config_results.failures.len(),
+                total: config_results.total_tests,
+                coverage: if config_results.total_tests > 0 {
+                    (config_results.successes as f64 / config_results.total_tests as f64) * 100.0
+                } else { 0.0 },
+                failures: config_results.failures,
+            },
+            error_scenario_tests: TestCategoryResult {
+                passed: error_scenario_results.successes,
+                failed: error_scenario_results.failures.len(),
+                total: error_scenario_results.total_tests,
+                coverage: if error_scenario_results.total_tests > 0 {
+                    (error_scenario_results.successes as f64 / error_scenario_results.total_tests as f64) * 100.0
+                } else { 0.0 },
+                failures: error_scenario_results.failures,
+            },
+            total_properties_generated: total_generated,
+            total_properties_tested: total_tested,
+            edge_cases_found,
+            coverage_percentage,
+        })
+    }
 }
 
 /// Generates various directory name patterns for testing
@@ -289,7 +372,7 @@ impl PathStructureGenerator {
         // Normal length path
         cases.push(PathLengthTestCase {
             description: "Normal length path".to_string(),
-            path_segments: vec!["home", "user", "projects", "repo", "trunk-main"],
+            path_segments: vec!["home".to_string(), "user".to_string(), "projects".to_string(), "repo".to_string(), "trunk-main".to_string()],
             expected_valid: true,
         });
         
@@ -297,20 +380,20 @@ impl PathStructureGenerator {
         let long_segment = "a".repeat(200);
         cases.push(PathLengthTestCase {
             description: "Very long path segment".to_string(),
-            path_segments: vec!["projects", &long_segment, "trunk-main"],
+            path_segments: vec!["projects".to_string(), long_segment, "trunk-main".to_string()],
             expected_valid: true, // Depends on filesystem limits
         });
         
         // Many path segments
-        let mut many_segments = vec!["root"];
+        let mut many_segments = vec!["root".to_string()];
         for i in 0..50 {
-            many_segments.push(&format!("segment{}", i));
+            many_segments.push(format!("segment{}", i));
         }
-        many_segments.extend(vec!["repo", "trunk-main"]);
+        many_segments.extend(vec!["repo".to_string(), "trunk-main".to_string()]);
         
         cases.push(PathLengthTestCase {
             description: "Many path segments".to_string(),
-            path_segments: many_segments.iter().map(|s| s.as_str()).collect(),
+            path_segments: many_segments,
             expected_valid: true,
         });
         
@@ -329,7 +412,7 @@ pub struct PathStructureTestCase {
 #[derive(Debug, Clone)]
 pub struct PathLengthTestCase {
     pub description: String,
-    pub path_segments: Vec<&'static str>,
+    pub path_segments: Vec<String>,
     pub expected_valid: bool,
 }
 
@@ -497,7 +580,7 @@ pub struct ErrorScenarioTestCase {
     pub expected_recovery_suggestion: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorType {
     FilesystemPermission,
     DiskFull,
@@ -711,59 +794,84 @@ impl PropertyTestExecutor {
 }
 
 // Test result types
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct PropertyTestResults {
-    pub directory_name_results: DirectoryNameTestResults,
-    pub path_structure_results: PathStructureTestResults,
-    pub config_results: ConfigTestResults,
-    pub error_results: ErrorTestResults,
+    pub directory_name_tests: TestCategoryResult,
+    pub path_structure_tests: TestCategoryResult,
+    pub config_tests: TestCategoryResult,
+    pub error_scenario_tests: TestCategoryResult,
+    pub total_properties_generated: usize,
+    pub total_properties_tested: usize,
+    pub edge_cases_found: usize,
+    pub coverage_percentage: f64,
 }
 
 impl PropertyTestResults {
     pub fn new() -> Self {
         Self {
-            directory_name_results: DirectoryNameTestResults::new(),
-            path_structure_results: PathStructureTestResults::new(),
-            config_results: ConfigTestResults::new(),
-            error_results: ErrorTestResults::new(),
+            directory_name_tests: TestCategoryResult::default(),
+            path_structure_tests: TestCategoryResult::default(),
+            config_tests: TestCategoryResult::default(),
+            error_scenario_tests: TestCategoryResult::default(),
+            total_properties_generated: 0,
+            total_properties_tested: 0,
+            edge_cases_found: 0,
+            coverage_percentage: 0.0,
         }
     }
-    
+
     pub fn merge_directory_name_results(&mut self, results: DirectoryNameTestResults) {
-        self.directory_name_results = results;
+        self.directory_name_tests.passed += results.successes;
+        self.directory_name_tests.failed += results.failures.len();
+        self.directory_name_tests.total += results.total_tests;
+        if self.directory_name_tests.total > 0 {
+            self.directory_name_tests.coverage = (self.directory_name_tests.passed as f64 / self.directory_name_tests.total as f64) * 100.0;
+        }
+        self.directory_name_tests.failures.extend(results.failures);
+        self.total_properties_tested += results.total_tests;
+        self.edge_cases_found += results.edge_cases_found;
     }
-    
+
     pub fn merge_path_structure_results(&mut self, results: PathStructureTestResults) {
-        self.path_structure_results = results;
+        self.path_structure_tests.passed += results.successes;
+        self.path_structure_tests.failed += results.failures.len();
+        self.path_structure_tests.total += results.total_tests;
+        if self.path_structure_tests.total > 0 {
+            self.path_structure_tests.coverage = (self.path_structure_tests.passed as f64 / self.path_structure_tests.total as f64) * 100.0;
+        }
+        self.path_structure_tests.failures.extend(results.failures);
+        self.total_properties_tested += results.total_tests;
+        self.edge_cases_found += results.edge_cases_found;
     }
-    
+
     pub fn merge_config_results(&mut self, results: ConfigTestResults) {
-        self.config_results = results;
+        self.config_tests.passed += results.successes;
+        self.config_tests.failed += results.failures.len();
+        self.config_tests.total += results.total_tests;
+        if self.config_tests.total > 0 {
+            self.config_tests.coverage = (self.config_tests.passed as f64 / self.config_tests.total as f64) * 100.0;
+        }
+        self.config_tests.failures.extend(results.failures);
+        self.total_properties_tested += results.total_tests;
+        self.edge_cases_found += results.edge_cases_found;
     }
-    
+
     pub fn merge_error_results(&mut self, results: ErrorTestResults) {
-        self.error_results = results;
+        self.error_scenario_tests.passed += results.successes;
+        self.error_scenario_tests.failed += results.failures.len();
+        self.error_scenario_tests.total += results.total_tests;
+        if self.error_scenario_tests.total > 0 {
+            self.error_scenario_tests.coverage = (self.error_scenario_tests.passed as f64 / self.error_scenario_tests.total as f64) * 100.0;
+        }
+        self.error_scenario_tests.failures.extend(results.failures);
+        self.total_properties_tested += results.total_tests;
+        self.edge_cases_found += results.edge_cases_found;
     }
-    
-    pub fn total_tests(&self) -> usize {
-        self.directory_name_results.total_tests +
-        self.path_structure_results.total_tests +
-        self.config_results.total_tests +
-        self.error_results.total_tests
-    }
-    
-    pub fn total_successes(&self) -> usize {
-        self.directory_name_results.successes +
-        self.path_structure_results.successes +
-        self.config_results.successes +
-        self.error_results.successes
-    }
-    
-    pub fn total_failures(&self) -> usize {
-        self.directory_name_results.failures.len() +
-        self.path_structure_results.failures.len() +
-        self.config_results.failures.len() +
-        self.error_results.failures.len()
+}
+
+impl Default for PropertyTestResults {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -772,6 +880,7 @@ pub struct DirectoryNameTestResults {
     pub total_tests: usize,
     pub successes: usize,
     pub failures: Vec<String>,
+    pub edge_cases_found: usize,
 }
 
 impl DirectoryNameTestResults {
@@ -780,6 +889,7 @@ impl DirectoryNameTestResults {
             total_tests: 0,
             successes: 0,
             failures: Vec::new(),
+            edge_cases_found: 0,
         }
     }
 }
@@ -789,6 +899,7 @@ pub struct PathStructureTestResults {
     pub total_tests: usize,
     pub successes: usize,
     pub failures: Vec<String>,
+    pub edge_cases_found: usize,
 }
 
 impl PathStructureTestResults {
@@ -797,6 +908,7 @@ impl PathStructureTestResults {
             total_tests: 0,
             successes: 0,
             failures: Vec::new(),
+            edge_cases_found: 0,
         }
     }
 }
@@ -806,6 +918,7 @@ pub struct ConfigTestResults {
     pub total_tests: usize,
     pub successes: usize,
     pub failures: Vec<String>,
+    pub edge_cases_found: usize,
 }
 
 impl ConfigTestResults {
@@ -814,6 +927,7 @@ impl ConfigTestResults {
             total_tests: 0,
             successes: 0,
             failures: Vec::new(),
+            edge_cases_found: 0,
         }
     }
 }
@@ -823,6 +937,7 @@ pub struct ErrorTestResults {
     pub total_tests: usize,
     pub successes: usize,
     pub failures: Vec<String>,
+    pub edge_cases_found: usize,
 }
 
 impl ErrorTestResults {
@@ -831,6 +946,7 @@ impl ErrorTestResults {
             total_tests: 0,
             successes: 0,
             failures: Vec::new(),
+            edge_cases_found: 0,
         }
     }
 }
@@ -954,4 +1070,14 @@ mod property_test_validation {
         println!("✅ Property test executor validation complete");
         println!("   Total tests executed: {}", results.total_tests);
     }
+}
+
+/// Test category results
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct TestCategoryResult {
+    pub passed: usize,
+    pub failed: usize,
+    pub total: usize,
+    pub coverage: f64,
+    pub failures: Vec<String>,
 }

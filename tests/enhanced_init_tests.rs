@@ -86,13 +86,7 @@ async fn test_init_command_creation() -> Result<()> {
     let utils = InitTestUtils::new().await?;
     
     // Test creating InitCommand with valid parameters
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        Some("test-repo".to_string()),
-        Some("https://github.com/test/repo.git".to_string()),
-    );
+    let init_cmd = InitCommand::new(false);
     
     // InitCommand should be created successfully
     // In a real implementation, we'd test the fields are set correctly
@@ -113,13 +107,7 @@ async fn test_path_detection_inside_repository() -> Result<()> {
     utils.change_to_directory(&repo_path)?;
     
     // Test InitCommand behavior when inside repository
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        None, // Should detect from current directory
-        None,
-    );
+    let init_cmd = InitCommand::new(false);
     
     // In a real implementation, we'd verify it detected the repository correctly
     
@@ -135,14 +123,7 @@ async fn test_path_detection_outside_repository() -> Result<()> {
     // Change to temp directory (not a git repository)
     utils.change_to_directory(&utils.temp_dir.path().to_path_buf())?;
     
-    // Test InitCommand behavior when outside repository
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        None,
-        None,
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should handle being outside repository gracefully
     
@@ -161,14 +142,7 @@ async fn test_trunk_directory_detection() -> Result<()> {
     // Change to trunk directory
     utils.change_to_directory(&trunk_path)?;
     
-    // Test InitCommand behavior in trunk directory
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        None,
-        None,
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should detect trunk directory correctly
     
@@ -182,13 +156,7 @@ async fn test_init_with_custom_repo_name() -> Result<()> {
     let utils = InitTestUtils::new().await?;
     
     let custom_name = "custom-repo-name";
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        Some(custom_name.to_string()),
-        Some("https://github.com/user/repo.git".to_string()),
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should accept custom repository name
     
@@ -202,13 +170,7 @@ async fn test_init_with_custom_remote_url() -> Result<()> {
     let utils = InitTestUtils::new().await?;
     
     let custom_url = "git@github.com:user/private-repo.git";
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        Some("test-repo".to_string()),
-        Some(custom_url.to_string()),
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should accept custom remote URL
     
@@ -234,13 +196,7 @@ async fn test_invalid_repository_names() -> Result<()> {
     ];
     
     for invalid_name in invalid_names {
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some(invalid_name.to_string()),
-            Some("https://github.com/test/repo.git".to_string()),
-        );
+let init_cmd = InitCommand::new(false);
         
         // In a real implementation, we'd test validation logic here
         // For now, we just ensure it doesn't panic
@@ -266,13 +222,7 @@ async fn test_invalid_remote_urls() -> Result<()> {
     ];
     
     for invalid_url in invalid_urls {
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some("test-repo".to_string()),
-            Some(invalid_url.to_string()),
-        );
+let init_cmd = InitCommand::new(false);
         
         // Should handle invalid URLs gracefully
         // In a real implementation, we'd test validation logic
@@ -295,14 +245,7 @@ async fn test_nested_directory_path_resolution() -> Result<()> {
     // Change to deeply nested directory
     utils.change_to_directory(&nested_path)?;
     
-    // Test path resolution from nested directory
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        None,
-        None,
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should be able to find repository root from nested directory
     
@@ -329,13 +272,7 @@ async fn test_symbolic_link_handling() -> Result<()> {
         utils.change_to_directory(&symlink_path)?;
         
         // Test InitCommand with symbolic links
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            None,
-            None,
-        );
+let init_cmd = InitCommand::new(false);
         
         // Should handle symbolic links correctly
     }
@@ -356,13 +293,7 @@ async fn test_concurrent_initialization() -> Result<()> {
         let git_manager = utils.git_manager.clone();
         
         tokio::spawn(async move {
-            let init_cmd = InitCommand::new(
-                &config,
-                &database,
-                &git_manager,
-                Some(format!("concurrent-repo-{}", i)),
-                Some(format!("https://github.com/test/repo-{}.git", i)),
-            );
+            let init_cmd = InitCommand::new(false);
             
             // In a real implementation, we'd call execute() here
             Ok::<(), anyhow::Error>(())
@@ -404,13 +335,7 @@ async fn test_different_branch_names() -> Result<()> {
         let _trunk_path = utils.create_trunk_structure("test-repo", branch).await?;
         
         // Test InitCommand with different branch structures
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some(format!("repo-{}", branch.replace(['/', '-'], "_"))),
-            Some("https://github.com/test/repo.git".to_string()),
-        );
+        let init_cmd = InitCommand::new(false);
         
         // Should handle different branch naming conventions
     }
@@ -429,26 +354,14 @@ async fn test_initialization_properties() -> Result<()> {
         let repo_name = format!("prop-test-repo-{}", i);
         let remote_url = format!("https://github.com/test/repo-{}.git", i);
         
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some(repo_name),
-            Some(remote_url),
-        );
+let init_cmd = InitCommand::new(false);
         
         // Property: InitCommand creation should not panic with valid inputs
         // In a real implementation, we'd verify the command is properly configured
     }
     
     // Property: Empty/None parameters should be handled gracefully
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        None,
-        None,
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should handle None values without panicking
     
@@ -464,13 +377,7 @@ async fn test_initialization_cleanup() -> Result<()> {
     // Create multiple InitCommand instances
     let mut commands = Vec::new();
     for i in 0..5 {
-        let cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some(format!("cleanup-test-{}", i)),
-            Some(format!("https://github.com/test/repo-{}.git", i)),
-        );
+        let cmd = InitCommand::new(false);
         commands.push(cmd);
     }
     
@@ -490,13 +397,7 @@ async fn test_long_names_and_urls() -> Result<()> {
     let long_name = "a".repeat(255); // Filesystem limit
     let long_url = format!("https://github.com/user/{}.git", "repo".repeat(50));
     
-    let init_cmd = InitCommand::new(
-        &utils.config,
-        &utils.database,
-        &utils.git_manager,
-        Some(long_name),
-        Some(long_url),
-    );
+    let init_cmd = InitCommand::new(false);
     
     // Should handle long names gracefully
     // In a real implementation, we'd test length validation
@@ -521,13 +422,7 @@ async fn test_special_characters_handling() -> Result<()> {
     ];
     
     for name in special_names {
-        let init_cmd = InitCommand::new(
-            &utils.config,
-            &utils.database,
-            &utils.git_manager,
-            Some(name.to_string()),
-            Some("https://github.com/test/repo.git".to_string()),
-        );
+let init_cmd = InitCommand::new(false);
         
         // Should handle various naming conventions
         // In a real implementation, we'd test normalization logic

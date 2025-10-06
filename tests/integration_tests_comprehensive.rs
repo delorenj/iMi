@@ -10,8 +10,9 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 use tokio::fs;
 
-mod common;
-use common::create_mock_repo_structure;
+// We have our own create_mock_repo_structure method
+// mod common;
+// use common::create_mock_repo_structure;
 
 // Import the modules we're testing
 use imi::{
@@ -57,7 +58,7 @@ impl IntegrationTestSuite {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct IntegrationTestResults {
     pub end_to_end: TestCategoryResult,
     pub component_interaction: TestCategoryResult,
@@ -80,7 +81,15 @@ impl IntegrationTestResults {
             integration_score: 0.0,
         }
     }
+}
 
+impl Default for IntegrationTestResults {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IntegrationTestResults {
     pub fn calculate_coverage(&mut self) {
         let categories = [
             &self.end_to_end,
@@ -100,14 +109,13 @@ impl IntegrationTestResults {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TestCategoryResult {
     pub passed: usize,
     pub failed: usize,
     pub total: usize,
     pub coverage: f64,
     pub failures: Vec<String>,
-    pub integration_points: Vec<String>,
 }
 
 /// Test environment setup and teardown utilities
@@ -219,10 +227,10 @@ impl EndToEndTests {
 
     async fn test_complete_init_from_trunk(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Config->Database->Repository->Worktree".to_string());
+        // Integration point: Config->Database->Repository->Worktree
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"test-repo", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("test-repo", "main").await?;
         
         // Change to trunk directory
         let original_dir = env::current_dir()?;
@@ -267,7 +275,7 @@ impl EndToEndTests {
 
     async fn test_complete_init_from_root(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Config->Database->Repository(root)".to_string());
+        // Integration point: Config->Database->Repository(root)
         
         let env = TestEnvironment::new().await?;
         let repo_dir = env.temp_dir.path().join("root-repo");
@@ -309,10 +317,10 @@ impl EndToEndTests {
 
     async fn test_force_reinitialize(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Force->Config->Database->Override".to_string());
+        // Integration point: Force->Config->Database->Override
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"force-repo", "develop").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("force-repo", "develop").await?;
         
         // First, do a normal init
         let original_dir = env::current_dir()?;
@@ -348,11 +356,11 @@ impl EndToEndTests {
 
     async fn test_init_with_existing_config(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("ExistingConfig->Load->Validate->Update".to_string());
+        // Integration point: ExistingConfig->Load->Validate->Update
         
         let env = TestEnvironment::new().await?;
         let config_path = env.simulate_existing_config().await?;
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"config-repo", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("config-repo", "main").await?;
         
         // Set config path environment variable (if the system uses it)
         env::set_var("IMIT_CONFIG_PATH", config_path);
@@ -387,7 +395,7 @@ impl EndToEndTests {
 
     async fn test_init_complex_structure(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("ComplexStructure->Detection->Navigation->Init".to_string());
+        // Integration point: ComplexStructure->Detection->Navigation->Init
         
         let env = TestEnvironment::new().await?;
         
@@ -432,13 +440,13 @@ impl EndToEndTests {
 
     async fn test_init_multiple_repositories(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("MultiRepo->Database->Isolation->Management".to_string());
+        // Integration point: MultiRepo->Database->Isolation->Management
         
         let env = TestEnvironment::new().await?;
         
         // Create multiple repository structures
-        let (repo1_dir, trunk1_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"repo-one", "main").await?;
-        let (repo2_dir, trunk2_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"repo-two", "develop").await?;
+        let (repo1_dir, trunk1_dir) = env.create_mock_repo_structure("repo-one", "main").await?;
+        let (repo2_dir, trunk2_dir) = env.create_mock_repo_structure("repo-two", "develop").await?;
         
         let original_dir = env::current_dir()?;
         
@@ -502,7 +510,7 @@ impl ComponentInteractionTests {
 
     async fn test_config_database_interaction(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Config<->Database".to_string());
+        // Integration point: Config<->Database
         
         let env = TestEnvironment::new().await?;
         
@@ -531,7 +539,7 @@ impl ComponentInteractionTests {
 
     async fn test_database_git_interaction(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Database<->Git".to_string());
+        // Integration point: Database<->Git
         
         let env = TestEnvironment::new().await?;
         
@@ -569,10 +577,10 @@ impl ComponentInteractionTests {
 
     async fn test_init_worktree_interaction(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Init<->WorktreeManager".to_string());
+        // Integration point: Init<->WorktreeManager
         
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"worktree-repo", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("worktree-repo", "main").await?;
         
         // Execute init and verify worktree manager can use the result
         let original_dir = env::current_dir()?;
@@ -604,7 +612,7 @@ impl ComponentInteractionTests {
 
     async fn test_cross_component_error_handling(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("ErrorHandling->AllComponents".to_string());
+        // Integration point: ErrorHandling->AllComponents
         
         let env = TestEnvironment::new().await?;
         
@@ -631,7 +639,7 @@ impl ComponentInteractionTests {
 
     async fn test_component_state_sync(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("StateSync->Config->Database->Git".to_string());
+        // Integration point: StateSync->Config->Database->Git
         
         let env = TestEnvironment::new().await?;
         
@@ -702,11 +710,11 @@ impl WorkflowTests {
 
     async fn test_developer_first_time_setup(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("FirstTimeUser->Setup->Complete".to_string());
+        // Integration point: FirstTimeUser->Setup->Complete
         
         // Simulate first-time developer setup
         let env = TestEnvironment::new().await?;
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"first-project", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("first-project", "main").await?;
         
         // First time - no existing config
         let original_dir = env::current_dir()?;
@@ -738,7 +746,7 @@ impl WorkflowTests {
 
     async fn test_existing_project_integration(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("ExistingProject->Integration->Preserve".to_string());
+        // Integration point: ExistingProject->Integration->Preserve
         
         let env = TestEnvironment::new().await?;
         
@@ -774,7 +782,7 @@ impl WorkflowTests {
 
     async fn test_multi_environment_setup(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("MultiEnv->Dev->Staging->Prod".to_string());
+        // Integration point: MultiEnv->Dev->Staging->Prod
         
         let env = TestEnvironment::new().await?;
         
@@ -782,8 +790,8 @@ impl WorkflowTests {
         let environments = vec!["dev", "staging", "prod"];
         
         for env_name in &environments {
-            let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),
-                &format!("project-{}", env_name), 
+            let (repo_dir, trunk_dir) = env.create_mock_repo_structure(
+                &format!("project-{}", env_name),
                 env_name
             ).await?;
             
@@ -817,7 +825,7 @@ impl WorkflowTests {
 
     async fn test_migration_workflow(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Migration->OldSystem->NewSystem".to_string());
+        // Integration point: Migration->OldSystem->NewSystem
         
         let env = TestEnvironment::new().await?;
         
@@ -829,7 +837,7 @@ database_path = "/old/database.db"
 "#).await?;
         
         // Run migration (simulated through force init)
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"migration-repo", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("migration-repo", "main").await?;
         
         let original_dir = env::current_dir()?;
         env::set_current_dir(&trunk_dir)?;
@@ -851,12 +859,12 @@ database_path = "/old/database.db"
 
     async fn test_recovery_workflow(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Recovery->Corruption->Rebuild".to_string());
+        // Integration point: Recovery->Corruption->Rebuild
         
         let env = TestEnvironment::new().await?;
         
         // Create initial setup
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"recovery-repo", "main").await?;
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("recovery-repo", "main").await?;
         
         let original_dir = env::current_dir()?;
         env::set_current_dir(&trunk_dir)?;
@@ -929,7 +937,7 @@ impl StateManagementTests {
 
     async fn test_state_persistence(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("State->Persist->Reload".to_string());
+        // Integration point: State->Persist->Reload
         
         let env = TestEnvironment::new().await?;
         
@@ -955,7 +963,7 @@ impl StateManagementTests {
 
     async fn test_state_recovery(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("StateRecovery->Validation->Rebuild".to_string());
+        // Integration point: StateRecovery->Validation->Rebuild
         
         let env = TestEnvironment::new().await?;
         
@@ -977,7 +985,7 @@ impl StateManagementTests {
 
     async fn test_concurrent_access(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Concurrent->Access->Consistency".to_string());
+        // Integration point: Concurrent->Access->Consistency
         
         let env = TestEnvironment::new().await?;
         
@@ -1009,7 +1017,7 @@ impl StateManagementTests {
 
     async fn test_state_migration(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("StateMigration->Version->Upgrade".to_string());
+        // Integration point: StateMigration->Version->Upgrade
         
         // Test state migration between versions (simulated)
         let env = TestEnvironment::new().await?;
@@ -1065,7 +1073,7 @@ impl CrossSystemTests {
 
     async fn test_filesystem_integration(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("FileSystem->OS->Integration".to_string());
+        // Integration point: FileSystem->OS->Integration
         
         let env = TestEnvironment::new().await?;
         
@@ -1084,7 +1092,7 @@ impl CrossSystemTests {
 
     async fn test_environment_variable_handling(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("EnvVars->Config->Override".to_string());
+        // Integration point: EnvVars->Config->Override
         
         // Test environment variable integration
         env::set_var("IMIT_TEST_VAR", "test_value");
@@ -1105,7 +1113,7 @@ impl CrossSystemTests {
 
     async fn test_platform_compatibility(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Platform->OS->Compatibility".to_string());
+        // Integration point: Platform->OS->Compatibility
         
         // Test platform-specific behavior
         let platform_compatible = self.test_platform_specific_features().await;
@@ -1122,7 +1130,7 @@ impl CrossSystemTests {
 
     async fn test_permission_systems(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        result.integration_points.push("Permissions->Security->Access".to_string());
+        // Integration point: Permissions->Security->Access
         
         let env = TestEnvironment::new().await?;
         
@@ -1182,7 +1190,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_repo_structure_creation() {
         let env = TestEnvironment::new().await.unwrap();
-        let (repo_dir, trunk_dir) = create_mock_repo_structure(&env.temp_dir.path().to_path_buf(),"test", "main").await.unwrap();
+        let (repo_dir, trunk_dir) = env.create_mock_repo_structure("test", "main").await.unwrap();
         
         assert!(repo_dir.exists());
         assert!(trunk_dir.exists());

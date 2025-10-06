@@ -5,7 +5,6 @@
 //! configuration management, and database operations.
 
 use anyhow::Result;
-use std::env;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tokio::fs;
@@ -13,9 +12,8 @@ use tokio::fs;
 // Import the modules we're testing
 use imi::{
     config::Config,
-    database::{Database, Repository, Worktree},
-    error::ImiError,
-    init::{InitCommand, InitResult, ValidationResult},
+    database::Database,
+    init::{InitCommand, InitResult},
     defaults,
 };
 
@@ -56,7 +54,7 @@ impl UnitTestSuite {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct UnitTestResults {
     pub path_validation: TestCategoryResult,
     pub trunk_detection: TestCategoryResult,
@@ -79,7 +77,15 @@ impl UnitTestResults {
             overall_coverage: 0.0,
         }
     }
+}
 
+impl Default for UnitTestResults {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl UnitTestResults {
     pub fn calculate_coverage(&mut self) {
         let categories = [
             &self.path_validation,
@@ -95,7 +101,7 @@ impl UnitTestResults {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TestCategoryResult {
     pub passed: usize,
     pub failed: usize,
