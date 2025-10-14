@@ -134,24 +134,26 @@ impl WorktreeManager {
         base_branch: Option<&str>,
     ) -> Result<PathBuf> {
         let repo_name = self.resolve_repo_name(repo).await?;
-        
+
         // Get worktree path - apply IMI_PATH logic to both registered and unregistered repos
-        let worktree_path = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
-            // Use registered repository path but apply IMI_PATH detection
-            let registered_path = PathBuf::from(&registered_repo.path);
-            let imi_path = self.detect_imi_path(&registered_path)?;
-            imi_path.join(worktree_name)
-        } else {
-            // Fall back to current repository location with IMI_PATH detection
-            let current_dir = env::current_dir()?;
-            let repo = self.git.find_repository(Some(&current_dir))?;
-            let repo_root = repo.workdir()
-                .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
-            
-            // Detect IMI_PATH - if we're in a trunk directory, use its parent
-            let imi_path = self.detect_imi_path(repo_root)?;
-            imi_path.join(worktree_name)
-        };
+        let worktree_path =
+            if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+                // Use registered repository path but apply IMI_PATH detection
+                let registered_path = PathBuf::from(&registered_repo.path);
+                let imi_path = self.detect_imi_path(&registered_path)?;
+                imi_path.join(worktree_name)
+            } else {
+                // Fall back to current repository location with IMI_PATH detection
+                let current_dir = env::current_dir()?;
+                let repo = self.git.find_repository(Some(&current_dir))?;
+                let repo_root = repo
+                    .workdir()
+                    .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+
+                // Detect IMI_PATH - if we're in a trunk directory, use its parent
+                let imi_path = self.detect_imi_path(repo_root)?;
+                imi_path.join(worktree_name)
+            };
 
         // Check if worktree already exists
         if let Some(_existing) = self.db.get_worktree(&repo_name, worktree_name).await? {
@@ -173,11 +175,13 @@ impl WorktreeManager {
         // Find the repository - use current directory and register if needed
         let current_dir = env::current_dir()?;
         let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo.workdir()
+        let repo_root = repo
+            .workdir()
             .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
-        
+
         // Auto-register repository if not in database
-        self.ensure_repository_registered(&repo_name, repo_root).await?;
+        self.ensure_repository_registered(&repo_name, repo_root)
+            .await?;
 
         // Create the Git worktree
         self.git
@@ -221,15 +225,16 @@ impl WorktreeManager {
     ) -> Result<PathBuf> {
         let repo_name = self.resolve_repo_name(repo).await?;
         let worktree_name = format!("pr-{}", pr_number);
-        
+
         // Use IMI_PATH detection for consistent worktree placement
         let current_dir = env::current_dir()?;
         let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo.workdir()
+        let repo_root = repo
+            .workdir()
             .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
         let imi_path = self.detect_imi_path(repo_root)?;
         let worktree_path = imi_path.join(&worktree_name);
-        
+
         let trunk_path = self.config.get_trunk_path(&repo_name);
 
         // Try to checkout PR using gh CLI
@@ -333,22 +338,32 @@ impl WorktreeManager {
     }
 
     /// Remove a worktree
-    pub async fn remove_worktree(&self, name: &str, repo: Option<&str>, keep_branch: bool, keep_remote: bool) -> Result<()> {
+    pub async fn remove_worktree(
+        &self,
+        name: &str,
+        repo: Option<&str>,
+        keep_branch: bool,
+        keep_remote: bool,
+    ) -> Result<()> {
         let repo_name = self.resolve_repo_name(repo).await?;
-        
+
         // Find the actual worktree name - it might be prefixed (e.g., feat-iteractive-learning)
         let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
-        
+
         // Use IMI_PATH detection for consistent worktree removal
         let current_dir = env::current_dir()?;
         let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo.workdir()
+        let repo_root = repo
+            .workdir()
             .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
         let imi_path = self.detect_imi_path(repo_root)?;
         let worktree_path = imi_path.join(&actual_worktree_name);
 
         // Get worktree info from database before removing
-        let worktree_info = self.db.get_worktree(&repo_name, &actual_worktree_name).await?;
+        let worktree_info = self
+            .db
+            .get_worktree(&repo_name, &actual_worktree_name)
+            .await?;
         let branch_name = worktree_info.as_ref().map(|w| w.branch_name.clone());
 
         // Remove directory first
@@ -368,19 +383,23 @@ impl WorktreeManager {
             if let Some(branch) = &branch_name {
                 // Delete local branch
                 self.git.delete_local_branch(&repo, branch)?;
-                
+
                 // Delete remote branch (default is to delete unless explicitly kept)
                 if !keep_remote {
                     if let Err(e) = self.git.delete_remote_branch(&repo, branch).await {
                         println!("⚠️ Could not delete remote branch '{}': {}", branch, e);
-                        println!("   (This is normal if the branch was already deleted or never pushed)");
+                        println!(
+                            "   (This is normal if the branch was already deleted or never pushed)"
+                        );
                     }
                 }
             }
         }
 
         // Deactivate in database
-        self.db.deactivate_worktree(&repo_name, &actual_worktree_name).await?;
+        self.db
+            .deactivate_worktree(&repo_name, &actual_worktree_name)
+            .await?;
 
         Ok(())
     }
@@ -504,20 +523,24 @@ impl WorktreeManager {
     /// Find the actual worktree name by trying different prefixed versions
     async fn find_actual_worktree_name(&self, name: &str, repo_name: &str) -> Result<String> {
         // If the name is already prefixed, use it as-is
-        if name.contains('-') && (name.starts_with("feat-") || name.starts_with("fix-") || 
-                                  name.starts_with("aiops-") || name.starts_with("devops-") || 
-                                  name.starts_with("pr-")) {
+        if name.contains('-')
+            && (name.starts_with("feat-")
+                || name.starts_with("fix-")
+                || name.starts_with("aiops-")
+                || name.starts_with("devops-")
+                || name.starts_with("pr-"))
+        {
             return Ok(name.to_string());
         }
 
         // Try different prefixed versions
         let possible_names = vec![
-            name.to_string(),                    // Original name
-            format!("feat-{}", name),           // Feature worktree
-            format!("fix-{}", name),            // Fix worktree  
-            format!("aiops-{}", name),          // AI ops worktree
-            format!("devops-{}", name),         // DevOps worktree
-            format!("pr-{}", name),             // PR worktree
+            name.to_string(),           // Original name
+            format!("feat-{}", name),   // Feature worktree
+            format!("fix-{}", name),    // Fix worktree
+            format!("aiops-{}", name),  // AI ops worktree
+            format!("devops-{}", name), // DevOps worktree
+            format!("pr-{}", name),     // PR worktree
         ];
 
         for possible_name in possible_names {
@@ -590,49 +613,68 @@ impl WorktreeManager {
         }
 
         // Get repository information
-        let remote_url = self.git.get_remote_url(repo_path).await.unwrap_or_else(|_| "".to_string());
-        let default_branch = self.git.get_default_branch(repo_path).await.unwrap_or_else(|_| "main".to_string());
+        let remote_url = self
+            .git
+            .get_remote_url(repo_path)
+            .await
+            .unwrap_or_else(|_| "".to_string());
+        let default_branch = self
+            .git
+            .get_default_branch(repo_path)
+            .await
+            .unwrap_or_else(|_| "main".to_string());
 
         // Register the repository
-        self.db.create_repository(
-            repo_name,
-            repo_path.to_str().unwrap(),
-            &remote_url,
-            &default_branch
-        ).await?;
+        self.db
+            .create_repository(
+                repo_name,
+                repo_path.to_str().unwrap(),
+                &remote_url,
+                &default_branch,
+            )
+            .await?;
 
-        println!("📝 Registered repository: {} at {}", repo_name.bright_green(), repo_path.display());
+        println!(
+            "📝 Registered repository: {} at {}",
+            repo_name.bright_green(),
+            repo_path.display()
+        );
         Ok(())
     }
 
     /// Prune stale worktree references
     pub async fn prune_stale_worktrees(&self, repo: Option<&str>) -> Result<()> {
         let repo_name = self.resolve_repo_name(repo).await?;
-        
+
         // Find the repository
         let current_dir = env::current_dir()?;
         let git_repo = self.git.find_repository(Some(&current_dir))?;
-        
+
         // Prune stale worktrees using Git manager
         self.git.prune_worktrees(&git_repo)?;
-        
+
         // Also clean up database entries for worktrees that no longer exist
         let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await?;
         let mut cleaned_count = 0;
-        
+
         for worktree in db_worktrees {
             let worktree_path = PathBuf::from(&worktree.path);
             if !worktree_path.exists() {
-                self.db.deactivate_worktree(&repo_name, &worktree.worktree_name).await?;
-                println!("🗑️ Cleaned up database entry for: {}", worktree.worktree_name);
+                self.db
+                    .deactivate_worktree(&repo_name, &worktree.worktree_name)
+                    .await?;
+                println!(
+                    "🗑️ Cleaned up database entry for: {}",
+                    worktree.worktree_name
+                );
                 cleaned_count += 1;
             }
         }
-        
+
         if cleaned_count > 0 {
             println!("📊 Cleaned up {} stale database entries", cleaned_count);
         }
-        
+
         Ok(())
     }
 
@@ -652,7 +694,7 @@ impl WorktreeManager {
                 }
             }
         }
-        
+
         // Fall back to repository root's parent (original behavior)
         let imi_path = repo_root.parent().unwrap_or(repo_root);
         Ok(imi_path.to_path_buf())

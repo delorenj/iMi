@@ -1,5 +1,5 @@
 //! Comprehensive Unit Tests for iMi Init Functionality
-//! 
+//!
 //! This module implements unit tests covering all individual components
 //! of the init system with focus on path validation, trunk detection,
 //! configuration management, and database operations.
@@ -13,8 +13,8 @@ use tokio::fs;
 use imi::{
     config::Config,
     database::Database,
-    init::{InitCommand, InitResult},
     defaults,
+    init::{InitCommand, InitResult},
 };
 
 /// Comprehensive unit test suite structure
@@ -95,7 +95,7 @@ impl UnitTestResults {
             &self.validation,
             &self.result_handling,
         ];
-        
+
         let total_coverage: f64 = categories.iter().map(|c| c.coverage).sum();
         self.overall_coverage = total_coverage / categories.len() as f64;
     }
@@ -121,28 +121,28 @@ impl PathValidationTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         // Test 1: Valid absolute paths
         self.test_valid_absolute_paths(&mut result).await?;
-        
+
         // Test 2: Invalid path characters
         self.test_invalid_path_characters(&mut result).await?;
-        
+
         // Test 3: Path normalization
         self.test_path_normalization(&mut result).await?;
-        
+
         // Test 4: Path length limits
         self.test_path_length_limits(&mut result).await?;
-        
+
         // Test 5: Cross-platform path handling
         self.test_cross_platform_paths(&mut result).await?;
-        
+
         // Test 6: Symlink resolution
         self.test_symlink_resolution(&mut result).await?;
-        
+
         // Test 7: Non-existent path handling
         self.test_nonexistent_paths(&mut result).await?;
-        
+
         // Test 8: Permission checks
         self.test_path_permissions(&mut result).await?;
 
@@ -152,7 +152,7 @@ impl PathValidationTests {
 
     async fn test_valid_absolute_paths(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test various valid absolute path formats
         let test_paths = vec![
             "/home/user/code/project",
@@ -163,26 +163,28 @@ impl PathValidationTests {
 
         for path_str in test_paths {
             let path = PathBuf::from(path_str);
-            
+
             // Test path validation logic
             if path.is_absolute() {
                 // This would be the actual validation logic from init module
                 let is_valid = self.validate_path_format(&path);
                 if !is_valid {
-                    result.failures.push(format!("Valid path rejected: {}", path_str));
+                    result
+                        .failures
+                        .push(format!("Valid path rejected: {}", path_str));
                     result.failed += 1;
                     return Ok(());
                 }
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_invalid_path_characters(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test paths with invalid characters
         let invalid_paths = vec![
             "/path/with\0null",
@@ -194,21 +196,23 @@ impl PathValidationTests {
         for path_str in invalid_paths {
             let path = PathBuf::from(path_str);
             let is_valid = self.validate_path_format(&path);
-            
+
             if is_valid {
-                result.failures.push(format!("Invalid path accepted: {}", path_str));
+                result
+                    .failures
+                    .push(format!("Invalid path accepted: {}", path_str));
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_path_normalization(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test path normalization scenarios
         let normalization_cases = vec![
             ("/path/../normalized", "/normalized"),
@@ -220,45 +224,49 @@ impl PathValidationTests {
         for (input, expected) in normalization_cases {
             let normalized = self.normalize_path(&PathBuf::from(input));
             let expected_path = PathBuf::from(expected);
-            
+
             if normalized != expected_path {
                 result.failures.push(format!(
                     "Path normalization failed: {} -> {} (expected: {})",
-                    input, normalized.display(), expected
+                    input,
+                    normalized.display(),
+                    expected
                 ));
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_path_length_limits(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test extremely long paths
         let long_path = "/".to_string() + &"very_long_directory_name_".repeat(50);
         let path = PathBuf::from(long_path);
-        
+
         // System-dependent path length limits
         let is_valid = self.validate_path_length(&path);
-        
+
         // On most systems, this should be rejected
         if cfg!(unix) && is_valid && path.as_os_str().len() > 4096 {
-            result.failures.push("Extremely long path was accepted".to_string());
+            result
+                .failures
+                .push("Extremely long path was accepted".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_cross_platform_paths(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test platform-specific path formats
         #[cfg(windows)]
         {
@@ -267,106 +275,112 @@ impl PathValidationTests {
                 r"\\server\share\path",
                 r"C:\Program Files\App",
             ];
-            
+
             for path_str in windows_paths {
                 let path = PathBuf::from(path_str);
                 let is_valid = self.validate_path_format(&path);
-                
+
                 if !is_valid {
-                    result.failures.push(format!("Valid Windows path rejected: {}", path_str));
+                    result
+                        .failures
+                        .push(format!("Valid Windows path rejected: {}", path_str));
                     result.failed += 1;
                     return Ok(());
                 }
             }
         }
-        
+
         #[cfg(unix)]
         {
-            let unix_paths = vec![
-                "/home/user/code",
-                "/tmp/workspace",
-                "/opt/projects",
-            ];
-            
+            let unix_paths = vec!["/home/user/code", "/tmp/workspace", "/opt/projects"];
+
             for path_str in unix_paths {
                 let path = PathBuf::from(path_str);
                 let is_valid = self.validate_path_format(&path);
-                
+
                 if !is_valid {
-                    result.failures.push(format!("Valid Unix path rejected: {}", path_str));
+                    result
+                        .failures
+                        .push(format!("Valid Unix path rejected: {}", path_str));
                     result.failed += 1;
                     return Ok(());
                 }
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_symlink_resolution(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Create temporary directory structure with symlinks
         let temp_dir = TempDir::new()?;
         let real_dir = temp_dir.path().join("real_directory");
         let symlink_path = temp_dir.path().join("symlink_directory");
-        
+
         fs::create_dir_all(&real_dir).await?;
-        
+
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
             symlink(&real_dir, &symlink_path)?;
-            
+
             // Test symlink resolution
             let resolved = self.resolve_symlinks(&symlink_path);
-            
+
             if resolved != real_dir {
-                result.failures.push("Symlink resolution failed".to_string());
+                result
+                    .failures
+                    .push("Symlink resolution failed".to_string());
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_nonexistent_paths(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let nonexistent_path = PathBuf::from("/this/path/should/not/exist/12345");
-        
+
         // Test handling of non-existent paths
         let exists = self.check_path_exists(&nonexistent_path);
-        
+
         if exists {
-            result.failures.push("Non-existent path reported as existing".to_string());
+            result
+                .failures
+                .push("Non-existent path reported as existing".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_path_permissions(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test permission checking
         let temp_dir = TempDir::new()?;
         let test_path = temp_dir.path();
-        
+
         let has_read = self.check_read_permission(test_path);
         let has_write = self.check_write_permission(test_path);
-        
+
         if !has_read || !has_write {
-            result.failures.push("Permission check failed for writable directory".to_string());
+            result
+                .failures
+                .push("Permission check failed for writable directory".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -418,22 +432,22 @@ impl TrunkDetectionTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         // Test 1: Valid trunk directory patterns
         self.test_valid_trunk_patterns(&mut result).await?;
-        
+
         // Test 2: Invalid trunk directory patterns
         self.test_invalid_trunk_patterns(&mut result).await?;
-        
+
         // Test 3: Branch name extraction
         self.test_branch_name_extraction(&mut result).await?;
-        
+
         // Test 4: Special branch names
         self.test_special_branch_names(&mut result).await?;
-        
+
         // Test 5: Case sensitivity
         self.test_case_sensitivity(&mut result).await?;
-        
+
         // Test 6: Trunk detection in nested structures
         self.test_nested_trunk_detection(&mut result).await?;
 
@@ -443,7 +457,7 @@ impl TrunkDetectionTests {
 
     async fn test_valid_trunk_patterns(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let valid_patterns = vec![
             "trunk-main",
             "trunk-develop",
@@ -456,44 +470,48 @@ impl TrunkDetectionTests {
         for pattern in valid_patterns {
             let is_trunk = self.is_trunk_directory(pattern);
             if !is_trunk {
-                result.failures.push(format!("Valid trunk pattern rejected: {}", pattern));
+                result
+                    .failures
+                    .push(format!("Valid trunk pattern rejected: {}", pattern));
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_invalid_trunk_patterns(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let invalid_patterns = vec![
-            "trunk",           // Missing branch name
-            "trunk-",          // Empty branch name
-            "main",            // No trunk prefix
-            "branch-main",     // Wrong prefix
-            "trunk_main",      // Wrong separator
-            "TRUNK-main",      // Wrong case
+            "trunk",       // Missing branch name
+            "trunk-",      // Empty branch name
+            "main",        // No trunk prefix
+            "branch-main", // Wrong prefix
+            "trunk_main",  // Wrong separator
+            "TRUNK-main",  // Wrong case
         ];
 
         for pattern in invalid_patterns {
             let is_trunk = self.is_trunk_directory(pattern);
             if is_trunk {
-                result.failures.push(format!("Invalid trunk pattern accepted: {}", pattern));
+                result
+                    .failures
+                    .push(format!("Invalid trunk pattern accepted: {}", pattern));
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_branch_name_extraction(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let extraction_cases = vec![
             ("trunk-main", "main"),
             ("trunk-develop", "develop"),
@@ -513,14 +531,14 @@ impl TrunkDetectionTests {
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_special_branch_names(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let special_cases = vec![
             ("trunk-main", true),
             ("trunk-master", true),
@@ -540,20 +558,20 @@ impl TrunkDetectionTests {
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_case_sensitivity(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test case sensitivity in trunk detection
         let case_variations = vec![
             ("trunk-main", true),
             ("Trunk-main", false),
             ("TRUNK-MAIN", false),
-            ("trunk-Main", true),  // Branch names can have mixed case
+            ("trunk-Main", true), // Branch names can have mixed case
             ("trunk-DEVELOP", true),
         ];
 
@@ -568,32 +586,34 @@ impl TrunkDetectionTests {
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_nested_trunk_detection(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Create nested directory structure
         let temp_dir = TempDir::new()?;
         let repo_path = temp_dir.path().join("test-repo");
         let trunk_path = repo_path.join("trunk-main");
         let nested_path = trunk_path.join("src").join("lib");
-        
+
         fs::create_dir_all(&nested_path).await?;
-        
+
         // Test detection from different levels
         let from_trunk = self.detect_trunk_from_path(&trunk_path);
         let from_nested = self.detect_trunk_from_path(&nested_path);
-        
+
         if !from_trunk || !from_nested {
-            result.failures.push("Trunk detection failed in nested structure".to_string());
+            result
+                .failures
+                .push("Trunk detection failed in nested structure".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -632,111 +652,115 @@ impl ConfigManagementTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         // Test configuration creation, loading, validation, etc.
         self.test_config_creation(&mut result).await?;
         self.test_config_loading(&mut result).await?;
         self.test_config_validation(&mut result).await?;
         self.test_config_defaults(&mut result).await?;
         self.test_config_paths(&mut result).await?;
-        
+
         result.coverage = (result.passed as f64 / result.total as f64) * 100.0;
         Ok(result)
     }
 
     async fn test_config_creation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let temp_dir = TempDir::new()?;
         let config_path = temp_dir.path().join("config.toml");
-        
+
         // Test config creation
         let config = Config::default();
         // This would save the config - placeholder for actual implementation
         let save_result = self.save_config_to_path(&config, &config_path).await;
-        
+
         if save_result.is_err() || !config_path.exists() {
             result.failures.push("Config creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_config_loading(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test loading existing config
         let temp_dir = TempDir::new()?;
         let config_path = temp_dir.path().join("config.toml");
-        
+
         // Create a test config file
         let test_config = r#"
 root_path = "/home/user/code"
 database_path = "/home/user/.config/imi/imi.db"
 "#;
-        
+
         fs::write(&config_path, test_config).await?;
-        
+
         // Test loading
         let loaded_config = self.load_config_from_path(&config_path).await;
-        
+
         if loaded_config.is_err() {
             result.failures.push("Config loading failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_config_validation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test various config validation scenarios
         let valid_config = Config::default();
-        
+
         if !self.validate_config(&valid_config) {
             result.failures.push("Valid config rejected".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_config_defaults(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let config = Config::default();
-        
+
         // Test default values
         if config.root_path != PathBuf::from(defaults::DEFAULT_ROOT) {
-            result.failures.push("Default root path incorrect".to_string());
+            result
+                .failures
+                .push("Default root path incorrect".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_config_paths(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test config path resolution
         let config_path = Config::get_config_path();
-        
+
         if config_path.is_err() {
-            result.failures.push("Config path resolution failed".to_string());
+            result
+                .failures
+                .push("Config path resolution failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -769,142 +793,155 @@ impl DatabaseOperationTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         self.test_database_creation(&mut result).await?;
         self.test_table_initialization(&mut result).await?;
         self.test_repository_operations(&mut result).await?;
         self.test_worktree_operations(&mut result).await?;
         self.test_database_migration(&mut result).await?;
-        
+
         result.coverage = (result.passed as f64 / result.total as f64) * 100.0;
         Ok(result)
     }
 
     async fn test_database_creation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("test.db");
-        
+
         let db = Database::new(&db_path).await;
-        
+
         if db.is_err() || !db_path.exists() {
             result.failures.push("Database creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_table_initialization(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("test.db");
-        
+
         let db = Database::new(&db_path).await?;
         let table_result = db.ensure_tables().await;
-        
+
         if table_result.is_err() {
-            result.failures.push("Table initialization failed".to_string());
+            result
+                .failures
+                .push("Table initialization failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_repository_operations(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("test.db");
-        
+
         let db = Database::new(&db_path).await?;
         db.ensure_tables().await?;
-        
+
         // Test repository creation
-        let create_result = db.create_repository(
-            "test-repo",
-            "/path/to/repo",
-            "https://github.com/user/repo.git",
-            "main"
-        ).await;
-        
+        let create_result = db
+            .create_repository(
+                "test-repo",
+                "/path/to/repo",
+                "https://github.com/user/repo.git",
+                "main",
+            )
+            .await;
+
         if create_result.is_err() {
-            result.failures.push("Repository creation failed".to_string());
+            result
+                .failures
+                .push("Repository creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         // Test repository retrieval
         let repo = db.get_repository("test-repo").await?;
-        
+
         if repo.is_none() {
-            result.failures.push("Repository retrieval failed".to_string());
+            result
+                .failures
+                .push("Repository retrieval failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_worktree_operations(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("test.db");
-        
+
         let db = Database::new(&db_path).await?;
         db.ensure_tables().await?;
-        
+
         // Create repository first
-        db.create_repository("test-repo", "/path/to/repo", "", "main").await?;
-        
+        db.create_repository("test-repo", "/path/to/repo", "", "main")
+            .await?;
+
         // Test worktree creation
-        let create_result = db.create_worktree(
-            "test-repo",
-            "trunk-main",
-            "main",
-            "trunk",
-            "/path/to/worktree",
-            None
-        ).await;
-        
+        let create_result = db
+            .create_worktree(
+                "test-repo",
+                "trunk-main",
+                "main",
+                "trunk",
+                "/path/to/worktree",
+                None,
+            )
+            .await;
+
         if create_result.is_err() {
             result.failures.push("Worktree creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_database_migration(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test database migration scenarios
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("test.db");
-        
+
         // Create initial database
         let db = Database::new(&db_path).await?;
         db.ensure_tables().await?;
-        
+
         // Test schema validation
         let is_valid = self.validate_database_schema(&db).await;
-        
+
         if !is_valid {
-            result.failures.push("Database schema validation failed".to_string());
+            result
+                .failures
+                .push("Database schema validation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -927,48 +964,55 @@ impl ValidationTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         self.test_environment_validation(&mut result).await?;
         self.test_permission_validation(&mut result).await?;
         self.test_input_sanitization(&mut result).await?;
         self.test_constraint_validation(&mut result).await?;
-        
+
         result.coverage = (result.passed as f64 / result.total as f64) * 100.0;
         Ok(result)
     }
 
     async fn test_environment_validation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
-        let init_cmd = InitCommand::new(false);
+
+        // Create test environment
+        let temp_dir = TempDir::new()?;
+        let mut config = Config::default();
+        config.database_path = temp_dir.path().join("test.db");
+        config.root_path = temp_dir.path().to_path_buf();
+        let database = Database::new(&config.database_path).await?;
+
+        let _init_cmd = InitCommand::new(false, config, database);
         // Skip environment validation test as method doesn't exist
-        
-        result.passed += 1;
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_permission_validation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test permission checking
         let temp_dir = TempDir::new()?;
         let has_permission = self.check_directory_permissions(temp_dir.path()).await;
-        
+
         if !has_permission {
-            result.failures.push("Permission validation failed for writable directory".to_string());
+            result
+                .failures
+                .push("Permission validation failed for writable directory".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_input_sanitization(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test input sanitization for various attack vectors
         let malicious_inputs = vec![
             "../../../etc/passwd",
@@ -976,32 +1020,36 @@ impl ValidationTests {
             "$(rm -rf /)",
             "; rm -rf /",
         ];
-        
+
         for input in malicious_inputs {
             let is_safe = self.sanitize_input(input);
             if !is_safe {
-                result.failures.push(format!("Input sanitization failed for: {}", input));
+                result
+                    .failures
+                    .push(format!("Input sanitization failed for: {}", input));
                 result.failed += 1;
                 return Ok(());
             }
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_constraint_validation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test various constraint validations
         let constraints_passed = self.validate_system_constraints().await;
-        
+
         if !constraints_passed {
-            result.failures.push("System constraint validation failed".to_string());
+            result
+                .failures
+                .push("System constraint validation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -1034,74 +1082,80 @@ impl ResultHandlingTests {
 
     pub async fn run(&self) -> Result<TestCategoryResult> {
         let mut result = TestCategoryResult::default();
-        
+
         self.test_success_results(&mut result).await?;
         self.test_failure_results(&mut result).await?;
         self.test_error_propagation(&mut result).await?;
         self.test_result_formatting(&mut result).await?;
-        
+
         result.coverage = (result.passed as f64 / result.total as f64) * 100.0;
         Ok(result)
     }
 
     async fn test_success_results(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let success_result = InitResult::success("Test success".to_string());
-        
+
         if !success_result.success {
-            result.failures.push("Success result creation failed".to_string());
+            result
+                .failures
+                .push("Success result creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_failure_results(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         let failure_result = InitResult::failure("Test failure".to_string());
-        
+
         if failure_result.success {
-            result.failures.push("Failure result creation failed".to_string());
+            result
+                .failures
+                .push("Failure result creation failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_error_propagation(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test error propagation through the system
         let error_chain = self.create_error_chain();
-        
+
         if error_chain.is_empty() {
-            result.failures.push("Error propagation test failed".to_string());
+            result
+                .failures
+                .push("Error propagation test failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
 
     async fn test_result_formatting(&self, result: &mut TestCategoryResult) -> Result<()> {
         result.total += 1;
-        
+
         // Test result formatting and display
         let formatted_result = self.format_result(&InitResult::success("Test".to_string()));
-        
+
         if formatted_result.is_empty() {
             result.failures.push("Result formatting failed".to_string());
             result.failed += 1;
             return Ok(());
         }
-        
+
         result.passed += 1;
         Ok(())
     }
@@ -1133,13 +1187,13 @@ mod tests {
         results.path_validation.passed = 8;
         results.path_validation.total = 10;
         results.path_validation.coverage = 80.0;
-        
+
         results.trunk_detection.passed = 6;
         results.trunk_detection.total = 6;
         results.trunk_detection.coverage = 100.0;
-        
+
         results.calculate_coverage();
-        
+
         // Should be around 50% overall (average of all categories where most are 0)
         assert!(results.overall_coverage >= 0.0);
     }

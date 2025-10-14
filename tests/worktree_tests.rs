@@ -1,5 +1,5 @@
 /// Emergency Critical Coverage Tests for Worktree Module
-/// 
+///
 /// This comprehensive test suite provides complete coverage for worktree.rs (210 lines, 0% coverage)
 /// to address the CRITICAL coverage crisis identified in AC-060.
 ///
@@ -16,7 +16,6 @@
 /// - Repository resolution: resolve_repo_name()
 /// - Monitoring integration: start_monitoring()
 /// - Error handling and edge cases
-
 use anyhow::{Context, Result};
 use std::env;
 use std::path::PathBuf;
@@ -48,7 +47,7 @@ impl WorktreeTestHelper {
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
         config.root_path = temp_dir.path().join("code");
-        
+
         // Create directories
         fs::create_dir_all(&config.root_path).await?;
 
@@ -82,12 +81,15 @@ impl WorktreeTestHelper {
         fs::write(trunk_path.join("README.md"), "# Test Repository\n").await?;
 
         // Create repository record in database to satisfy foreign key constraint
-        self.db.create_repository(
-            repo_name,
-            trunk_path.to_str().unwrap(),
-            &format!("https://github.com/test/{}.git", repo_name),
-            "main"
-        ).await.ok(); // Ignore errors if repository already exists
+        self.db
+            .create_repository(
+                repo_name,
+                trunk_path.to_str().unwrap(),
+                &format!("https://github.com/test/{}.git", repo_name),
+                "main",
+            )
+            .await
+            .ok(); // Ignore errors if repository already exists
 
         Ok(trunk_path)
     }
@@ -112,10 +114,10 @@ mod worktree_manager_creation_tests {
     #[tokio::test]
     async fn test_worktree_manager_new() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         // Verify manager was created with correct components
         println!("WorktreeManager created successfully");
-        
+
         // Test basic functionality
         let result = helper.manager.show_status(Some("test-repo")).await;
         assert!(result.is_ok(), "Manager should be functional");
@@ -125,14 +127,16 @@ mod worktree_manager_creation_tests {
     async fn test_worktree_manager_clone() {
         let git = GitManager::new();
         let temp_dir = TempDir::new().unwrap();
-        let db = Database::new(&temp_dir.path().join("test.db")).await.unwrap();
+        let db = Database::new(&temp_dir.path().join("test.db"))
+            .await
+            .unwrap();
         let config = Config::default();
 
         let manager = WorktreeManager::new(git, db, config);
-        
+
         // WorktreeManager should be cloneable
         let _cloned_manager = manager.clone();
-        
+
         println!("WorktreeManager cloned successfully");
     }
 }
@@ -145,27 +149,37 @@ mod feature_worktree_tests {
     async fn test_create_feature_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-feature-repo";
-        
+
         // Create trunk structure first
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_feature_worktree("auth", Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_feature_worktree("auth", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
-                assert!(worktree_path.exists(), "Feature worktree directory should exist");
-                
+                assert!(
+                    worktree_path.exists(),
+                    "Feature worktree directory should exist"
+                );
+
                 let expected_name = "feat-auth";
                 assert!(worktree_path.to_string_lossy().contains(expected_name));
-                
+
                 // Check database entry
-                let worktree = helper.db.get_worktree(repo_name, expected_name).await.unwrap();
+                let worktree = helper
+                    .db
+                    .get_worktree(repo_name, expected_name)
+                    .await
+                    .unwrap();
                 assert!(worktree.is_some());
-                
+
                 let wt = worktree.unwrap();
                 assert_eq!(wt.worktree_type, "feat");
                 assert_eq!(wt.branch_name, "feat/auth");
-                
+
                 println!("Feature worktree created successfully: {:?}", worktree_path);
             }
             Err(e) => {
@@ -187,7 +201,11 @@ mod feature_worktree_tests {
         let temp_dir = helper.get_temp_path().to_path_buf();
 
         // Verify directory exists before changing to it
-        assert!(trunk_path.exists(), "Trunk path should exist at {:?}", trunk_path);
+        assert!(
+            trunk_path.exists(),
+            "Trunk path should exist at {:?}",
+            trunk_path
+        );
 
         std::env::set_current_dir(&trunk_path).unwrap();
 
@@ -195,10 +213,13 @@ mod feature_worktree_tests {
 
         // Restore to temp directory instead of original directory
         std::env::set_current_dir(&temp_dir).unwrap();
-        
+
         match result {
             Ok(worktree_path) => {
-                println!("Feature worktree created from current dir: {:?}", worktree_path);
+                println!(
+                    "Feature worktree created from current dir: {:?}",
+                    worktree_path
+                );
             }
             Err(e) => {
                 println!("Feature worktree creation from current dir failed: {}", e);
@@ -211,9 +232,9 @@ mod feature_worktree_tests {
     async fn test_create_feature_worktree_with_complex_name() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "complex-feature-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let complex_names = vec![
             "user-auth",
             "api_integration",
@@ -222,8 +243,11 @@ mod feature_worktree_tests {
         ];
 
         for name in complex_names {
-            let result = helper.manager.create_feature_worktree(name, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_feature_worktree(name, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("Complex feature name '{}' created: {:?}", name, path);
@@ -245,22 +269,25 @@ mod review_pr_worktree_tests {
     async fn test_create_review_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-pr-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_review_worktree(123, Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_review_worktree(123, Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 assert!(worktree_path.to_string_lossy().contains("pr-123"));
-                
+
                 // Check database
                 let worktree = helper.db.get_worktree(repo_name, "pr-123").await.unwrap();
                 assert!(worktree.is_some());
-                
+
                 let wt = worktree.unwrap();
                 assert_eq!(wt.worktree_type, "pr");
-                
+
                 println!("Review worktree created: {:?}", worktree_path);
             }
             Err(e) => {
@@ -274,11 +301,14 @@ mod review_pr_worktree_tests {
     async fn test_create_review_worktree_large_pr_number() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "large-pr-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_review_worktree(999999, Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_review_worktree(999999, Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 assert!(worktree_path.to_string_lossy().contains("pr-999999"));
@@ -294,12 +324,15 @@ mod review_pr_worktree_tests {
     async fn test_create_pr_worktree_with_gh_fallback() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "gh-fallback-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // This will likely fail to use gh CLI and fall back to manual creation
-        let result = helper.manager.create_review_worktree(456, Some(repo_name)).await;
-        
+        let result = helper
+            .manager
+            .create_review_worktree(456, Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 println!("PR worktree with gh fallback created: {:?}", worktree_path);
@@ -320,22 +353,29 @@ mod fix_worktree_tests {
     async fn test_create_fix_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-fix-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_fix_worktree("bug-123", Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_fix_worktree("bug-123", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 assert!(worktree_path.to_string_lossy().contains("fix-bug-123"));
-                
-                let worktree = helper.db.get_worktree(repo_name, "fix-bug-123").await.unwrap();
+
+                let worktree = helper
+                    .db
+                    .get_worktree(repo_name, "fix-bug-123")
+                    .await
+                    .unwrap();
                 assert!(worktree.is_some());
-                
+
                 let wt = worktree.unwrap();
                 assert_eq!(wt.worktree_type, "fix");
                 assert_eq!(wt.branch_name, "fix/bug-123");
-                
+
                 println!("Fix worktree created: {:?}", worktree_path);
             }
             Err(e) => {
@@ -348,9 +388,9 @@ mod fix_worktree_tests {
     async fn test_create_fix_worktree_various_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "fix-names-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let fix_names = vec![
             "critical-bug",
             "security_patch",
@@ -359,8 +399,11 @@ mod fix_worktree_tests {
         ];
 
         for name in fix_names {
-            let result = helper.manager.create_fix_worktree(name, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_fix_worktree(name, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("Fix worktree '{}' created: {:?}", name, path);
@@ -382,22 +425,29 @@ mod aiops_worktree_tests {
     async fn test_create_aiops_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-aiops-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_aiops_worktree("deployment", Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_aiops_worktree("deployment", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 assert!(worktree_path.to_string_lossy().contains("aiops-deployment"));
-                
-                let worktree = helper.db.get_worktree(repo_name, "aiops-deployment").await.unwrap();
+
+                let worktree = helper
+                    .db
+                    .get_worktree(repo_name, "aiops-deployment")
+                    .await
+                    .unwrap();
                 assert!(worktree.is_some());
-                
+
                 let wt = worktree.unwrap();
                 assert_eq!(wt.worktree_type, "aiops");
                 assert_eq!(wt.branch_name, "aiops/deployment");
-                
+
                 println!("AIOps worktree created: {:?}", worktree_path);
             }
             Err(e) => {
@@ -410,9 +460,9 @@ mod aiops_worktree_tests {
     async fn test_create_aiops_worktree_ml_scenarios() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "ml-aiops-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let ml_scenarios = vec![
             "model-training",
             "data_pipeline",
@@ -421,8 +471,11 @@ mod aiops_worktree_tests {
         ];
 
         for scenario in ml_scenarios {
-            let result = helper.manager.create_aiops_worktree(scenario, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_aiops_worktree(scenario, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("AIOps scenario '{}' created: {:?}", scenario, path);
@@ -443,22 +496,29 @@ mod devops_worktree_tests {
     async fn test_create_devops_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-devops-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.create_devops_worktree("ci-setup", Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_devops_worktree("ci-setup", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 assert!(worktree_path.to_string_lossy().contains("devops-ci-setup"));
-                
-                let worktree = helper.db.get_worktree(repo_name, "devops-ci-setup").await.unwrap();
+
+                let worktree = helper
+                    .db
+                    .get_worktree(repo_name, "devops-ci-setup")
+                    .await
+                    .unwrap();
                 assert!(worktree.is_some());
-                
+
                 let wt = worktree.unwrap();
                 assert_eq!(wt.worktree_type, "devops");
                 assert_eq!(wt.branch_name, "devops/ci-setup");
-                
+
                 println!("DevOps worktree created: {:?}", worktree_path);
             }
             Err(e) => {
@@ -471,9 +531,9 @@ mod devops_worktree_tests {
     async fn test_create_devops_worktree_infrastructure_scenarios() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "infra-devops-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let infra_scenarios = vec![
             "kubernetes-config",
             "terraform_modules",
@@ -482,8 +542,11 @@ mod devops_worktree_tests {
         ];
 
         for scenario in infra_scenarios {
-            let result = helper.manager.create_devops_worktree(scenario, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_devops_worktree(scenario, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("DevOps scenario '{}' created: {:?}", scenario, path);
@@ -504,12 +567,12 @@ mod trunk_worktree_tests {
     async fn test_get_trunk_worktree_existing() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "trunk-existing-repo";
-        
+
         // Create trunk structure
         let trunk_path = helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let result = helper.manager.get_trunk_worktree(Some(repo_name)).await;
-        
+
         match result {
             Ok(path) => {
                 assert_eq!(path, trunk_path);
@@ -525,11 +588,14 @@ mod trunk_worktree_tests {
     #[tokio::test]
     async fn test_get_trunk_worktree_nonexistent() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
-        let result = helper.manager.get_trunk_worktree(Some("nonexistent-repo")).await;
-        
+
+        let result = helper
+            .manager
+            .get_trunk_worktree(Some("nonexistent-repo"))
+            .await;
+
         assert!(result.is_err(), "Should fail for nonexistent trunk");
-        
+
         let error_msg = result.unwrap_err().to_string();
         assert!(error_msg.contains("Trunk worktree not found"));
         println!("Correctly handled nonexistent trunk: {}", error_msg);
@@ -539,17 +605,17 @@ mod trunk_worktree_tests {
     async fn test_get_trunk_worktree_from_current_dir() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "current-trunk-repo";
-        
+
         let trunk_path = helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // Change to trunk directory
         let original_dir = env::current_dir().unwrap();
         helper.set_current_dir(&trunk_path).unwrap();
-        
+
         let result = helper.manager.get_trunk_worktree(None).await;
-        
+
         env::set_current_dir(original_dir).unwrap();
-        
+
         match result {
             Ok(path) => {
                 println!("Trunk found from current dir: {:?}", path);
@@ -573,7 +639,8 @@ mod worktree_management_tests {
         helper.create_trunk_structure(repo_name).await.unwrap();
 
         // Create a worktree first (in database) - repository record already created by create_trunk_structure
-        let worktree = helper.db
+        let worktree = helper
+            .db
             .create_worktree(
                 repo_name,
                 "test-remove",
@@ -585,14 +652,21 @@ mod worktree_management_tests {
             .await
             .unwrap();
 
-        let result = helper.manager.remove_worktree("test-remove", Some(repo_name), false, false).await;
-        
+        let result = helper
+            .manager
+            .remove_worktree("test-remove", Some(repo_name), false, false)
+            .await;
+
         match result {
             Ok(_) => {
                 // Check that worktree was deactivated in database
-                let retrieved = helper.db.get_worktree(repo_name, "test-remove").await.unwrap();
+                let retrieved = helper
+                    .db
+                    .get_worktree(repo_name, "test-remove")
+                    .await
+                    .unwrap();
                 assert!(retrieved.is_none(), "Worktree should be deactivated");
-                
+
                 println!("Worktree removed successfully");
             }
             Err(e) => {
@@ -605,11 +679,14 @@ mod worktree_management_tests {
     async fn test_remove_worktree_nonexistent() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "remove-nonexistent-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let result = helper.manager.remove_worktree("nonexistent", Some(repo_name), false, false).await;
-        
+
+        let result = helper
+            .manager
+            .remove_worktree("nonexistent", Some(repo_name), false, false)
+            .await;
+
         // Should not fail for nonexistent worktree
         match result {
             Ok(_) => println!("Nonexistent worktree removal handled gracefully"),
@@ -620,9 +697,9 @@ mod worktree_management_tests {
     #[tokio::test]
     async fn test_show_status_empty() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         let result = helper.manager.show_status(Some("empty-repo")).await;
-        
+
         assert!(result.is_ok(), "Show status should work with empty repo");
         println!("Empty status shown successfully");
     }
@@ -633,12 +710,16 @@ mod worktree_management_tests {
         let repo_name = "status-test-repo";
 
         // Create repository record first to satisfy foreign key constraint
-        helper.db.create_repository(
-            repo_name,
-            &format!("/fake/path/{}", repo_name),
-            &format!("https://github.com/test/{}.git", repo_name),
-            "main"
-        ).await.unwrap();
+        helper
+            .db
+            .create_repository(
+                repo_name,
+                &format!("/fake/path/{}", repo_name),
+                &format!("https://github.com/test/{}.git", repo_name),
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Create some worktrees in database
         let worktree_types = vec![
@@ -649,7 +730,8 @@ mod worktree_management_tests {
         ];
 
         for (name, wt_type) in worktree_types {
-            helper.db
+            helper
+                .db
                 .create_worktree(
                     repo_name,
                     name,
@@ -663,7 +745,7 @@ mod worktree_management_tests {
         }
 
         let result = helper.manager.show_status(Some(repo_name)).await;
-        
+
         assert!(result.is_ok(), "Show status should work with worktrees");
         println!("Status with worktrees shown successfully");
     }
@@ -671,9 +753,9 @@ mod worktree_management_tests {
     #[tokio::test]
     async fn test_list_worktrees() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         let result = helper.manager.list_worktrees(Some("list-test-repo")).await;
-        
+
         assert!(result.is_ok(), "List worktrees should not fail");
         println!("Worktrees listed successfully");
     }
@@ -681,9 +763,9 @@ mod worktree_management_tests {
     #[tokio::test]
     async fn test_list_worktrees_all() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         let result = helper.manager.list_worktrees(None).await;
-        
+
         assert!(result.is_ok(), "List all worktrees should not fail");
         println!("All worktrees listed successfully");
     }
@@ -697,27 +779,33 @@ mod sync_and_symlink_tests {
     async fn test_create_sync_directories() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "sync-test-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // This tests the internal sync directory creation
         // We can't call it directly, but we can test through worktree creation
-        let result = helper.manager.create_feature_worktree("sync-test", Some(repo_name)).await;
-        
+        let result = helper
+            .manager
+            .create_feature_worktree("sync-test", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 // Check if sync directories were created
                 let global_sync = helper.config.get_sync_path(repo_name, true);
                 let repo_sync = helper.config.get_sync_path(repo_name, false);
-                
+
                 if global_sync.exists() {
                     println!("Global sync directory created: {:?}", global_sync);
                 }
                 if repo_sync.exists() {
                     println!("Repo sync directory created: {:?}", repo_sync);
                 }
-                
-                println!("Sync test completed via worktree creation: {:?}", worktree_path);
+
+                println!(
+                    "Sync test completed via worktree creation: {:?}",
+                    worktree_path
+                );
             }
             Err(e) => {
                 println!("Sync test via worktree creation failed: {}", e);
@@ -729,24 +817,29 @@ mod sync_and_symlink_tests {
     async fn test_symlink_creation() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "symlink-test-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // Create sync directory with test files
         let repo_sync = helper.config.get_sync_path(repo_name, false);
         fs::create_dir_all(&repo_sync).await.unwrap();
-        
+
         // Create test files that should be symlinked
         for file in &helper.config.symlink_files {
             let source_file = repo_sync.join(file);
             if let Some(parent) = source_file.parent() {
                 fs::create_dir_all(parent).await.unwrap();
             }
-            fs::write(&source_file, format!("test content for {}", file)).await.unwrap();
+            fs::write(&source_file, format!("test content for {}", file))
+                .await
+                .unwrap();
         }
-        
-        let result = helper.manager.create_feature_worktree("symlink-test", Some(repo_name)).await;
-        
+
+        let result = helper
+            .manager
+            .create_feature_worktree("symlink-test", Some(repo_name))
+            .await;
+
         match result {
             Ok(worktree_path) => {
                 // Check if symlinks were created
@@ -756,7 +849,7 @@ mod sync_and_symlink_tests {
                         println!("Symlink created: {:?}", symlink_path);
                     }
                 }
-                
+
                 println!("Symlink test completed: {:?}", worktree_path);
             }
             Err(e) => {
@@ -773,13 +866,20 @@ mod repository_resolution_tests {
     #[tokio::test]
     async fn test_resolve_repo_name_with_explicit_repo() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         // Test that explicit repo name is used
-        let result = helper.manager.create_feature_worktree("test", Some("explicit-repo")).await;
-        
+        let result = helper
+            .manager
+            .create_feature_worktree("test", Some("explicit-repo"))
+            .await;
+
         match result {
             Ok(_) => {
-                let worktree = helper.db.get_worktree("explicit-repo", "feat-test").await.unwrap();
+                let worktree = helper
+                    .db
+                    .get_worktree("explicit-repo", "feat-test")
+                    .await
+                    .unwrap();
                 if let Some(wt) = worktree {
                     assert_eq!(wt.repo_name, "explicit-repo");
                     println!("Explicit repo name used correctly");
@@ -796,18 +896,21 @@ mod repository_resolution_tests {
     #[tokio::test]
     async fn test_resolve_repo_name_from_directory_name() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         // Create a directory structure that simulates being in a repo
         let repo_dir = helper.get_temp_path().join("inferred-repo-name");
         fs::create_dir_all(&repo_dir).await.unwrap();
-        
+
         let original_dir = env::current_dir().unwrap();
         helper.set_current_dir(&repo_dir).unwrap();
-        
-        let result = helper.manager.create_feature_worktree("infer-test", None).await;
-        
+
+        let result = helper
+            .manager
+            .create_feature_worktree("infer-test", None)
+            .await;
+
         env::set_current_dir(original_dir).unwrap();
-        
+
         match result {
             Ok(_) => {
                 println!("Repository name inferred from directory");
@@ -829,20 +932,31 @@ mod repository_resolution_tests {
         tokio::fs::create_dir_all(&worktree_dir).await.unwrap();
 
         // Create repository record for parent-repo to satisfy foreign key constraint
-        helper.db.create_repository(
-            "parent-repo",
-            repo_dir.to_str().unwrap(),
-            "https://github.com/test/parent-repo.git",
-            "main"
-        ).await.unwrap();
+        helper
+            .db
+            .create_repository(
+                "parent-repo",
+                repo_dir.to_str().unwrap(),
+                "https://github.com/test/parent-repo.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Verify the directory exists before changing to it
-        assert!(worktree_dir.exists(), "Worktree directory should exist at {:?}", worktree_dir);
+        assert!(
+            worktree_dir.exists(),
+            "Worktree directory should exist at {:?}",
+            worktree_dir
+        );
 
         // Use std::env::set_current_dir directly instead of helper method
         std::env::set_current_dir(&worktree_dir).unwrap();
 
-        let result = helper.manager.create_feature_worktree("nested-test", None).await;
+        let result = helper
+            .manager
+            .create_feature_worktree("nested-test", None)
+            .await;
 
         std::env::set_current_dir(helper.get_temp_path()).unwrap();
 
@@ -865,19 +979,30 @@ mod repository_resolution_tests {
         fs::create_dir_all(&weird_dir).await.unwrap();
 
         // Create repository record for the weird dir name to satisfy foreign key constraint
-        helper.db.create_repository(
-            "nonrepo-dir",
-            weird_dir.to_str().unwrap(),
-            "https://github.com/test/nonrepo-dir.git",
-            "main"
-        ).await.unwrap();
+        helper
+            .db
+            .create_repository(
+                "nonrepo-dir",
+                weird_dir.to_str().unwrap(),
+                "https://github.com/test/nonrepo-dir.git",
+                "main",
+            )
+            .await
+            .unwrap();
 
         // Verify the directory exists before changing to it
-        assert!(weird_dir.exists(), "Test directory should exist at {:?}", weird_dir);
+        assert!(
+            weird_dir.exists(),
+            "Test directory should exist at {:?}",
+            weird_dir
+        );
 
         std::env::set_current_dir(&weird_dir).unwrap();
 
-        let result = helper.manager.create_feature_worktree("fail-test", None).await;
+        let result = helper
+            .manager
+            .create_feature_worktree("fail-test", None)
+            .await;
 
         std::env::set_current_dir(helper.get_temp_path()).unwrap();
 
@@ -899,12 +1024,15 @@ mod monitoring_integration_tests {
     #[tokio::test]
     async fn test_start_monitoring() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         // This test just verifies the monitoring can be started
         // We won't actually run it to completion as it's a long-running process
-        
+
         tokio::spawn(async move {
-            let result = helper.manager.start_monitoring(Some("monitor-test-repo")).await;
+            let result = helper
+                .manager
+                .start_monitoring(Some("monitor-test-repo"))
+                .await;
             match result {
                 Ok(_) => println!("Monitoring started successfully"),
                 Err(e) => println!("Monitoring failed: {}", e),
@@ -925,19 +1053,17 @@ mod error_handling_edge_cases_tests {
     async fn test_worktree_creation_with_unicode_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "unicode-test-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
-        let unicode_names = vec![
-            "测试功能",
-            "プロジェクト",
-            "función",
-            "🚀feature",
-        ];
+
+        let unicode_names = vec!["测试功能", "プロジェクト", "función", "🚀feature"];
 
         for name in unicode_names {
-            let result = helper.manager.create_feature_worktree(name, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_feature_worktree(name, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("Unicode name '{}' created: {:?}", name, path);
@@ -953,12 +1079,15 @@ mod error_handling_edge_cases_tests {
     async fn test_worktree_creation_with_very_long_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "long-name-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let long_name = "a".repeat(200);
-        let result = helper.manager.create_feature_worktree(&long_name, Some(repo_name)).await;
-        
+        let result = helper
+            .manager
+            .create_feature_worktree(&long_name, Some(repo_name))
+            .await;
+
         match result {
             Ok(path) => {
                 println!("Very long name handled: {:?}", path);
@@ -973,9 +1102,9 @@ mod error_handling_edge_cases_tests {
     async fn test_worktree_creation_with_special_characters() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "special-chars-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         let special_names = vec![
             "feature-with-dashes",
             "feature_with_underscores",
@@ -985,8 +1114,11 @@ mod error_handling_edge_cases_tests {
         ];
 
         for name in special_names {
-            let result = helper.manager.create_feature_worktree(name, Some(repo_name)).await;
-            
+            let result = helper
+                .manager
+                .create_feature_worktree(name, Some(repo_name))
+                .await;
+
             match result {
                 Ok(path) => {
                     println!("Special chars '{}' created: {:?}", name, path);
@@ -1002,17 +1134,19 @@ mod error_handling_edge_cases_tests {
     async fn test_concurrent_worktree_operations() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "concurrent-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // Test concurrent worktree creation
         let handles: Vec<_> = (0..5)
             .map(|i| {
                 let manager = helper.manager.clone();
                 let repo = repo_name.to_string();
-                
+
                 tokio::spawn(async move {
-                    manager.create_feature_worktree(&format!("concurrent-{}", i), Some(&repo)).await
+                    manager
+                        .create_feature_worktree(&format!("concurrent-{}", i), Some(&repo))
+                        .await
                 })
             })
             .collect();
@@ -1023,17 +1157,23 @@ mod error_handling_edge_cases_tests {
         }
 
         let success_count = results.iter().filter(|r| r.is_ok()).count();
-        println!("Concurrent operations: {} successes out of 5", success_count);
+        println!(
+            "Concurrent operations: {} successes out of 5",
+            success_count
+        );
     }
 
     #[tokio::test]
     async fn test_worktree_operations_with_insufficient_permissions() {
         let helper = WorktreeTestHelper::new().await.unwrap();
-        
+
         // This test simulates permission issues
         // In practice, this would need specific setup to trigger permission errors
-        let result = helper.manager.create_feature_worktree("perm-test", Some("perm-repo")).await;
-        
+        let result = helper
+            .manager
+            .create_feature_worktree("perm-test", Some("perm-repo"))
+            .await;
+
         match result {
             Ok(path) => {
                 println!("Permission test unexpectedly succeeded: {:?}", path);
@@ -1048,17 +1188,20 @@ mod error_handling_edge_cases_tests {
     async fn test_database_consistency_during_worktree_operations() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "consistency-repo";
-        
+
         helper.create_trunk_structure(repo_name).await.unwrap();
-        
+
         // Create worktree
-        let result = helper.manager.create_feature_worktree("consistency", Some(repo_name)).await;
-        
+        let result = helper
+            .manager
+            .create_feature_worktree("consistency", Some(repo_name))
+            .await;
+
         match result {
             Ok(_) => {
                 // Check database consistency
                 let worktrees = helper.db.list_worktrees(Some(repo_name)).await.unwrap();
-                
+
                 if !worktrees.is_empty() {
                     let wt = &worktrees[0];
                     assert!(!wt.id.is_empty(), "Worktree should have valid ID");

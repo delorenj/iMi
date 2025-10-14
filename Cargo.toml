@@ -85,6 +85,13 @@ tempfile = "3.10"
 tokio-test = "0.4"
 serial_test = "0.9.0"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(disabled_test_framework)',
+    'cfg(disabled_docs_coverage)',
+    'cfg(disabled_comprehensive_runner)'
+] }
+
 [profile.release]
 lto = true
 codegen-units = 1

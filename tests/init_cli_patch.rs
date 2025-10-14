@@ -3,7 +3,6 @@
 
 #[cfg(test)]
 mod implementation_guide {
-    
 
     /// Add this to src/cli.rs Commands enum (after Monitor command)
     #[test]

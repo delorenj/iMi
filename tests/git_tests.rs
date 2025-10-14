@@ -1,5 +1,5 @@
 /// Emergency Critical Coverage Tests for Git Module
-/// 
+///
 /// This comprehensive test suite provides complete coverage for git.rs (137 lines, 0% coverage)
 /// to address the CRITICAL coverage crisis identified in AC-060.
 ///
@@ -12,9 +12,8 @@
 /// - Status operations: get_worktree_status(), get_ahead_behind()
 /// - Git command execution: execute_git_command(), checkout_pr()
 /// - Error handling and edge cases
-
 use anyhow::Result;
-use git2::{Repository, Oid, Signature, Time};
+use git2::{Oid, Repository, Signature, Time};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -33,29 +32,29 @@ impl GitTestHelper {
     fn new() -> Result<Self> {
         let temp_dir = TempDir::new()?;
         let repo_path = temp_dir.path().join("test-repo");
-        
+
         // Initialize a bare repo first, then clone it
         let bare_repo_path = temp_dir.path().join("bare-repo.git");
         let _bare_repo = Repository::init_bare(&bare_repo_path)?;
-        
+
         // Clone the bare repo to create a working repository
         let repo = Repository::clone(&format!("file://{}", bare_repo_path.display()), &repo_path)?;
-        
+
         // Create initial commit to make the repo fully functional
         let signature = Signature::new("Test User", "test@example.com", &Time::new(0, 0))?;
-        
+
         // Create initial file
         let readme_path = repo_path.join("README.md");
         fs::write(&readme_path, "# Test Repository\n")?;
-        
+
         // Add to index
         let mut index = repo.index()?;
         index.add_path(Path::new("README.md"))?;
         index.write()?;
-        
+
         // Create tree
         let tree_id = index.write_tree()?;
-        
+
         // Create initial commit
         {
             let tree = repo.find_tree(tree_id)?;
@@ -102,7 +101,12 @@ impl GitTestHelper {
     }
 
     /// Create a file and commit it
-    fn create_file_and_commit(&self, filename: &str, content: &str, commit_msg: &str) -> Result<Oid> {
+    fn create_file_and_commit(
+        &self,
+        filename: &str,
+        content: &str,
+        commit_msg: &str,
+    ) -> Result<Oid> {
         let file_path = self.repo_path.join(filename);
         fs::write(&file_path, content)?;
 
@@ -163,14 +167,13 @@ mod repository_discovery_tests {
     #[test]
     fn test_find_repository_with_valid_path() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
-        let found_repo = helper.git_manager.find_repository(Some(&helper.repo_path))?;
-        
+
+        let found_repo = helper
+            .git_manager
+            .find_repository(Some(&helper.repo_path))?;
+
         // Verify we found the correct repository
-        assert_eq!(
-            found_repo.path(),
-            helper.repo_path.join(".git")
-        );
+        assert_eq!(found_repo.path(), helper.repo_path.join(".git"));
 
         Ok(())
     }
@@ -178,18 +181,15 @@ mod repository_discovery_tests {
     #[test]
     fn test_find_repository_with_subdirectory() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create a subdirectory
         let subdir = helper.repo_path.join("src");
         fs::create_dir_all(&subdir)?;
 
         let found_repo = helper.git_manager.find_repository(Some(&subdir))?;
-        
+
         // Should find the parent repository
-        assert_eq!(
-            found_repo.path(),
-            helper.repo_path.join(".git")
-        );
+        assert_eq!(found_repo.path(), helper.repo_path.join(".git"));
 
         Ok(())
     }
@@ -197,17 +197,20 @@ mod repository_discovery_tests {
     #[test]
     fn test_find_repository_with_none_path() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Change to repository directory
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(&helper.repo_path)?;
-        
+
         let result = helper.git_manager.find_repository(None);
-        
+
         // Restore original directory
         std::env::set_current_dir(original_dir)?;
-        
-        assert!(result.is_ok(), "Should find repository from current directory");
+
+        assert!(
+            result.is_ok(),
+            "Should find repository from current directory"
+        );
 
         Ok(())
     }
@@ -216,16 +219,21 @@ mod repository_discovery_tests {
     fn test_find_repository_nonexistent_path() {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent = temp_dir.path().join("nonexistent");
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.find_repository(Some(&nonexistent));
-        
-        assert!(result.is_err(), "Should fail to find repository in nonexistent path");
-        
+
+        assert!(
+            result.is_err(),
+            "Should fail to find repository in nonexistent path"
+        );
+
         // Verify error type (should be our custom error)
         if let Err(e) = result {
             let error_msg = e.to_string();
-            assert!(error_msg.contains("Git repository not found") || error_msg.contains("repository"));
+            assert!(
+                error_msg.contains("Git repository not found") || error_msg.contains("repository")
+            );
         }
     }
 
@@ -234,10 +242,10 @@ mod repository_discovery_tests {
         let temp_dir = TempDir::new().unwrap();
         let non_git_dir = temp_dir.path().join("not-git");
         fs::create_dir_all(&non_git_dir).unwrap();
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.find_repository(Some(&non_git_dir));
-        
+
         assert!(result.is_err(), "Should fail in non-git directory");
     }
 }
@@ -249,12 +257,12 @@ mod repository_information_tests {
     #[test]
     fn test_get_repository_name_with_origin_remote() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Add origin remote
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
-        
+
         assert_eq!(repo_name, "test-repo");
 
         Ok(())
@@ -263,11 +271,11 @@ mod repository_information_tests {
     #[test]
     fn test_get_repository_name_with_ssh_remote() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         helper.add_remote("origin", "git@github.com:user/ssh-repo.git")?;
-        
+
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
-        
+
         assert_eq!(repo_name, "ssh-repo");
 
         Ok(())
@@ -276,11 +284,11 @@ mod repository_information_tests {
     #[test]
     fn test_get_repository_name_without_git_extension() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         helper.add_remote("origin", "https://github.com/user/no-extension")?;
-        
+
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
-        
+
         assert_eq!(repo_name, "no-extension");
 
         Ok(())
@@ -289,12 +297,12 @@ mod repository_information_tests {
     #[test]
     fn test_get_repository_name_with_multiple_remotes() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         helper.add_remote("upstream", "https://github.com/original/upstream-repo.git")?;
         helper.add_remote("origin", "https://github.com/fork/forked-repo.git")?;
-        
+
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
-        
+
         // Should prefer origin
         assert_eq!(repo_name, "forked-repo");
 
@@ -318,10 +326,13 @@ mod repository_information_tests {
     #[tokio::test]
     async fn test_get_default_branch_main() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // The test repo is initialized with main branch
-        let default_branch = helper.git_manager.get_default_branch(&helper.repo_path).await?;
-        
+        let default_branch = helper
+            .git_manager
+            .get_default_branch(&helper.repo_path)
+            .await?;
+
         assert_eq!(default_branch, "main");
 
         Ok(())
@@ -330,12 +341,15 @@ mod repository_information_tests {
     #[tokio::test]
     async fn test_get_default_branch_with_master() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create master branch
         helper.create_branch("master")?;
-        
-        let default_branch = helper.git_manager.get_default_branch(&helper.repo_path).await?;
-        
+
+        let default_branch = helper
+            .git_manager
+            .get_default_branch(&helper.repo_path)
+            .await?;
+
         // Should find main (current branch) or master
         assert!(default_branch == "main" || default_branch == "master");
 
@@ -346,13 +360,13 @@ mod repository_information_tests {
     async fn test_get_default_branch_fallback() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let repo_path = temp_dir.path().join("empty-repo");
-        
+
         // Create empty repository (no branches)
         let _repo = Repository::init(&repo_path)?;
-        
+
         let git_manager = GitManager::new();
         let default_branch = git_manager.get_default_branch(&repo_path).await?;
-        
+
         // Should fallback to "main"
         assert_eq!(default_branch, "main");
 
@@ -367,12 +381,12 @@ mod worktree_operations_tests {
     #[test]
     fn test_create_worktree_success() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Add a remote to enable fetching
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let worktree_path = helper.get_temp_path().join("test-worktree");
-        
+
         // Create worktree should work even if fetch fails (no real remote)
         let result = helper.git_manager.create_worktree(
             &helper.repo,
@@ -381,15 +395,21 @@ mod worktree_operations_tests {
             "feature-branch",
             Some("main"),
         );
-        
+
         // May succeed or fail depending on fetch, but shouldn't panic
         match result {
             Ok(_) => {
-                assert!(worktree_path.exists(), "Worktree directory should be created");
+                assert!(
+                    worktree_path.exists(),
+                    "Worktree directory should be created"
+                );
                 println!("Worktree created successfully");
             }
             Err(e) => {
-                println!("Worktree creation failed (expected without real remote): {}", e);
+                println!(
+                    "Worktree creation failed (expected without real remote): {}",
+                    e
+                );
             }
         }
 
@@ -399,13 +419,13 @@ mod worktree_operations_tests {
     #[test]
     fn test_create_worktree_existing_branch() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create a branch first
         helper.create_branch("existing-branch")?;
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let worktree_path = helper.get_temp_path().join("existing-worktree");
-        
+
         let result = helper.git_manager.create_worktree(
             &helper.repo,
             "existing-worktree",
@@ -413,7 +433,7 @@ mod worktree_operations_tests {
             "existing-branch",
             None,
         );
-        
+
         // Should work with existing branch
         match result {
             Ok(_) => println!("Worktree with existing branch created successfully"),
@@ -426,10 +446,12 @@ mod worktree_operations_tests {
     #[test]
     fn test_worktree_exists() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Test non-existent worktree
-        assert!(!helper.git_manager.worktree_exists(&helper.repo, "nonexistent"));
-        
+        assert!(!helper
+            .git_manager
+            .worktree_exists(&helper.repo, "nonexistent"));
+
         // Note: Creating actual worktrees requires more complex setup
         // This tests the basic functionality
         println!("Worktree exists check completed");
@@ -450,7 +472,10 @@ mod worktree_operations_tests {
 
         // Test should succeed whether worktrees list is empty or not
         // The fact that the call doesn't error is the success condition
-        assert!(worktrees.is_empty(), "Fresh repo should have no linked worktrees");
+        assert!(
+            worktrees.is_empty(),
+            "Fresh repo should have no linked worktrees"
+        );
 
         Ok(())
     }
@@ -458,11 +483,16 @@ mod worktree_operations_tests {
     #[test]
     fn test_remove_worktree_nonexistent() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Try to remove non-existent worktree (should not fail)
-        let result = helper.git_manager.remove_worktree(&helper.repo, "nonexistent");
-        
-        assert!(result.is_ok(), "Removing nonexistent worktree should not fail");
+        let result = helper
+            .git_manager
+            .remove_worktree(&helper.repo, "nonexistent");
+
+        assert!(
+            result.is_ok(),
+            "Removing nonexistent worktree should not fail"
+        );
 
         Ok(())
     }
@@ -473,14 +503,16 @@ mod branch_operations_tests {
     use super::*;
 
     #[test]
-    fn test_branch_exists_local() -> Result<()> {
+    fn test_branch_exists() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Test main branch (should exist)
         assert!(helper.git_manager.branch_exists(&helper.repo, "main"));
-        
+
         // Test non-existent branch
-        assert!(!helper.git_manager.branch_exists(&helper.repo, "nonexistent-branch"));
+        assert!(!helper
+            .git_manager
+            .branch_exists(&helper.repo, "nonexistent-branch"));
 
         Ok(())
     }
@@ -488,12 +520,14 @@ mod branch_operations_tests {
     #[test]
     fn test_branch_exists_after_creation() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create a new branch
         helper.create_branch("new-test-branch")?;
-        
+
         // Should now exist
-        assert!(helper.git_manager.branch_exists(&helper.repo, "new-test-branch"));
+        assert!(helper
+            .git_manager
+            .branch_exists(&helper.repo, "new-test-branch"));
 
         Ok(())
     }
@@ -501,9 +535,9 @@ mod branch_operations_tests {
     #[test]
     fn test_get_current_branch() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         let current_branch = helper.git_manager.get_current_branch(&helper.repo_path)?;
-        
+
         // Should be main (or master)
         assert!(current_branch == "main" || current_branch == "master");
 
@@ -514,10 +548,10 @@ mod branch_operations_tests {
     fn test_get_current_branch_invalid_path() {
         let temp_dir = TempDir::new().unwrap();
         let invalid_path = temp_dir.path().join("not-a-repo");
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.get_current_branch(&invalid_path);
-        
+
         assert!(result.is_err(), "Should fail for invalid repository path");
     }
 }
@@ -529,9 +563,9 @@ mod status_operations_tests {
     #[test]
     fn test_get_worktree_status_clean() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         let status = helper.git_manager.get_worktree_status(&helper.repo_path)?;
-        
+
         // Should be clean initially
         assert!(status.clean || status.modified_files.is_empty());
         assert!(status.new_files.is_empty());
@@ -545,15 +579,21 @@ mod status_operations_tests {
     #[test]
     fn test_get_worktree_status_with_modified_files() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Modify an existing file
         let readme_path = helper.repo_path.join("README.md");
-        fs::write(&readme_path, "# Modified README\n\nThis file has been modified.")?;
-        
+        fs::write(
+            &readme_path,
+            "# Modified README\n\nThis file has been modified.",
+        )?;
+
         let status = helper.git_manager.get_worktree_status(&helper.repo_path)?;
-        
+
         assert!(!status.clean, "Repository should not be clean");
-        assert!(!status.modified_files.is_empty(), "Should have modified files");
+        assert!(
+            !status.modified_files.is_empty(),
+            "Should have modified files"
+        );
         assert!(status.modified_files.contains(&"README.md".to_string()));
 
         Ok(())
@@ -562,13 +602,13 @@ mod status_operations_tests {
     #[test]
     fn test_get_worktree_status_with_new_files() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create a new file
         let new_file_path = helper.repo_path.join("new_file.txt");
         fs::write(&new_file_path, "This is a new file")?;
-        
+
         let status = helper.git_manager.get_worktree_status(&helper.repo_path)?;
-        
+
         assert!(!status.clean, "Repository should not be clean");
         assert!(!status.new_files.is_empty(), "Should have new files");
         assert!(status.new_files.contains(&"new_file.txt".to_string()));
@@ -579,18 +619,25 @@ mod status_operations_tests {
     #[test]
     fn test_get_worktree_status_with_deleted_files() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Create and commit a file first
-        helper.create_file_and_commit("to_delete.txt", "File to be deleted", "Add file to delete")?;
-        
+        helper.create_file_and_commit(
+            "to_delete.txt",
+            "File to be deleted",
+            "Add file to delete",
+        )?;
+
         // Delete the file
         let file_path = helper.repo_path.join("to_delete.txt");
         fs::remove_file(&file_path)?;
-        
+
         let status = helper.git_manager.get_worktree_status(&helper.repo_path)?;
-        
+
         assert!(!status.clean, "Repository should not be clean");
-        assert!(!status.deleted_files.is_empty(), "Should have deleted files");
+        assert!(
+            !status.deleted_files.is_empty(),
+            "Should have deleted files"
+        );
         assert!(status.deleted_files.contains(&"to_delete.txt".to_string()));
 
         Ok(())
@@ -600,10 +647,10 @@ mod status_operations_tests {
     fn test_get_worktree_status_invalid_path() {
         let temp_dir = TempDir::new().unwrap();
         let invalid_path = temp_dir.path().join("not-a-repo");
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.get_worktree_status(&invalid_path);
-        
+
         assert!(result.is_err(), "Should fail for invalid repository path");
     }
 }
@@ -615,9 +662,11 @@ mod git_command_execution_tests {
     #[test]
     fn test_execute_git_command_status() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
-        let output = helper.git_manager.execute_git_command(&helper.repo_path, &["status", "--porcelain"])?;
-        
+
+        let output = helper
+            .git_manager
+            .execute_git_command(&helper.repo_path, &["status", "--porcelain"])?;
+
         // Should return git status output (empty for clean repo)
         println!("Git status output: '{}'", output);
         assert!(output.is_empty() || output.contains("README.md") || output.trim().is_empty());
@@ -628,12 +677,11 @@ mod git_command_execution_tests {
     #[test]
     fn test_execute_git_command_log() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
-        let output = helper.git_manager.execute_git_command(
-            &helper.repo_path, 
-            &["log", "--oneline", "-n", "1"]
-        )?;
-        
+
+        let output = helper
+            .git_manager
+            .execute_git_command(&helper.repo_path, &["log", "--oneline", "-n", "1"])?;
+
         // Should show the initial commit
         assert!(!output.trim().is_empty(), "Should have commit log output");
         assert!(output.contains("Initial commit"));
@@ -644,14 +692,13 @@ mod git_command_execution_tests {
     #[test]
     fn test_execute_git_command_invalid_command() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
-        let result = helper.git_manager.execute_git_command(
-            &helper.repo_path,
-            &["invalid-command"]
-        );
-        
+
+        let result = helper
+            .git_manager
+            .execute_git_command(&helper.repo_path, &["invalid-command"]);
+
         assert!(result.is_err(), "Invalid git command should fail");
-        
+
         let error_msg = result.unwrap_err().to_string();
         assert!(error_msg.contains("Git command failed") || error_msg.contains("invalid"));
 
@@ -662,10 +709,10 @@ mod git_command_execution_tests {
     fn test_execute_git_command_invalid_repo_path() {
         let temp_dir = TempDir::new().unwrap();
         let invalid_path = temp_dir.path().join("not-a-repo");
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.execute_git_command(&invalid_path, &["status"]);
-        
+
         assert!(result.is_err(), "Should fail for invalid repository path");
     }
 }
@@ -677,9 +724,9 @@ mod fetch_operations_tests {
     #[test]
     fn test_fetch_all_no_remotes() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         let result = helper.git_manager.fetch_all(&helper.repo);
-        
+
         // Should fail gracefully when no remotes exist
         match result {
             Ok(_) => println!("Fetch succeeded (unexpected)"),
@@ -695,12 +742,12 @@ mod fetch_operations_tests {
     #[test]
     fn test_fetch_all_with_remote() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Add a remote (won't actually fetch from fake URL)
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let result = helper.git_manager.fetch_all(&helper.repo);
-        
+
         // Will likely fail due to fake remote, but should not panic
         match result {
             Ok(_) => println!("Fetch succeeded"),
@@ -719,19 +766,21 @@ mod pr_checkout_tests {
     fn test_checkout_pr_without_gh_cli() -> Result<()> {
         let helper = GitTestHelper::new()?;
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let worktree_path = helper.get_temp_path().join("pr-worktree");
-        
-        let result = helper.git_manager.checkout_pr(&helper.repo_path, 123, &worktree_path);
-        
+
+        let result = helper
+            .git_manager
+            .checkout_pr(&helper.repo_path, 123, &worktree_path);
+
         // Will fail due to no gh CLI or fake remote, but should not panic
         assert!(result.is_err(), "PR checkout should fail without gh CLI");
-        
+
         let error_msg = result.unwrap_err().to_string();
         assert!(
-            error_msg.contains("Failed to checkout PR") || 
-            error_msg.contains("fallback") ||
-            error_msg.contains("gh")
+            error_msg.contains("Failed to checkout PR")
+                || error_msg.contains("fallback")
+                || error_msg.contains("gh")
         );
 
         Ok(())
@@ -741,13 +790,18 @@ mod pr_checkout_tests {
     fn test_create_worktree_for_pr_fallback() -> Result<()> {
         let helper = GitTestHelper::new()?;
         helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
-        
+
         let worktree_path = helper.get_temp_path().join("pr-fallback");
-        
+
         // This will likely fail due to fake remote, but tests the fallback code path
-        let result = helper.git_manager.checkout_pr(&helper.repo_path, 456, &worktree_path);
-        
-        assert!(result.is_err(), "PR checkout fallback should fail with fake remote");
+        let result = helper
+            .git_manager
+            .checkout_pr(&helper.repo_path, 456, &worktree_path);
+
+        assert!(
+            result.is_err(),
+            "PR checkout fallback should fail with fake remote"
+        );
 
         Ok(())
     }
@@ -788,7 +842,7 @@ mod worktree_status_struct_tests {
         };
 
         let cloned_status = status.clone();
-        
+
         assert_eq!(cloned_status.modified_files, status.modified_files);
         assert_eq!(cloned_status.commits_behind, status.commits_behind);
         assert_eq!(cloned_status.clean, status.clean);
@@ -820,13 +874,13 @@ mod edge_cases_and_error_handling_tests {
     fn test_operations_with_unicode_paths() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let unicode_repo_path = temp_dir.path().join("测试-repo");
-        
+
         // Create repository with unicode path
         fs::create_dir_all(&unicode_repo_path)?;
         let _repo = Repository::init(&unicode_repo_path)?;
-        
+
         let git_manager = GitManager::new();
-        
+
         // Test basic operations with unicode paths
         let status_result = git_manager.get_worktree_status(&unicode_repo_path);
         match status_result {
@@ -845,18 +899,18 @@ mod edge_cases_and_error_handling_tests {
     #[test]
     fn test_operations_with_very_long_paths() -> Result<()> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create a very long path
         let mut long_path = temp_dir.path().to_path_buf();
         for i in 0..10 {
             long_path = long_path.join(format!("very-long-directory-name-{}", i));
         }
-        
+
         fs::create_dir_all(&long_path)?;
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.find_repository(Some(&long_path));
-        
+
         // Should fail gracefully with long paths
         assert!(result.is_err(), "Should handle long paths gracefully");
 
@@ -867,18 +921,24 @@ mod edge_cases_and_error_handling_tests {
     async fn test_repository_with_no_commits() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let empty_repo_path = temp_dir.path().join("empty-repo");
-        
+
         // Create empty repository
         let _repo = Repository::init(&empty_repo_path)?;
-        
+
         let git_manager = GitManager::new();
-        
+
         // Test operations on empty repository
         let current_branch_result = git_manager.get_current_branch(&empty_repo_path);
-        assert!(current_branch_result.is_err(), "Empty repo should not have current branch");
-        
+        assert!(
+            current_branch_result.is_err(),
+            "Empty repo should not have current branch"
+        );
+
         let default_branch = git_manager.get_default_branch(&empty_repo_path).await?;
-        assert_eq!(default_branch, "main", "Should fallback to main for empty repo");
+        assert_eq!(
+            default_branch, "main",
+            "Should fallback to main for empty repo"
+        );
 
         Ok(())
     }
@@ -887,15 +947,15 @@ mod edge_cases_and_error_handling_tests {
     fn test_corrupted_repository() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let fake_repo_path = temp_dir.path().join("fake-git-repo");
-        
+
         // Create fake .git directory with invalid content
         let fake_git_dir = fake_repo_path.join(".git");
         fs::create_dir_all(&fake_git_dir)?;
         fs::write(fake_git_dir.join("HEAD"), "invalid content")?;
-        
+
         let git_manager = GitManager::new();
         let result = git_manager.find_repository(Some(&fake_repo_path));
-        
+
         // Should handle corrupted repositories gracefully
         match result {
             Ok(_) => println!("Corrupted repo handled (unexpected)"),
@@ -911,16 +971,14 @@ mod edge_cases_and_error_handling_tests {
     #[test]
     fn test_concurrent_git_operations() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        
+
         // Test concurrent status checks
         let handles: Vec<_> = (0..5)
             .map(|_| {
                 let path = helper.repo_path.clone();
                 let git_manager = helper.git_manager.clone();
-                
-                std::thread::spawn(move || {
-                    git_manager.get_worktree_status(&path)
-                })
+
+                std::thread::spawn(move || git_manager.get_worktree_status(&path))
             })
             .collect();
 

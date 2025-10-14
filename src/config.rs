@@ -75,9 +75,12 @@ impl Default for Config {
 impl Config {
     pub async fn load() -> Result<Self> {
         let config_path = Self::get_config_path()?;
+        Self::load_from(&config_path).await
+    }
 
-        if config_path.exists() {
-            let contents = fs::read_to_string(&config_path)
+    pub async fn load_from(path: &std::path::Path) -> Result<Self> {
+        if path.exists() {
+            let contents = fs::read_to_string(path)
                 .await
                 .context("Failed to read config file")?;
 
@@ -87,16 +90,19 @@ impl Config {
             Ok(config)
         } else {
             let config = Self::default();
-            config.save().await?;
+            config.save_to(path).await?;
             Ok(config)
         }
     }
 
     pub async fn save(&self) -> Result<()> {
         let config_path = Self::get_config_path()?;
+        self.save_to(&config_path).await
+    }
 
+    pub async fn save_to(&self, path: &std::path::Path) -> Result<()> {
         // Ensure config directory exists
-        if let Some(parent) = config_path.parent() {
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .await
                 .context("Failed to create config directory")?;
@@ -104,7 +110,7 @@ impl Config {
 
         let contents = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
-        fs::write(&config_path, contents)
+        fs::write(path, contents)
             .await
             .context("Failed to write config file")?;
 

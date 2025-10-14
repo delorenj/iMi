@@ -3,15 +3,11 @@
 /// This module implements exhaustive error scenario testing to validate all failure modes,
 /// error messages, recovery procedures, and graceful degradation patterns.
 /// Covers AC-045 through AC-054 (error handling requirements).
-
 use anyhow::{Context, Result};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
 use tempfile::TempDir;
 use tokio::fs;
-use tokio::time::timeout;
 
 /// Comprehensive error testing framework
 #[derive(Debug)]
@@ -94,11 +90,13 @@ impl FilesystemErrorTests {
             test_cases: vec![
                 FilesystemErrorCase {
                     name: "directory_creation_permission_denied".to_string(),
-                    description: "Cannot create directory due to insufficient permissions".to_string(),
+                    description: "Cannot create directory due to insufficient permissions"
+                        .to_string(),
                     setup: FilesystemErrorSetup::ReadOnlyParent,
                     expected_error_type: ErrorCategory::Permission,
                     expected_error_message: "Permission denied".to_string(),
-                    expected_recovery_suggestion: "Check directory permissions and ensure write access".to_string(),
+                    expected_recovery_suggestion:
+                        "Check directory permissions and ensure write access".to_string(),
                     should_cleanup: true,
                 },
                 FilesystemErrorCase {
@@ -125,7 +123,8 @@ impl FilesystemErrorTests {
                     setup: FilesystemErrorSetup::InvalidCharacters,
                     expected_error_type: ErrorCategory::Validation,
                     expected_error_message: "Invalid characters in path".to_string(),
-                    expected_recovery_suggestion: "Remove or replace invalid characters".to_string(),
+                    expected_recovery_suggestion: "Remove or replace invalid characters"
+                        .to_string(),
                     should_cleanup: true,
                 },
                 FilesystemErrorCase {
@@ -134,7 +133,8 @@ impl FilesystemErrorTests {
                     setup: FilesystemErrorSetup::ReadOnlyFilesystem,
                     expected_error_type: ErrorCategory::Permission,
                     expected_error_message: "Read-only file system".to_string(),
-                    expected_recovery_suggestion: "Remount filesystem as read-write or choose different location".to_string(),
+                    expected_recovery_suggestion:
+                        "Remount filesystem as read-write or choose different location".to_string(),
                     should_cleanup: true,
                 },
                 FilesystemErrorCase {
@@ -148,11 +148,13 @@ impl FilesystemErrorTests {
                 },
                 FilesystemErrorCase {
                     name: "file_exists_as_directory".to_string(),
-                    description: "Regular file exists where directory should be created".to_string(),
+                    description: "Regular file exists where directory should be created"
+                        .to_string(),
                     setup: FilesystemErrorSetup::FileExistsAsDirectory,
                     expected_error_type: ErrorCategory::Conflict,
                     expected_error_message: "File exists".to_string(),
-                    expected_recovery_suggestion: "Remove conflicting file or choose different location".to_string(),
+                    expected_recovery_suggestion:
+                        "Remove conflicting file or choose different location".to_string(),
                     should_cleanup: true,
                 },
                 FilesystemErrorCase {
@@ -161,10 +163,11 @@ impl FilesystemErrorTests {
                     setup: FilesystemErrorSetup::DeviceBusy,
                     expected_error_type: ErrorCategory::Resource,
                     expected_error_message: "Device or resource busy".to_string(),
-                    expected_recovery_suggestion: "Wait for resource to become available and retry".to_string(),
+                    expected_recovery_suggestion: "Wait for resource to become available and retry"
+                        .to_string(),
                     should_cleanup: true,
                 },
-            ]
+            ],
         }
     }
 
@@ -175,11 +178,11 @@ impl FilesystemErrorTests {
             println!("  Testing: {}", test_case.description);
 
             let test_result = self.execute_filesystem_error_case(test_case).await;
-            
+
             match test_result {
                 Ok(()) => {
                     results.passed.push(test_case.name.clone());
-                },
+                }
                 Err(e) => {
                     results.failed.push((test_case.name.clone(), e.to_string()));
                 }
@@ -192,7 +195,9 @@ impl FilesystemErrorTests {
 
     async fn execute_filesystem_error_case(&self, test_case: &FilesystemErrorCase) -> Result<()> {
         let temp_dir = TempDir::new().context("Failed to create temp directory")?;
-        let test_env = self.setup_filesystem_error(&test_case.setup, temp_dir.path()).await?;
+        let test_env = self
+            .setup_filesystem_error(&test_case.setup, temp_dir.path())
+            .await?;
 
         // Execute init command and verify error handling
         let result = simulate_init_with_filesystem_error(&test_env).await;
@@ -201,15 +206,15 @@ impl FilesystemErrorTests {
             Err(error) => {
                 // Verify error type and message
                 self.validate_filesystem_error(&error, test_case)?;
-                
+
                 // Verify cleanup was performed if required
                 if test_case.should_cleanup {
                     self.verify_cleanup_performed(&test_env).await?;
                 }
-            },
+            }
             Ok(_) => {
                 return Err(anyhow::anyhow!(
-                    "Expected filesystem error '{}' but operation succeeded", 
+                    "Expected filesystem error '{}' but operation succeeded",
                     test_case.name
                 ));
             }
@@ -218,12 +223,16 @@ impl FilesystemErrorTests {
         Ok(())
     }
 
-    async fn setup_filesystem_error(&self, setup: &FilesystemErrorSetup, base_path: &Path) -> Result<FilesystemTestEnv> {
+    async fn setup_filesystem_error(
+        &self,
+        setup: &FilesystemErrorSetup,
+        base_path: &Path,
+    ) -> Result<FilesystemTestEnv> {
         match setup {
             FilesystemErrorSetup::ReadOnlyParent => {
                 let readonly_dir = base_path.join("readonly");
                 fs::create_dir_all(&readonly_dir).await?;
-                
+
                 #[cfg(unix)]
                 {
                     let mut perms = fs::metadata(&readonly_dir).await?.permissions();
@@ -235,80 +244,92 @@ impl FilesystemErrorTests {
                     test_path: readonly_dir.join("repo/trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::DiskFull => {
                 // Simulate disk full by creating very large file (mock implementation)
                 Ok(FilesystemTestEnv {
                     test_path: base_path.join("repo/trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::PathTooLong => {
                 let long_segment = "a".repeat(256); // Exceed typical filesystem limits
-                let long_path = base_path.join(&long_segment).join("repo").join("trunk-main");
-                
+                let long_path = base_path
+                    .join(&long_segment)
+                    .join("repo")
+                    .join("trunk-main");
+
                 Ok(FilesystemTestEnv {
                     test_path: long_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::InvalidCharacters => {
                 // Use characters that are invalid on most filesystems
-                let invalid_chars = if cfg!(windows) { "repo<>:\"|?*" } else { "repo\0" };
+                let invalid_chars = if cfg!(windows) {
+                    "repo<>:\"|?*"
+                } else {
+                    "repo\0"
+                };
                 let invalid_path = base_path.join(invalid_chars).join("trunk-main");
-                
+
                 Ok(FilesystemTestEnv {
                     test_path: invalid_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::ReadOnlyFilesystem => {
                 // Mock read-only filesystem (implementation depends on test environment)
                 Ok(FilesystemTestEnv {
                     test_path: base_path.join("readonly-fs/repo/trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::SymlinkLoop => {
                 let link1 = base_path.join("link1");
                 let link2 = base_path.join("link2");
-                
+
                 #[cfg(unix)]
                 {
                     std::os::unix::fs::symlink(&link2, &link1)?;
                     std::os::unix::fs::symlink(&link1, &link2)?;
                 }
-                
+
                 Ok(FilesystemTestEnv {
                     test_path: link1.join("repo/trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::FileExistsAsDirectory => {
                 let conflict_path = base_path.join("repo");
                 fs::write(&conflict_path, "This is a file, not a directory").await?;
-                
+
                 Ok(FilesystemTestEnv {
                     test_path: conflict_path.join("trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             FilesystemErrorSetup::DeviceBusy => {
                 // Mock device busy condition
                 Ok(FilesystemTestEnv {
                     test_path: base_path.join("busy-device/repo/trunk-main"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
         }
     }
 
-    fn validate_filesystem_error(&self, error: &InitError, test_case: &FilesystemErrorCase) -> Result<()> {
+    fn validate_filesystem_error(
+        &self,
+        error: &InitError,
+        test_case: &FilesystemErrorCase,
+    ) -> Result<()> {
         // Verify error category matches expected
         if error.category != test_case.expected_error_type {
             return Err(anyhow::anyhow!(
                 "Expected error category {:?}, got {:?}",
-                test_case.expected_error_type, error.category
+                test_case.expected_error_type,
+                error.category
             ));
         }
 
@@ -316,7 +337,8 @@ impl FilesystemErrorTests {
         if !error.message.contains(&test_case.expected_error_message) {
             return Err(anyhow::anyhow!(
                 "Expected error message to contain '{}', got '{}'",
-                test_case.expected_error_message, error.message
+                test_case.expected_error_message,
+                error.message
             ));
         }
 
@@ -325,11 +347,14 @@ impl FilesystemErrorTests {
             if !suggestion.contains(&test_case.expected_recovery_suggestion) {
                 return Err(anyhow::anyhow!(
                     "Expected recovery suggestion to contain '{}', got '{}'",
-                    test_case.expected_recovery_suggestion, suggestion
+                    test_case.expected_recovery_suggestion,
+                    suggestion
                 ));
             }
         } else {
-            return Err(anyhow::anyhow!("Expected recovery suggestion but none provided"));
+            return Err(anyhow::anyhow!(
+                "Expected recovery suggestion but none provided"
+            ));
         }
 
         Ok(())
@@ -341,8 +366,8 @@ impl FilesystemErrorTests {
             FilesystemErrorSetup::ReadOnlyParent => {
                 // Verify no partial directories were left behind
                 Ok(())
-            },
-            _ => Ok(())
+            }
+            _ => Ok(()),
         }
     }
 }
@@ -362,51 +387,59 @@ impl DatabaseErrorTests {
                     description: "Cannot connect to database".to_string(),
                     setup: DatabaseErrorSetup::ConnectionFailure,
                     expected_error_type: ErrorCategory::Database,
-                    expected_recovery_suggestion: "Check database configuration and connectivity".to_string(),
+                    expected_recovery_suggestion: "Check database configuration and connectivity"
+                        .to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_locked".to_string(),
                     description: "Database file is locked by another process".to_string(),
                     setup: DatabaseErrorSetup::DatabaseLocked,
                     expected_error_type: ErrorCategory::Resource,
-                    expected_recovery_suggestion: "Wait for other process to complete or kill blocking process".to_string(),
+                    expected_recovery_suggestion:
+                        "Wait for other process to complete or kill blocking process".to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_corrupted".to_string(),
                     description: "Database file is corrupted or invalid format".to_string(),
                     setup: DatabaseErrorSetup::DatabaseCorrupted,
                     expected_error_type: ErrorCategory::Corruption,
-                    expected_recovery_suggestion: "Delete corrupted database file and reinitialize".to_string(),
+                    expected_recovery_suggestion: "Delete corrupted database file and reinitialize"
+                        .to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_schema_mismatch".to_string(),
                     description: "Database schema version incompatible".to_string(),
                     setup: DatabaseErrorSetup::SchemaMismatch,
                     expected_error_type: ErrorCategory::Compatibility,
-                    expected_recovery_suggestion: "Run database migration or recreate database".to_string(),
+                    expected_recovery_suggestion: "Run database migration or recreate database"
+                        .to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_permission_denied".to_string(),
-                    description: "Insufficient permissions to create or modify database".to_string(),
+                    description: "Insufficient permissions to create or modify database"
+                        .to_string(),
                     setup: DatabaseErrorSetup::PermissionDenied,
                     expected_error_type: ErrorCategory::Permission,
-                    expected_recovery_suggestion: "Check database file permissions and directory access".to_string(),
+                    expected_recovery_suggestion:
+                        "Check database file permissions and directory access".to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_transaction_failure".to_string(),
                     description: "Transaction rollback due to constraint violation".to_string(),
                     setup: DatabaseErrorSetup::TransactionFailure,
                     expected_error_type: ErrorCategory::Database,
-                    expected_recovery_suggestion: "Check data integrity and retry operation".to_string(),
+                    expected_recovery_suggestion: "Check data integrity and retry operation"
+                        .to_string(),
                 },
                 DatabaseErrorCase {
                     name: "database_disk_full".to_string(),
-                    description: "Cannot write to database due to insufficient disk space".to_string(),
+                    description: "Cannot write to database due to insufficient disk space"
+                        .to_string(),
                     setup: DatabaseErrorSetup::DiskFull,
                     expected_error_type: ErrorCategory::Resource,
                     expected_recovery_suggestion: "Free up disk space and retry".to_string(),
                 },
-            ]
+            ],
         }
     }
 
@@ -417,11 +450,11 @@ impl DatabaseErrorTests {
             println!("  Testing: {}", test_case.description);
 
             let test_result = self.execute_database_error_case(test_case).await;
-            
+
             match test_result {
                 Ok(()) => {
                     results.passed.push(test_case.name.clone());
-                },
+                }
                 Err(e) => {
                     results.failed.push((test_case.name.clone(), e.to_string()));
                 }
@@ -434,7 +467,9 @@ impl DatabaseErrorTests {
 
     async fn execute_database_error_case(&self, test_case: &DatabaseErrorCase) -> Result<()> {
         let temp_dir = TempDir::new().context("Failed to create temp directory")?;
-        let test_env = self.setup_database_error(&test_case.setup, temp_dir.path()).await?;
+        let test_env = self
+            .setup_database_error(&test_case.setup, temp_dir.path())
+            .await?;
 
         // Execute init command and verify error handling
         let result = simulate_init_with_database_error(&test_env).await;
@@ -443,10 +478,10 @@ impl DatabaseErrorTests {
             Err(error) => {
                 // Verify error handling is appropriate
                 self.validate_database_error(&error, test_case)?;
-            },
+            }
             Ok(_) => {
                 return Err(anyhow::anyhow!(
-                    "Expected database error '{}' but operation succeeded", 
+                    "Expected database error '{}' but operation succeeded",
                     test_case.name
                 ));
             }
@@ -455,85 +490,92 @@ impl DatabaseErrorTests {
         Ok(())
     }
 
-    async fn setup_database_error(&self, setup: &DatabaseErrorSetup, base_path: &Path) -> Result<DatabaseTestEnv> {
+    async fn setup_database_error(
+        &self,
+        setup: &DatabaseErrorSetup,
+        base_path: &Path,
+    ) -> Result<DatabaseTestEnv> {
         match setup {
-            DatabaseErrorSetup::ConnectionFailure => {
-                Ok(DatabaseTestEnv {
-                    database_path: base_path.join("nonexistent/database.db"),
-                    setup_type: setup.clone(),
-                })
-            },
+            DatabaseErrorSetup::ConnectionFailure => Ok(DatabaseTestEnv {
+                database_path: base_path.join("nonexistent/database.db"),
+                setup_type: setup.clone(),
+            }),
             DatabaseErrorSetup::DatabaseLocked => {
                 let db_path = base_path.join("locked.db");
                 // Create and lock database file
                 fs::write(&db_path, b"SQLite format 3").await?;
-                
+
                 Ok(DatabaseTestEnv {
                     database_path: db_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             DatabaseErrorSetup::DatabaseCorrupted => {
                 let db_path = base_path.join("corrupted.db");
                 // Create corrupted database file
                 fs::write(&db_path, b"This is not a valid SQLite file").await?;
-                
+
                 Ok(DatabaseTestEnv {
                     database_path: db_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             DatabaseErrorSetup::SchemaMismatch => {
                 let db_path = base_path.join("old_schema.db");
                 // Create database with incompatible schema
                 fs::write(&db_path, b"SQLite format 3\x00").await?; // Minimal SQLite header
-                
+
                 Ok(DatabaseTestEnv {
                     database_path: db_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             DatabaseErrorSetup::PermissionDenied => {
                 let readonly_dir = base_path.join("readonly");
                 fs::create_dir_all(&readonly_dir).await?;
-                
+
                 #[cfg(unix)]
                 {
                     let mut perms = fs::metadata(&readonly_dir).await?.permissions();
                     perms.set_mode(0o444); // Read-only
                     fs::set_permissions(&readonly_dir, perms).await?;
                 }
-                
+
                 Ok(DatabaseTestEnv {
                     database_path: readonly_dir.join("database.db"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
             DatabaseErrorSetup::TransactionFailure => {
                 let db_path = base_path.join("transaction_fail.db");
                 // Create database that will cause transaction failures
-                
+
                 Ok(DatabaseTestEnv {
                     database_path: db_path,
                     setup_type: setup.clone(),
                 })
-            },
+            }
             DatabaseErrorSetup::DiskFull => {
                 // Simulate disk full condition for database operations
                 Ok(DatabaseTestEnv {
                     database_path: base_path.join("diskfull.db"),
                     setup_type: setup.clone(),
                 })
-            },
+            }
         }
     }
 
-    fn validate_database_error(&self, error: &InitError, test_case: &DatabaseErrorCase) -> Result<()> {
+    fn validate_database_error(
+        &self,
+        error: &InitError,
+        test_case: &DatabaseErrorCase,
+    ) -> Result<()> {
         // Verify error category
         if error.category != test_case.expected_error_type {
             return Err(anyhow::anyhow!(
                 "Expected error category {:?}, got {:?}",
-                test_case.expected_error_type, error.category
+                test_case.expected_error_type,
+                error.category
             ));
         }
 
@@ -542,7 +584,8 @@ impl DatabaseErrorTests {
             if !suggestion.contains(&test_case.expected_recovery_suggestion) {
                 return Err(anyhow::anyhow!(
                     "Expected recovery suggestion to contain '{}', got '{}'",
-                    test_case.expected_recovery_suggestion, suggestion
+                    test_case.expected_recovery_suggestion,
+                    suggestion
                 ));
             }
         }
@@ -722,33 +765,31 @@ impl DatabaseErrorResults {
 }
 
 // Simulation functions (to be implemented with actual init logic)
-async fn simulate_init_with_filesystem_error(test_env: &FilesystemTestEnv) -> Result<(), InitError> {
+async fn simulate_init_with_filesystem_error(
+    test_env: &FilesystemTestEnv,
+) -> Result<(), InitError> {
     // Simulate init command execution with filesystem error conditions
     match &test_env.setup_type {
-        FilesystemErrorSetup::ReadOnlyParent => {
-            Err(InitError {
-                category: ErrorCategory::Permission,
-                message: "Permission denied: cannot create directory".to_string(),
-                recovery_suggestion: Some("Check directory permissions and ensure write access".to_string()),
-                error_code: Some(13),
-            })
-        },
-        FilesystemErrorSetup::DiskFull => {
-            Err(InitError {
-                category: ErrorCategory::Resource,
-                message: "No space left on device".to_string(),
-                recovery_suggestion: Some("Free up disk space and try again".to_string()),
-                error_code: Some(28),
-            })
-        },
-        FilesystemErrorSetup::PathTooLong => {
-            Err(InitError {
-                category: ErrorCategory::Validation,
-                message: "Path too long".to_string(),
-                recovery_suggestion: Some("Use shorter directory names".to_string()),
-                error_code: Some(36),
-            })
-        },
+        FilesystemErrorSetup::ReadOnlyParent => Err(InitError {
+            category: ErrorCategory::Permission,
+            message: "Permission denied: cannot create directory".to_string(),
+            recovery_suggestion: Some(
+                "Check directory permissions and ensure write access".to_string(),
+            ),
+            error_code: Some(13),
+        }),
+        FilesystemErrorSetup::DiskFull => Err(InitError {
+            category: ErrorCategory::Resource,
+            message: "No space left on device".to_string(),
+            recovery_suggestion: Some("Free up disk space and try again".to_string()),
+            error_code: Some(28),
+        }),
+        FilesystemErrorSetup::PathTooLong => Err(InitError {
+            category: ErrorCategory::Validation,
+            message: "Path too long".to_string(),
+            recovery_suggestion: Some("Use shorter directory names".to_string()),
+            error_code: Some(36),
+        }),
         _ => {
             // Other filesystem error simulations
             Err(InitError {
@@ -764,30 +805,28 @@ async fn simulate_init_with_filesystem_error(test_env: &FilesystemTestEnv) -> Re
 async fn simulate_init_with_database_error(test_env: &DatabaseTestEnv) -> Result<(), InitError> {
     // Simulate init command execution with database error conditions
     match &test_env.setup_type {
-        DatabaseErrorSetup::ConnectionFailure => {
-            Err(InitError {
-                category: ErrorCategory::Database,
-                message: "Cannot connect to database".to_string(),
-                recovery_suggestion: Some("Check database configuration and connectivity".to_string()),
-                error_code: Some(1),
-            })
-        },
-        DatabaseErrorSetup::DatabaseLocked => {
-            Err(InitError {
-                category: ErrorCategory::Resource,
-                message: "Database is locked".to_string(),
-                recovery_suggestion: Some("Wait for other process to complete or kill blocking process".to_string()),
-                error_code: Some(5),
-            })
-        },
-        DatabaseErrorSetup::DatabaseCorrupted => {
-            Err(InitError {
-                category: ErrorCategory::Corruption,
-                message: "Database file is not a database".to_string(),
-                recovery_suggestion: Some("Delete corrupted database file and reinitialize".to_string()),
-                error_code: Some(26),
-            })
-        },
+        DatabaseErrorSetup::ConnectionFailure => Err(InitError {
+            category: ErrorCategory::Database,
+            message: "Cannot connect to database".to_string(),
+            recovery_suggestion: Some("Check database configuration and connectivity".to_string()),
+            error_code: Some(1),
+        }),
+        DatabaseErrorSetup::DatabaseLocked => Err(InitError {
+            category: ErrorCategory::Resource,
+            message: "Database is locked".to_string(),
+            recovery_suggestion: Some(
+                "Wait for other process to complete or kill blocking process".to_string(),
+            ),
+            error_code: Some(5),
+        }),
+        DatabaseErrorSetup::DatabaseCorrupted => Err(InitError {
+            category: ErrorCategory::Corruption,
+            message: "Database file is not a database".to_string(),
+            recovery_suggestion: Some(
+                "Delete corrupted database file and reinitialize".to_string(),
+            ),
+            error_code: Some(26),
+        }),
         _ => {
             // Other database error simulations
             Err(InitError {
@@ -849,29 +888,43 @@ mod error_scenario_validation {
     #[tokio::test]
     async fn test_filesystem_error_coverage() {
         let filesystem_tests = FilesystemErrorTests::new();
-        
+
         // Verify comprehensive error scenario coverage
-        assert!(filesystem_tests.test_cases.len() >= 8, "Should have comprehensive filesystem error cases");
-        
+        assert!(
+            filesystem_tests.test_cases.len() >= 8,
+            "Should have comprehensive filesystem error cases"
+        );
+
         // Verify different error categories are covered
-        let categories: std::collections::HashSet<_> = filesystem_tests.test_cases
+        let categories: std::collections::HashSet<_> = filesystem_tests
+            .test_cases
             .iter()
             .map(|c| &c.expected_error_type)
             .collect();
-        
-        assert!(categories.len() >= 4, "Should cover multiple error categories");
-        
+
+        assert!(
+            categories.len() >= 4,
+            "Should cover multiple error categories"
+        );
+
         println!("✅ Filesystem error coverage validated");
-        println!("   Test cases: {}, Error categories: {}", filesystem_tests.test_cases.len(), categories.len());
+        println!(
+            "   Test cases: {}, Error categories: {}",
+            filesystem_tests.test_cases.len(),
+            categories.len()
+        );
     }
 
     #[tokio::test]
     async fn test_database_error_coverage() {
         let database_tests = DatabaseErrorTests::new();
-        
+
         // Verify comprehensive database error coverage
-        assert!(database_tests.test_cases.len() >= 7, "Should have comprehensive database error cases");
-        
+        assert!(
+            database_tests.test_cases.len() >= 7,
+            "Should have comprehensive database error cases"
+        );
+
         println!("✅ Database error coverage validated");
         println!("   Test cases: {}", database_tests.test_cases.len());
     }
@@ -879,40 +932,58 @@ mod error_scenario_validation {
     #[tokio::test]
     async fn test_error_message_quality() {
         let framework = ErrorTestFramework::new();
-        
+
         // Verify that all error cases have meaningful messages and recovery suggestions
         for case in &framework.filesystem_errors.test_cases {
-            assert!(!case.expected_error_message.is_empty(), "Error message should not be empty");
-            assert!(!case.expected_recovery_suggestion.is_empty(), "Recovery suggestion should not be empty");
-            assert!(case.expected_recovery_suggestion.len() > 10, "Recovery suggestion should be descriptive");
+            assert!(
+                !case.expected_error_message.is_empty(),
+                "Error message should not be empty"
+            );
+            assert!(
+                !case.expected_recovery_suggestion.is_empty(),
+                "Recovery suggestion should not be empty"
+            );
+            assert!(
+                case.expected_recovery_suggestion.len() > 10,
+                "Recovery suggestion should be descriptive"
+            );
         }
-        
+
         for case in &framework.database_errors.test_cases {
-            assert!(!case.expected_recovery_suggestion.is_empty(), "Recovery suggestion should not be empty");
-            assert!(case.expected_recovery_suggestion.len() > 10, "Recovery suggestion should be descriptive");
+            assert!(
+                !case.expected_recovery_suggestion.is_empty(),
+                "Recovery suggestion should not be empty"
+            );
+            assert!(
+                case.expected_recovery_suggestion.len() > 10,
+                "Recovery suggestion should be descriptive"
+            );
         }
-        
+
         println!("✅ Error message quality validation complete");
     }
 
     #[tokio::test]
     async fn test_error_simulation_accuracy() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Test filesystem error simulation
         let fs_env = FilesystemTestEnv {
             test_path: temp_dir.path().join("test"),
             setup_type: FilesystemErrorSetup::ReadOnlyParent,
         };
-        
+
         let result = simulate_init_with_filesystem_error(&fs_env).await;
-        assert!(result.is_err(), "Should simulate filesystem error correctly");
-        
+        assert!(
+            result.is_err(),
+            "Should simulate filesystem error correctly"
+        );
+
         if let Err(error) = result {
             assert_eq!(error.category, ErrorCategory::Permission);
             assert!(error.recovery_suggestion.is_some());
         }
-        
+
         println!("✅ Error simulation accuracy validated");
     }
 }

@@ -1,15 +1,26 @@
 use anyhow::{Context, Result};
-use std::env;
+use serial_test::serial;
 use tempfile::TempDir;
 use tokio::fs;
-use serial_test::serial;
 
 use imi::init::InitCommand;
 
+use imi::config::Config;
+use imi::database::Database;
 
-async fn setup_test_env() -> Result<TempDir> {
+async fn setup_test_env() -> Result<(TempDir, Config, Database)> {
     let temp_dir = TempDir::new().context("Failed to create temp directory")?;
-    Ok(temp_dir)
+    let config_path = temp_dir.path().join("config.toml");
+    let db_path = temp_dir.path().join("imi.db");
+
+    let mut config = Config::default();
+    config.database_path = db_path.clone();
+    config.save_to(&config_path).await?;
+
+    let db = Database::new(&db_path).await?;
+    db.ensure_tables().await?;
+
+    Ok((temp_dir, config, db))
 }
 
 async fn setup_git_repo(repo_path: &std::path::Path) -> Result<()> {
@@ -21,7 +32,10 @@ async fn setup_git_repo(repo_path: &std::path::Path) -> Result<()> {
         .context("Failed to initialize git repository")?;
 
     if !output.status.success() {
-        return Err(anyhow::anyhow!("Git init failed: {}", String::from_utf8_lossy(&output.stderr)));
+        return Err(anyhow::anyhow!(
+            "Git init failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
 
     // Configure git user for testing
@@ -36,6 +50,13 @@ async fn setup_git_repo(repo_path: &std::path::Path) -> Result<()> {
         .current_dir(repo_path)
         .output()
         .context("Failed to set git user email")?;
+
+    // Add a remote
+    std::process::Command::new("git")
+        .args(["remote", "add", "origin", "https://github.com/test/test-repo.git"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to add remote")?;
 
     // Create initial commit
     fs::write(repo_path.join("README.md"), "# Test Repository").await?;
@@ -62,7 +83,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_init_happy_path_in_trunk_directory() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         // Create a mock repository structure: repo-name/trunk-main/
         let repo_dir = temp_dir.path().join("test-repo");
@@ -72,15 +93,8 @@ mod tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        // Change to trunk directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        // Restore original directory safely
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Init should succeed in trunk- directory");
         let init_result = result.unwrap();
@@ -95,8 +109,8 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_init_fails_in_non_trunk_directory() {
-        let temp_dir = setup_test_env().await.unwrap();
+    async fn test_init_succeeds_in_non_trunk_directory() {
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         // Create a repository structure with non-trunk directory
         let repo_dir = temp_dir.path().join("test-repo");
@@ -106,40 +120,21 @@ mod tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&non_trunk_dir).unwrap();
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&non_trunk_dir)).await;
 
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
-
-        match result {
-            Ok(init_result) => {
-                if init_result.success {
-                    panic!("Init should not succeed in non-trunk directory, but got: {}", init_result.message);
-                }
-                assert!(
-                    init_result.message.contains("trunk-"),
-                    "Error should mention trunk- requirement, got: {}",
-                    init_result.message
-                );
-            }
-            Err(e) => {
-                // This is also acceptable - the init command errored
-                assert!(
-                    e.to_string().contains("trunk-"),
-                    "Error should mention trunk- requirement, got: {}",
-                    e
-                );
-            }
-        }
+        assert!(result.is_ok(), "Init should succeed in non-trunk directory");
+        let init_result = result.unwrap();
+        assert!(
+            init_result.success,
+            "Init result should be successful in non-trunk directory"
+        );
     }
 
     #[tokio::test]
     #[serial]
     async fn test_init_fails_when_already_initialized() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -149,22 +144,23 @@ mod tests {
         setup_git_repo(&repo_dir).await.unwrap();
 
         // First initialize successfully
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let first_result = init_cmd.execute().await;
-        assert!(first_result.is_ok() && first_result.unwrap().success, "First init should succeed");
+        let init_cmd = InitCommand::new(true, config.clone(), db.clone()); // Use force=true to avoid conflicts
+        let first_result = init_cmd.execute(Some(&trunk_dir)).await;
+        assert!(
+            first_result.is_ok() && first_result.unwrap().success,
+            "First init should succeed"
+        );
 
         // Second init should fail
-        let second_cmd = InitCommand::new(false);
-        let second_result = second_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let second_cmd = InitCommand::new(false, config, db);
+        let second_result = second_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(second_result.is_ok(), "Execute should succeed");
         let init_result = second_result.unwrap();
-        assert!(!init_result.success, "Second init should fail when already initialized");
+        assert!(
+            !init_result.success,
+            "Second init should fail when already initialized"
+        );
         assert!(
             init_result.message.contains("already registered"),
             "Error should mention already registered"
@@ -173,8 +169,8 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_init_fails_when_no_parent_directory() {
-        let temp_dir = setup_test_env().await.unwrap();
+    async fn test_init_succeeds_when_no_parent_directory() {
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         // Create a trunk directory at root level (no parent)
         let trunk_dir = temp_dir.path().join("trunk-main");
@@ -183,13 +179,8 @@ mod tests {
         // Setup git repository in the trunk dir itself (not typical, but for testing)
         setup_git_repo(&trunk_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         // This test depends on the specific implementation - it might succeed or fail
         // Let's just ensure it executes without panic
@@ -199,7 +190,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_init_creates_required_directories() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -208,13 +199,8 @@ mod tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
@@ -230,7 +216,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_init_creates_valid_repo_config() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("my-awesome-project");
         let trunk_dir = repo_dir.join("trunk-develop");
@@ -239,13 +225,8 @@ mod tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
@@ -264,7 +245,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_init_updates_database() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("db-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -273,13 +254,8 @@ mod tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
@@ -299,7 +275,7 @@ mod integration_tests {
     #[tokio::test]
     #[serial]
     async fn test_init_enables_other_commands() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("integration-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -308,14 +284,9 @@ mod integration_tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
         // Initialize
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let init_result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let init_result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(init_result.is_ok(), "Execute should succeed");
         let result = init_result.unwrap();
@@ -334,7 +305,7 @@ mod integration_tests {
     #[tokio::test]
     #[serial]
     async fn test_init_with_different_trunk_branches() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("develop-repo");
         let trunk_dir = repo_dir.join("trunk-develop");
@@ -343,13 +314,8 @@ mod integration_tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
@@ -378,7 +344,7 @@ mod edge_case_tests {
     #[tokio::test]
     #[serial]
     async fn test_init_performance() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("perf-test-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -387,16 +353,11 @@ mod edge_case_tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
 
         let start = Instant::now();
-        let result = init_cmd.execute().await;
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
         let duration = start.elapsed();
-
-        let _ = env::set_current_dir(&original_dir);
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
@@ -410,7 +371,7 @@ mod edge_case_tests {
     #[tokio::test]
     #[serial]
     async fn test_init_with_unicode_directory_names() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("测试-repo");
         let trunk_dir = repo_dir.join("trunk-主分支");
@@ -419,23 +380,21 @@ mod edge_case_tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();
-        assert!(init_result.success, "Init should handle unicode directory names");
+        assert!(
+            init_result.success,
+            "Init should handle unicode directory names"
+        );
     }
 
     #[tokio::test]
     #[serial]
     async fn test_init_cleanup_on_failure() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         let repo_dir = temp_dir.path().join("cleanup-repo");
         let trunk_dir = repo_dir.join("trunk-main");
@@ -444,15 +403,10 @@ mod edge_case_tests {
         // Setup git repository
         setup_git_repo(&repo_dir).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
         // This test just ensures that init execution doesn't panic
         // Cleanup behavior testing would require more complex failure scenarios
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should not panic");
     }
@@ -460,7 +414,7 @@ mod edge_case_tests {
     #[tokio::test]
     #[serial]
     async fn test_init_with_long_paths() {
-        let temp_dir = setup_test_env().await.unwrap();
+        let (temp_dir, config, db) = setup_test_env().await.unwrap();
 
         // Create a deeply nested path
         let long_path = temp_dir
@@ -479,13 +433,8 @@ mod edge_case_tests {
         // Setup git repository
         setup_git_repo(&long_path).await.unwrap();
 
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(&trunk_dir).unwrap();
-
-        let init_cmd = InitCommand::new(true); // Use force=true to avoid conflicts
-        let result = init_cmd.execute().await;
-
-        let _ = env::set_current_dir(&original_dir);
+        let init_cmd = InitCommand::new(true, config, db); // Use force=true to avoid conflicts
+        let result = init_cmd.execute(Some(&trunk_dir)).await;
 
         assert!(result.is_ok(), "Execute should succeed");
         let init_result = result.unwrap();

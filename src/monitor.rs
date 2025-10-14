@@ -25,7 +25,10 @@ pub struct ActivityEvent {
 
 impl MonitorManager {
     pub fn new(worktree_manager: WorktreeManager, config: crate::config::Config) -> Self {
-        Self { worktree_manager, config }
+        Self {
+            worktree_manager,
+            config,
+        }
     }
 
     /// Start real-time monitoring of worktree activities

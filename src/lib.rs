@@ -1,5 +1,5 @@
 //! iMi - Git Worktree Management Tool
-//! 
+//!
 //! A sophisticated worktree management tool designed for asynchronous,
 //! parallel multi-agent workflows with opinionated defaults and real-time visibility.
 
@@ -14,7 +14,7 @@ pub mod worktree;
 
 // Re-export commonly used types
 pub use config::Config;
-pub use database::{Database, Repository, Worktree, AgentActivity};
+pub use database::{AgentActivity, Database, Repository, Worktree};
 pub use error::ImiError;
 pub use git::{GitManager, WorktreeStatus};
 pub use init::{InitCommand, InitResult};
@@ -27,17 +27,16 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod defaults {
     /// Default root directory for iMi repositories
     pub const DEFAULT_ROOT: &str = "~/code";
-    
+
     /// Default database filename
     pub const DEFAULT_DB_NAME: &str = "iMi.db";
-    
+
     /// Default config filename
     pub const DEFAULT_CONFIG_NAME: &str = "config.toml";
-    
+
     /// Default branch name
     pub const DEFAULT_BRANCH: &str = "main";
-    
+
     /// Default remote name
     pub const DEFAULT_REMOTE: &str = "origin";
 }
-

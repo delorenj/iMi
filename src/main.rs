@@ -51,7 +51,8 @@ async fn main() -> Result<()> {
                         handle_feature_command(&worktree_manager, &name, repo.as_deref()).await?;
                     }
                     Commands::Review { pr_number, repo } => {
-                        handle_review_command(&worktree_manager, pr_number, repo.as_deref()).await?;
+                        handle_review_command(&worktree_manager, pr_number, repo.as_deref())
+                            .await?;
                     }
                     Commands::Fix { name, repo } => {
                         handle_fix_command(&worktree_manager, &name, repo.as_deref()).await?;
@@ -71,8 +72,20 @@ async fn main() -> Result<()> {
                     Commands::List { repo } => {
                         handle_list_command(&worktree_manager, repo.as_deref()).await?;
                     }
-                    Commands::Remove { name, repo, keep_branch, keep_remote } => {
-                        handle_remove_command(&worktree_manager, &name, repo.as_deref(), keep_branch, keep_remote).await?;
+                    Commands::Remove {
+                        name,
+                        repo,
+                        keep_branch,
+                        keep_remote,
+                    } => {
+                        handle_remove_command(
+                            &worktree_manager,
+                            &name,
+                            repo.as_deref(),
+                            keep_branch,
+                            keep_remote,
+                        )
+                        .await?;
                     }
                     Commands::Monitor { repo } => {
                         handle_monitor_command(&worktree_manager, repo.as_deref()).await?;
@@ -104,7 +117,7 @@ async fn handle_feature_command(
         "🚀".bright_cyan(),
         name.bright_green()
     );
-    
+
     match manager.create_feature_worktree(name, repo).await {
         Ok(worktree_path) => {
             println!(
@@ -124,18 +137,19 @@ async fn handle_feature_command(
         Err(e) => {
             let error_msg = e.to_string().to_lowercase();
             // Check if it's an authentication error
-            if error_msg.contains("authentication") || 
-               error_msg.contains("auth") || 
-               error_msg.contains("credential") ||
-               error_msg.contains("ssh") {
+            if error_msg.contains("authentication")
+                || error_msg.contains("auth")
+                || error_msg.contains("credential")
+                || error_msg.contains("ssh")
+            {
                 println!("{} Authentication failed", "❌".bright_red());
                 println!();
-                
+
                 // Show authentication help
                 let git_manager = GitManager::new();
                 git_manager.show_auth_help();
                 println!();
-                
+
                 return Err(e);
             }
             return Err(e);
@@ -291,7 +305,9 @@ async fn handle_remove_command(
         "🗑️".bright_red(),
         name.bright_yellow()
     );
-    manager.remove_worktree(name, repo, keep_branch, keep_remote).await?;
+    manager
+        .remove_worktree(name, repo, keep_branch, keep_remote)
+        .await?;
     println!("{} Worktree removed successfully", "✅".bright_green());
     Ok(())
 }
@@ -303,8 +319,10 @@ async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -
 }
 
 async fn handle_init_command(force: bool) -> Result<()> {
-    let init_cmd = InitCommand::new(force);
-    let result = init_cmd.execute().await?;
+    let config = Config::load().await?;
+    let db = Database::new(&config.database_path).await?;
+    let init_cmd = InitCommand::new(force, config, db);
+    let result = init_cmd.execute(None).await?;
 
     if result.success {
         println!("{}", result.message.green());
@@ -316,15 +334,18 @@ async fn handle_init_command(force: bool) -> Result<()> {
 }
 
 async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
-    println!("{} Cleaning up stale worktree references", "🧹".bright_cyan());
+    println!(
+        "{} Cleaning up stale worktree references",
+        "🧹".bright_cyan()
+    );
     manager.prune_stale_worktrees(repo).await?;
     println!("{} Cleanup complete", "✅".bright_green());
     Ok(())
 }
 
 fn handle_completion_command(shell: &clap_complete::Shell) {
-    use clap_complete::{generate, Generator};
     use clap::CommandFactory;
+    use clap_complete::{generate, Generator};
     use std::io;
 
     fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {

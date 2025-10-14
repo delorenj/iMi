@@ -1,5 +1,5 @@
 /// Emergency Critical Coverage Tests for Database Module
-/// 
+///
 /// This comprehensive test suite provides complete coverage for database.rs (180 lines, 0% coverage)
 /// to address the CRITICAL coverage crisis identified in AC-060.
 ///
@@ -10,7 +10,6 @@
 /// - Agent activity operations: log_agent_activity(), get_recent_activities()
 /// - Migration and indexing: run_migrations()
 /// - Error handling and edge cases
-
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::path::PathBuf;
@@ -114,9 +113,12 @@ mod database_creation_tests {
             .join("nested.db");
 
         let db = Database::new(&nested_path).await.unwrap();
-        
-        assert!(nested_path.exists(), "Database should create nested directories");
-        
+
+        assert!(
+            nested_path.exists(),
+            "Database should create nested directories"
+        );
+
         // Verify database is functional
         let worktrees = db.list_worktrees(None).await.unwrap();
         assert_eq!(worktrees.len(), 0);
@@ -167,7 +169,7 @@ mod repository_operations_tests {
         let now = Utc::now();
         let time_diff = (now - repo.created_at).num_seconds().abs();
         assert!(time_diff < 5, "Created timestamp should be recent");
-        
+
         let time_diff = (now - repo.updated_at).num_seconds().abs();
         assert!(time_diff < 5, "Updated timestamp should be recent");
     }
@@ -189,11 +191,7 @@ mod repository_operations_tests {
             .unwrap();
 
         // Retrieve the repository
-        let retrieved_repo = helper
-            .db
-            .get_repository("get-test-repo")
-            .await
-            .unwrap();
+        let retrieved_repo = helper.db.get_repository("get-test-repo").await.unwrap();
 
         assert!(retrieved_repo.is_some(), "Repository should be found");
         let repo = retrieved_repo.unwrap();
@@ -210,13 +208,12 @@ mod repository_operations_tests {
     async fn test_get_repository_nonexistent() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
-        let result = helper
-            .db
-            .get_repository("nonexistent-repo")
-            .await
-            .unwrap();
+        let result = helper.db.get_repository("nonexistent-repo").await.unwrap();
 
-        assert!(result.is_none(), "Nonexistent repository should return None");
+        assert!(
+            result.is_none(),
+            "Nonexistent repository should return None"
+        );
     }
 
     #[tokio::test]
@@ -418,11 +415,7 @@ mod worktree_operations_tests {
             .unwrap();
 
         // Retrieve it
-        let retrieved = helper
-            .db
-            .get_worktree("get-repo", "pr-123")
-            .await
-            .unwrap();
+        let retrieved = helper.db.get_worktree("get-repo", "pr-123").await.unwrap();
 
         assert!(retrieved.is_some());
         let worktree = retrieved.unwrap();
@@ -538,19 +531,40 @@ mod worktree_operations_tests {
         // Create worktrees for different repos
         helper
             .db
-            .create_worktree("filter-repo-1", "trunk-main", "main", "trunk", "/path1", None)
+            .create_worktree(
+                "filter-repo-1",
+                "trunk-main",
+                "main",
+                "trunk",
+                "/path1",
+                None,
+            )
             .await
             .unwrap();
 
         helper
             .db
-            .create_worktree("filter-repo-1", "feat-test", "feat/test", "feat", "/path2", None)
+            .create_worktree(
+                "filter-repo-1",
+                "feat-test",
+                "feat/test",
+                "feat",
+                "/path2",
+                None,
+            )
             .await
             .unwrap();
 
         helper
             .db
-            .create_worktree("filter-repo-2", "trunk-main", "main", "trunk", "/path3", None)
+            .create_worktree(
+                "filter-repo-2",
+                "trunk-main",
+                "main",
+                "trunk",
+                "/path3",
+                None,
+            )
             .await
             .unwrap();
 
@@ -720,7 +734,14 @@ mod agent_activity_tests {
 
         let worktree = helper
             .db
-            .create_worktree("activity-repo", "feat-test", "feat/test", "feat", "/path", None)
+            .create_worktree(
+                "activity-repo",
+                "feat-test",
+                "feat/test",
+                "feat",
+                "/path",
+                None,
+            )
             .await
             .unwrap();
 
@@ -868,11 +889,7 @@ mod agent_activity_tests {
         }
 
         // Request only 5 most recent
-        let limited_activities = helper
-            .db
-            .get_recent_activities(None, 5)
-            .await
-            .unwrap();
+        let limited_activities = helper.db.get_recent_activities(None, 5).await.unwrap();
 
         assert_eq!(limited_activities.len(), 5);
 
@@ -887,11 +904,7 @@ mod agent_activity_tests {
     async fn test_get_recent_activities_empty_database() {
         let helper = DatabaseTestHelper::new().await.unwrap();
 
-        let activities = helper
-            .db
-            .get_recent_activities(None, 10)
-            .await
-            .unwrap();
+        let activities = helper.db.get_recent_activities(None, 10).await.unwrap();
 
         assert_eq!(activities.len(), 0);
     }
@@ -945,11 +958,7 @@ mod worktree_types_tests {
         }
 
         // Verify all were created
-        let all_worktrees = helper
-            .db
-            .list_worktrees(Some("types-repo"))
-            .await
-            .unwrap();
+        let all_worktrees = helper.db.list_worktrees(Some("types-repo")).await.unwrap();
         assert_eq!(all_worktrees.len(), 6);
     }
 }
@@ -961,7 +970,7 @@ mod error_handling_tests {
     #[tokio::test]
     async fn test_database_with_invalid_path_characters() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Most special characters should work in paths
         let valid_paths = vec![
             "normal.db",
@@ -1120,7 +1129,10 @@ mod database_edge_cases_tests {
 
         // All should succeed
         let successful_count = results.iter().filter(|r| r.is_ok()).count();
-        assert_eq!(successful_count, 10, "All concurrent creations should succeed");
+        assert_eq!(
+            successful_count, 10,
+            "All concurrent creations should succeed"
+        );
 
         // Verify all were created
         let worktrees = helper

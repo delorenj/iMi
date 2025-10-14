@@ -36,7 +36,7 @@ mod cli_integration_tests {
             .output()
             .expect("Failed to run iMi --help");
 
-        let help_text = String::from_utf8_lossy(&output.stdout);
+        let _help_text = String::from_utf8_lossy(&output.stdout);
 
         // This test will initially fail until init command is added to CLI
         // assert!(help_text.contains("init"), "Help should mention init command");
@@ -72,15 +72,21 @@ mod cli_integration_tests {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(
-                stdout.contains("setup complete") || stdout.contains("initialized") || stdout.contains("configuration"),
-                "Output should indicate successful setup: {}", stdout
+                stdout.contains("setup complete")
+                    || stdout.contains("initialized")
+                    || stdout.contains("configuration"),
+                "Output should indicate successful setup: {}",
+                stdout
             );
         } else {
             // Log the error for debugging
             let stderr = String::from_utf8_lossy(&output.stderr);
             println!("Init command failed: {}", stderr);
             // The command should work in a trunk directory, so this is unexpected
-            panic!("Init command should work in trunk directory but failed with: {}", stderr);
+            panic!(
+                "Init command should work in trunk directory but failed with: {}",
+                stderr
+            );
         }
     }
 
@@ -162,7 +168,7 @@ mod cli_integration_tests {
         env::set_current_dir(&trunk_dir).expect("Failed to change directory");
 
         // Test verbose flag (if implemented)
-        let output = Command::new(IMI_BINARY)
+        let _output = Command::new(IMI_BINARY)
             .args(&["init", "--verbose"])
             .output()
             .expect("Failed to run iMi init --verbose");
@@ -225,7 +231,7 @@ mod cli_integration_tests {
         let original_dir = env::current_dir().expect("Failed to get current directory");
 
         // Test force flag to reinitialize
-        let output = {
+        let _output = {
             env::set_current_dir(&trunk_dir).expect("Failed to change directory");
             let result = Command::new(IMI_BINARY)
                 .args(&["init", "--force"])
@@ -254,7 +260,7 @@ mod cli_integration_tests {
         let original_dir = env::current_dir().expect("Failed to get current directory");
 
         // Test custom config file option
-        let output = {
+        let _output = {
             env::set_current_dir(&trunk_dir).expect("Failed to change directory");
             let result = Command::new(IMI_BINARY)
                 .args(&["init", "--config", "custom-config.toml"])
@@ -335,7 +341,6 @@ mod cli_integration_tests {
 /// These are "documentation tests" that show what the CLI should do
 #[cfg(test)]
 mod expected_behavior_tests {
-    
 
     /// This test documents the expected CLI signature for the init command
     #[tokio::test]
@@ -380,7 +385,7 @@ mod expected_behavior_tests {
         // Expected error messages:
 
         // 1. Not in trunk- directory:
-        let expected_error_1 = r#"
+        let _expected_error_1 = r#"
 Error: iMi init must be run from a directory starting with 'trunk-'
 
 Current directory: feature-branch
@@ -395,7 +400,7 @@ Run 'iMi init' from your trunk directory to initialize iMi for this repository.
 "#;
 
         // 2. Already initialized:
-        let expected_error_2 = r#"
+        let _expected_error_2 = r#"
 Error: Repository already initialized
 
 Found existing .imi directory at: /path/to/repo/trunk-main/.imi
@@ -408,7 +413,7 @@ Use 'iMi init --force' to reinitialize, which will:
 "#;
 
         // 3. No parent directory:
-        let expected_error_3 = r#"
+        let _expected_error_3 = r#"
 Error: Cannot determine repository name
 
 The trunk directory must have a parent directory that serves as the repository root.
@@ -429,7 +434,7 @@ Please ensure your directory structure follows:
     /// This test documents the expected success output and user experience
     #[tokio::test]
     async fn document_expected_success_output() {
-        let expected_success_output = r#"
+        let _expected_success_output = r#"
 ✅ iMi initialized successfully!
 
 📁 Repository: my-awesome-project
@@ -460,7 +465,7 @@ Next steps:
     /// This test documents the expected verbose output
     #[tokio::test]
     async fn document_expected_verbose_output() {
-        let expected_verbose_output = r#"
+        let _expected_verbose_output = r#"
 🔍 Checking current directory...
 📁 Current directory: trunk-main ✅
 📁 Parent directory: my-awesome-project ✅

@@ -10,7 +10,6 @@
 /// - Property Tests: Edge case discovery
 /// - Error Tests: All failure modes covered
 /// - Performance Tests: SLA compliance validation
-
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -174,7 +173,7 @@ pub enum ErrorType {
 pub struct TestExecutionContext {
     pub temp_dirs: Vec<TempDir>,
     pub test_databases: Vec<PathBuf>,
-    pub cleanup_handlers: Vec<Box<dyn FnOnce() -> Result<()>>>, 
+    pub cleanup_handlers: Vec<Box<dyn FnOnce() -> Result<()>>>,
 }
 
 impl TestExecutionContext {
@@ -186,15 +185,19 @@ impl TestExecutionContext {
         })
     }
 
-    pub async fn create_test_directory(&mut self, structure: &DirectoryStructure) -> Result<PathBuf> {
+    pub async fn create_test_directory(
+        &mut self,
+        structure: &DirectoryStructure,
+    ) -> Result<PathBuf> {
         let temp_dir = TempDir::new().context("Failed to create temp directory")?;
         let base_path = temp_dir.path().to_path_buf();
-        
+
         // Create the directory structure
         let full_path = base_path.join(&structure.path);
-        fs::create_dir_all(&full_path).await
+        fs::create_dir_all(&full_path)
+            .await
             .context("Failed to create directory structure")?;
-            
+
         self.temp_dirs.push(temp_dir);
         Ok(full_path)
     }
@@ -317,7 +320,10 @@ impl TestArchitecture {
         let mut status = String::new();
         for (criteria, passed) in &results.acceptance_criteria_status {
             let icon = if *passed { "✅" } else { "❌" };
-            status.push_str(&format!("{} AC-{}: {}\n", icon, criteria.id, criteria.description));
+            status.push_str(&format!(
+                "{} AC-{}: {}\n",
+                icon, criteria.id, criteria.description
+            ));
         }
         status
     }
@@ -353,7 +359,7 @@ pub struct TestResults {
     pub failed_tests: usize,
     pub coverage_percentage: f64,
     pub total_duration: Duration,
-    
+
     // Test suite counts
     pub unit_test_count: usize,
     pub integration_test_count: usize,
@@ -361,19 +367,19 @@ pub struct TestResults {
     pub error_test_count: usize,
     pub performance_test_count: usize,
     pub acceptance_test_count: usize,
-    
+
     // Coverage by category
     pub core_functionality_coverage: f64,
     pub error_handling_coverage: f64,
     pub edge_case_coverage: f64,
     pub performance_coverage: f64,
     pub user_experience_coverage: f64,
-    
+
     // Performance metrics
     pub average_init_time: Duration,
     pub memory_usage_mb: f64,
     pub database_ops_per_sec: f64,
-    
+
     // Acceptance criteria tracking
     pub acceptance_criteria_status: HashMap<AcceptanceCriteria, bool>,
 }
@@ -442,23 +448,40 @@ pub struct PathValidationTests;
 impl PathValidationTests {
     pub async fn test_trunk_directory_validation(&self) -> Result<()> {
         let valid_trunks = vec![
-            "trunk-main", "trunk-develop", "trunk-staging", 
-            "trunk-feature-branch", "trunk-v1.0", "trunk-hotfix"
+            "trunk-main",
+            "trunk-develop",
+            "trunk-staging",
+            "trunk-feature-branch",
+            "trunk-v1.0",
+            "trunk-hotfix",
         ];
 
         let invalid_trunks = vec![
-            "main", "trunk", "feat-branch", "trunk_main", 
-            "Trunk-main", "TRUNK-main", "trunkMain"
+            "main",
+            "trunk",
+            "feat-branch",
+            "trunk_main",
+            "Trunk-main",
+            "TRUNK-main",
+            "trunkMain",
         ];
 
         for trunk in valid_trunks {
             // Test trunk validation logic
-            assert!(is_valid_trunk_directory(trunk), "Should accept valid trunk: {}", trunk);
+            assert!(
+                is_valid_trunk_directory(trunk),
+                "Should accept valid trunk: {}",
+                trunk
+            );
         }
 
         for trunk in invalid_trunks {
             // Test trunk validation logic
-            assert!(!is_valid_trunk_directory(trunk), "Should reject invalid trunk: {}", trunk);
+            assert!(
+                !is_valid_trunk_directory(trunk),
+                "Should reject invalid trunk: {}",
+                trunk
+            );
         }
 
         Ok(())
@@ -468,8 +491,16 @@ impl PathValidationTests {
         // Test various path resolution scenarios
         let test_cases = vec![
             ("/projects/repo/trunk-main", "/projects/repo", "repo"),
-            ("/deep/nested/path/myrepo/trunk-develop", "/deep/nested/path/myrepo", "myrepo"),
-            ("/home/user/code/awesome-project/trunk-main", "/home/user/code/awesome-project", "awesome-project"),
+            (
+                "/deep/nested/path/myrepo/trunk-develop",
+                "/deep/nested/path/myrepo",
+                "myrepo",
+            ),
+            (
+                "/home/user/code/awesome-project/trunk-main",
+                "/home/user/code/awesome-project",
+                "awesome-project",
+            ),
         ];
 
         for (trunk_path, expected_repo_path, expected_repo_name) in test_cases {
@@ -482,7 +513,7 @@ impl PathValidationTests {
     }
 }
 
-// Configuration Management Tests  
+// Configuration Management Tests
 #[derive(Debug, Clone, Default)]
 pub struct ConfigManagementTests;
 
@@ -551,12 +582,14 @@ fn is_valid_trunk_directory(name: &str) -> bool {
 }
 
 fn resolve_repository_info(trunk_path: &Path) -> Result<(PathBuf, String)> {
-    let repo_path = trunk_path.parent()
+    let repo_path = trunk_path
+        .parent()
         .ok_or_else(|| anyhow::anyhow!("No parent directory"))?;
-    let repo_name = repo_path.file_name()
+    let repo_name = repo_path
+        .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| anyhow::anyhow!("Invalid repository name"))?;
-    
+
     Ok((repo_path.to_path_buf(), repo_name.to_string()))
 }
 
@@ -609,11 +642,11 @@ mod test_architecture_validation {
     #[tokio::test]
     async fn test_architecture_completeness() {
         let architecture = TestArchitecture::new();
-        
+
         // Validate that all test suites are properly structured
         // Just check that the struct exists
         let _ = &architecture.unit_tests.path_validation_tests;
-        
+
         // This test ensures the architecture is properly defined
         println!("✅ Test architecture validation complete");
     }
@@ -625,7 +658,7 @@ mod test_architecture_validation {
         results.passed_tests = 95;
         results.failed_tests = 5;
         results.calculate_coverage();
-        
+
         assert_eq!(results.coverage_percentage, 95.0);
         println!("✅ Coverage calculation validation complete");
     }

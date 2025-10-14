@@ -53,8 +53,9 @@ impl Database {
 
         // Ensure parent directory exists
         if let Some(parent) = database_path.as_ref().parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create database directory: {}", parent.display()))?;
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create database directory: {}", parent.display())
+            })?;
         }
 
         // Create database if it doesn't exist

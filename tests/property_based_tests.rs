@@ -3,7 +3,6 @@
 /// This module implements comprehensive property-based testing using custom generators
 /// to discover edge cases and validate invariants across all possible input combinations.
 /// Focuses on AC-055 through AC-064 which cover edge cases and error handling.
-
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::Path;
@@ -39,15 +38,15 @@ impl PropertyTestGenerator {
         let error_scenario_results = executor.test_error_scenario_properties().await?;
 
         // Calculate overall results
-        let total_generated = directory_name_results.total_tests +
-                             path_structure_results.total_tests +
-                             config_results.total_tests +
-                             error_scenario_results.total_tests;
+        let total_generated = directory_name_results.total_tests
+            + path_structure_results.total_tests
+            + config_results.total_tests
+            + error_scenario_results.total_tests;
 
-        let total_tested = directory_name_results.successes +
-                          path_structure_results.successes +
-                          config_results.successes +
-                          error_scenario_results.successes;
+        let total_tested = directory_name_results.successes
+            + path_structure_results.successes
+            + config_results.successes
+            + error_scenario_results.successes;
 
         let edge_cases_found = 0; // TODO: Add edge_cases_found to individual result structures
 
@@ -63,8 +62,12 @@ impl PropertyTestGenerator {
                 failed: directory_name_results.failures.len(),
                 total: directory_name_results.total_tests,
                 coverage: if directory_name_results.total_tests > 0 {
-                    (directory_name_results.successes as f64 / directory_name_results.total_tests as f64) * 100.0
-                } else { 0.0 },
+                    (directory_name_results.successes as f64
+                        / directory_name_results.total_tests as f64)
+                        * 100.0
+                } else {
+                    0.0
+                },
                 failures: directory_name_results.failures,
             },
             path_structure_tests: TestCategoryResult {
@@ -72,8 +75,12 @@ impl PropertyTestGenerator {
                 failed: path_structure_results.failures.len(),
                 total: path_structure_results.total_tests,
                 coverage: if path_structure_results.total_tests > 0 {
-                    (path_structure_results.successes as f64 / path_structure_results.total_tests as f64) * 100.0
-                } else { 0.0 },
+                    (path_structure_results.successes as f64
+                        / path_structure_results.total_tests as f64)
+                        * 100.0
+                } else {
+                    0.0
+                },
                 failures: path_structure_results.failures,
             },
             config_tests: TestCategoryResult {
@@ -82,7 +89,9 @@ impl PropertyTestGenerator {
                 total: config_results.total_tests,
                 coverage: if config_results.total_tests > 0 {
                     (config_results.successes as f64 / config_results.total_tests as f64) * 100.0
-                } else { 0.0 },
+                } else {
+                    0.0
+                },
                 failures: config_results.failures,
             },
             error_scenario_tests: TestCategoryResult {
@@ -90,8 +99,12 @@ impl PropertyTestGenerator {
                 failed: error_scenario_results.failures.len(),
                 total: error_scenario_results.total_tests,
                 coverage: if error_scenario_results.total_tests > 0 {
-                    (error_scenario_results.successes as f64 / error_scenario_results.total_tests as f64) * 100.0
-                } else { 0.0 },
+                    (error_scenario_results.successes as f64
+                        / error_scenario_results.total_tests as f64)
+                        * 100.0
+                } else {
+                    0.0
+                },
                 failures: error_scenario_results.failures,
             },
             total_properties_generated: total_generated,
@@ -110,14 +123,29 @@ impl DirectoryNameGenerator {
     /// Generate all possible trunk directory name variations
     pub fn generate_trunk_names(&self) -> Vec<TrunkNameTestCase> {
         let mut cases = Vec::new();
-        
+
         // Valid trunk patterns
         let valid_branches = vec![
-            "main", "master", "develop", "dev", "staging", "stage", "prod", "production",
-            "feature-auth", "feature/auth", "release-1.0", "release/1.0", "hotfix-security",
-            "v1.0.0", "1.0.0", "2023-12-25", "user-auth-system", "api-v2"
+            "main",
+            "master",
+            "develop",
+            "dev",
+            "staging",
+            "stage",
+            "prod",
+            "production",
+            "feature-auth",
+            "feature/auth",
+            "release-1.0",
+            "release/1.0",
+            "hotfix-security",
+            "v1.0.0",
+            "1.0.0",
+            "2023-12-25",
+            "user-auth-system",
+            "api-v2",
         ];
-        
+
         for branch in valid_branches {
             cases.push(TrunkNameTestCase {
                 name: format!("trunk-{}", branch),
@@ -126,7 +154,7 @@ impl DirectoryNameGenerator {
                 description: format!("Valid trunk with branch: {}", branch),
             });
         }
-        
+
         // Edge case valid patterns
         let edge_valid = vec![
             ("trunk-a", "Single character branch"),
@@ -136,7 +164,7 @@ impl DirectoryNameGenerator {
             ("trunk-with.dots", "Dots in branch name"),
             ("trunk-multi-word-branch", "Multi-hyphen branch name"),
         ];
-        
+
         for (name, desc) in edge_valid {
             cases.push(TrunkNameTestCase {
                 name: name.to_string(),
@@ -145,7 +173,7 @@ impl DirectoryNameGenerator {
                 description: desc.to_string(),
             });
         }
-        
+
         // Invalid trunk patterns
         let invalid_patterns = vec![
             ("trunk", "Missing branch suffix"),
@@ -163,7 +191,7 @@ impl DirectoryNameGenerator {
             ("trunk\tmain", "Tab character"),
             ("trunk\nmain", "Newline character"),
         ];
-        
+
         for (name, desc) in invalid_patterns {
             cases.push(TrunkNameTestCase {
                 name: name.to_string(),
@@ -172,7 +200,7 @@ impl DirectoryNameGenerator {
                 description: desc.to_string(),
             });
         }
-        
+
         // Unicode and special character tests
         let unicode_cases = vec![
             ("trunk-主分支", true, "Chinese characters"),
@@ -183,16 +211,20 @@ impl DirectoryNameGenerator {
             ("trunk-Ω", true, "Greek characters"),
             ("trunk-русский", true, "Cyrillic characters"),
         ];
-        
+
         for (name, valid, desc) in unicode_cases {
             cases.push(TrunkNameTestCase {
                 name: name.to_string(),
                 expected_valid: valid,
-                branch_name: if valid { Some(name.strip_prefix("trunk-").unwrap().to_string()) } else { None },
+                branch_name: if valid {
+                    Some(name.strip_prefix("trunk-").unwrap().to_string())
+                } else {
+                    None
+                },
                 description: format!("Unicode test: {}", desc),
             });
         }
-        
+
         // Additional edge cases to reach 50+ test cases
         let additional_valid = vec![
             ("trunk-release", "Release branch"),
@@ -202,7 +234,7 @@ impl DirectoryNameGenerator {
             ("trunk-alpha", "Alpha branch"),
             ("trunk-beta", "Beta branch"),
         ];
-        
+
         for (name, desc) in additional_valid {
             cases.push(TrunkNameTestCase {
                 name: name.to_string(),
@@ -211,23 +243,33 @@ impl DirectoryNameGenerator {
                 description: desc.to_string(),
             });
         }
-        
+
         cases
     }
-    
+
     /// Generate repository name variations
     pub fn generate_repository_names(&self) -> Vec<RepositoryNameTestCase> {
         let mut cases = Vec::new();
-        
+
         // Common valid repository names
         let valid_names = vec![
-            "my-project", "awesome_project", "Project123", "project.name",
-            "UPPERCASE-PROJECT", "mixed-Case_Project", "single",
+            "my-project",
+            "awesome_project",
+            "Project123",
+            "project.name",
+            "UPPERCASE-PROJECT",
+            "mixed-Case_Project",
+            "single",
             "very-long-repository-name-with-many-words-and-hyphens",
-            "project2023", "v1.0.0", "api-server", "frontend-app",
-            "backend-service", "database-migrations", "test-suite",
+            "project2023",
+            "v1.0.0",
+            "api-server",
+            "frontend-app",
+            "backend-service",
+            "database-migrations",
+            "test-suite",
         ];
-        
+
         for name in valid_names {
             cases.push(RepositoryNameTestCase {
                 name: name.to_string(),
@@ -235,7 +277,7 @@ impl DirectoryNameGenerator {
                 description: format!("Valid repository name: {}", name),
             });
         }
-        
+
         // Edge cases and potential issues
         let edge_cases = vec![
             ("", false, "Empty name"),
@@ -256,7 +298,7 @@ impl DirectoryNameGenerator {
             ("project|with|pipes", false, "Pipe characters"),
             ("project\"with\"quotes", false, "Double quotes"),
         ];
-        
+
         for (name, valid, desc) in edge_cases {
             cases.push(RepositoryNameTestCase {
                 name: name.to_string(),
@@ -264,7 +306,7 @@ impl DirectoryNameGenerator {
                 description: desc.to_string(),
             });
         }
-        
+
         // Very long names test
         let long_name = "a".repeat(255);
         cases.push(RepositoryNameTestCase {
@@ -272,14 +314,14 @@ impl DirectoryNameGenerator {
             expected_valid: true,
             description: "255 character name".to_string(),
         });
-        
+
         let too_long_name = "a".repeat(256);
         cases.push(RepositoryNameTestCase {
             name: too_long_name,
             expected_valid: false,
             description: "256 character name (too long)".to_string(),
         });
-        
+
         cases
     }
 }
@@ -309,7 +351,7 @@ impl PathStructureGenerator {
     /// Generate complex directory structures for testing
     pub fn generate_path_structures(&self) -> Vec<PathStructureTestCase> {
         let mut cases = Vec::new();
-        
+
         // Normal cases
         cases.push(PathStructureTestCase {
             description: "Standard structure".to_string(),
@@ -321,7 +363,7 @@ impl PathStructureGenerator {
             expected_repo_name: "my-repo".to_string(),
             expected_valid: true,
         });
-        
+
         // Deeply nested cases
         cases.push(PathStructureTestCase {
             description: "Deeply nested structure".to_string(),
@@ -338,18 +380,15 @@ impl PathStructureGenerator {
             expected_repo_name: "web-app".to_string(),
             expected_valid: true,
         });
-        
+
         // Minimal cases
         cases.push(PathStructureTestCase {
             description: "Minimal structure (root level)".to_string(),
-            structure: vec![
-                "repo".to_string(),
-                "trunk-main".to_string(),
-            ],
+            structure: vec!["repo".to_string(), "trunk-main".to_string()],
             expected_repo_name: "repo".to_string(),
             expected_valid: true,
         });
-        
+
         // Edge case: trunk at filesystem root
         cases.push(PathStructureTestCase {
             description: "Trunk at filesystem root".to_string(),
@@ -357,7 +396,7 @@ impl PathStructureGenerator {
             expected_repo_name: "".to_string(),
             expected_valid: false,
         });
-        
+
         // Complex repository names
         let complex_repo_names = vec![
             "repo-with-many-hyphens",
@@ -367,7 +406,7 @@ impl PathStructureGenerator {
             "repo123with456numbers",
             "MixedCaseRepo",
         ];
-        
+
         for repo_name in complex_repo_names {
             cases.push(PathStructureTestCase {
                 description: format!("Complex repo name: {}", repo_name),
@@ -380,42 +419,52 @@ impl PathStructureGenerator {
                 expected_valid: true,
             });
         }
-        
+
         cases
     }
-    
+
     /// Generate path length edge cases
     pub fn generate_path_length_cases(&self) -> Vec<PathLengthTestCase> {
         let mut cases = Vec::new();
-        
+
         // Normal length path
         cases.push(PathLengthTestCase {
             description: "Normal length path".to_string(),
-            path_segments: vec!["home".to_string(), "user".to_string(), "projects".to_string(), "repo".to_string(), "trunk-main".to_string()],
+            path_segments: vec![
+                "home".to_string(),
+                "user".to_string(),
+                "projects".to_string(),
+                "repo".to_string(),
+                "trunk-main".to_string(),
+            ],
             expected_valid: true,
         });
-        
+
         // Very long individual segment
         let long_segment = "a".repeat(200);
         cases.push(PathLengthTestCase {
             description: "Very long path segment".to_string(),
-            path_segments: vec!["projects".to_string(), long_segment, "trunk-main".to_string()],
+            path_segments: vec![
+                "projects".to_string(),
+                long_segment,
+                "trunk-main".to_string(),
+            ],
             expected_valid: true, // Depends on filesystem limits
         });
-        
+
         // Many path segments
         let mut many_segments = vec!["root".to_string()];
         for i in 0..50 {
             many_segments.push(format!("segment{}", i));
         }
         many_segments.extend(vec!["repo".to_string(), "trunk-main".to_string()]);
-        
+
         cases.push(PathLengthTestCase {
             description: "Many path segments".to_string(),
             path_segments: many_segments,
             expected_valid: true,
         });
-        
+
         cases
     }
 }
@@ -443,7 +492,7 @@ impl ConfigGenerator {
     /// Generate various configuration scenarios
     pub fn generate_config_scenarios(&self) -> Vec<ConfigTestCase> {
         let mut cases = Vec::new();
-        
+
         // Fresh installation (no existing config)
         cases.push(ConfigTestCase {
             description: "Fresh installation".to_string(),
@@ -451,7 +500,7 @@ impl ConfigGenerator {
             force_flag: false,
             expected_outcome: ConfigOutcome::Success,
         });
-        
+
         // Existing config without force
         cases.push(ConfigTestCase {
             description: "Existing config, no force".to_string(),
@@ -459,7 +508,7 @@ impl ConfigGenerator {
             force_flag: false,
             expected_outcome: ConfigOutcome::AlreadyExists,
         });
-        
+
         // Existing config with force
         cases.push(ConfigTestCase {
             description: "Existing config, with force".to_string(),
@@ -467,7 +516,7 @@ impl ConfigGenerator {
             force_flag: true,
             expected_outcome: ConfigOutcome::Success,
         });
-        
+
         // Corrupted config file
         cases.push(ConfigTestCase {
             description: "Corrupted config file".to_string(),
@@ -475,7 +524,7 @@ impl ConfigGenerator {
             force_flag: false,
             expected_outcome: ConfigOutcome::ConfigError,
         });
-        
+
         // Permission denied on config directory
         cases.push(ConfigTestCase {
             description: "Permission denied".to_string(),
@@ -483,7 +532,7 @@ impl ConfigGenerator {
             force_flag: false,
             expected_outcome: ConfigOutcome::PermissionError,
         });
-        
+
         cases
     }
 }
@@ -514,7 +563,8 @@ database_path = "/home/user/.config/imi/imi.db"
 default_branch = "main"
 
 [monitoring_settings]
-refresh_interval_ms = 1000"#.to_string()
+refresh_interval_ms = 1000"#
+        .to_string()
 }
 
 /// Error scenario generator for comprehensive error testing
@@ -525,7 +575,7 @@ impl ErrorScenarioGenerator {
     /// Generate comprehensive error scenarios
     pub fn generate_error_scenarios(&self) -> Vec<ErrorScenarioTestCase> {
         let mut cases = Vec::new();
-        
+
         // Filesystem errors
         cases.push(ErrorScenarioTestCase {
             description: "Directory creation permission denied".to_string(),
@@ -534,7 +584,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Permission denied".to_string(),
             expected_recovery_suggestion: "Check directory permissions".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Disk full during config creation".to_string(),
             error_type: ErrorType::DiskFull,
@@ -542,7 +592,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "No space left on device".to_string(),
             expected_recovery_suggestion: "Free up disk space".to_string(),
         });
-        
+
         // Database errors
         cases.push(ErrorScenarioTestCase {
             description: "Database file locked".to_string(),
@@ -551,7 +601,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Database is locked".to_string(),
             expected_recovery_suggestion: "Wait for other process to complete".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Database corruption detected".to_string(),
             error_type: ErrorType::DatabaseCorruption,
@@ -559,7 +609,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Database file is corrupted".to_string(),
             expected_recovery_suggestion: "Delete database file and retry".to_string(),
         });
-        
+
         // Path-related errors
         cases.push(ErrorScenarioTestCase {
             description: "Path too long for filesystem".to_string(),
@@ -568,7 +618,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Path too long".to_string(),
             expected_recovery_suggestion: "Use shorter directory names".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Invalid characters in path".to_string(),
             error_type: ErrorType::InvalidPathCharacters,
@@ -576,7 +626,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Invalid characters in path".to_string(),
             expected_recovery_suggestion: "Remove invalid characters".to_string(),
         });
-        
+
         // Network-related errors (if applicable)
         cases.push(ErrorScenarioTestCase {
             description: "Network config service timeout".to_string(),
@@ -585,7 +635,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Network timeout".to_string(),
             expected_recovery_suggestion: "Check network connection".to_string(),
         });
-        
+
         // Additional error scenarios to reach 10+ cases
         cases.push(ErrorScenarioTestCase {
             description: "Configuration file corrupted".to_string(),
@@ -594,7 +644,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Configuration file is corrupted".to_string(),
             expected_recovery_suggestion: "Delete and reinitialize config".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Out of memory during operation".to_string(),
             error_type: ErrorType::OutOfMemory,
@@ -602,7 +652,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Out of memory".to_string(),
             expected_recovery_suggestion: "Close other applications".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Parent directory does not exist".to_string(),
             error_type: ErrorType::FilesystemPermission,
@@ -610,7 +660,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Parent directory does not exist".to_string(),
             expected_recovery_suggestion: "Create parent directories first".to_string(),
         });
-        
+
         cases.push(ErrorScenarioTestCase {
             description: "Symbolic link cycle detected".to_string(),
             error_type: ErrorType::InvalidPathCharacters,
@@ -618,7 +668,7 @@ impl ErrorScenarioGenerator {
             expected_error_message: "Circular symbolic link detected".to_string(),
             expected_recovery_suggestion: "Remove circular symlinks".to_string(),
         });
-        
+
         cases
     }
 }
@@ -656,42 +706,42 @@ impl PropertyTestExecutor {
             temp_dirs: Vec::new(),
         }
     }
-    
+
     /// Execute all property-based tests
     pub async fn execute_all_property_tests(&mut self) -> Result<PropertyTestResults> {
         let mut results = PropertyTestResults::new();
-        
+
         println!("🧪 Executing Directory Name Property Tests...");
         let name_results = self.test_directory_name_properties().await?;
         results.merge_directory_name_results(name_results);
-        
+
         println!("🧪 Executing Path Structure Property Tests...");
         let path_results = self.test_path_structure_properties().await?;
         results.merge_path_structure_results(path_results);
-        
+
         println!("🧪 Executing Configuration Property Tests...");
         let config_results = self.test_configuration_properties().await?;
         results.merge_config_results(config_results);
-        
+
         println!("🧪 Executing Error Scenario Property Tests...");
         let error_results = self.test_error_scenario_properties().await?;
         results.merge_error_results(error_results);
-        
+
         Ok(results)
     }
-    
+
     /// Test directory name properties
     async fn test_directory_name_properties(&mut self) -> Result<DirectoryNameTestResults> {
         let generator = DirectoryNameGenerator;
         let trunk_cases = generator.generate_trunk_names();
         let repo_cases = generator.generate_repository_names();
-        
+
         let mut results = DirectoryNameTestResults::new();
-        
+
         // Test trunk name validation properties
         for case in trunk_cases {
             let is_valid = validate_trunk_name(&case.name);
-            
+
             if is_valid != case.expected_valid {
                 results.failures.push(format!(
                     "Trunk name '{}': expected {}, got {} - {}",
@@ -702,11 +752,11 @@ impl PropertyTestExecutor {
             }
             results.total_tests += 1;
         }
-        
+
         // Test repository name validation properties
         for case in repo_cases {
             let is_valid = validate_repository_name(&case.name);
-            
+
             if is_valid != case.expected_valid {
                 results.failures.push(format!(
                     "Repository name '{}': expected {}, got {} - {}",
@@ -717,23 +767,23 @@ impl PropertyTestExecutor {
             }
             results.total_tests += 1;
         }
-        
+
         Ok(results)
     }
-    
+
     /// Test path structure properties
     async fn test_path_structure_properties(&mut self) -> Result<PathStructureTestResults> {
         let generator = PathStructureGenerator;
         let structure_cases = generator.generate_path_structures();
         let length_cases = generator.generate_path_length_cases();
-        
+
         let mut results = PathStructureTestResults::new();
-        
+
         // Test path structure resolution
         for case in structure_cases {
             let temp_dir = TempDir::new().context("Failed to create temp directory")?;
             let mut current_path = temp_dir.path().to_path_buf();
-            
+
             // Build the directory structure
             for segment in &case.structure {
                 current_path = current_path.join(segment);
@@ -741,10 +791,10 @@ impl PropertyTestExecutor {
                     fs::create_dir_all(&current_path).await?;
                 }
             }
-            
+
             // Test repository name resolution
             let resolved_repo_name = extract_repository_name(&current_path);
-            
+
             match resolved_repo_name {
                 Ok(name) => {
                     if case.expected_valid {
@@ -774,34 +824,34 @@ impl PropertyTestExecutor {
                     }
                 }
             }
-            
+
             results.total_tests += 1;
             self.temp_dirs.push(temp_dir);
         }
-        
+
         Ok(results)
     }
-    
+
     /// Test configuration properties
     async fn test_configuration_properties(&mut self) -> Result<ConfigTestResults> {
         let generator = ConfigGenerator;
         let config_cases = generator.generate_config_scenarios();
-        
+
         let mut results = ConfigTestResults::new();
-        
+
         for case in config_cases {
             // Set up test environment based on case
             let temp_dir = TempDir::new().context("Failed to create temp directory")?;
             let config_path = temp_dir.path().join("config.toml");
-            
+
             // Create existing config if specified
             if let Some(existing_content) = &case.existing_config {
                 fs::write(&config_path, existing_content).await?;
             }
-            
+
             // Simulate init operation
             let outcome = simulate_config_initialization(&config_path, case.force_flag).await;
-            
+
             if outcome != case.expected_outcome {
                 results.failures.push(format!(
                     "Config scenario '{}': expected {:?}, got {:?}",
@@ -810,25 +860,25 @@ impl PropertyTestExecutor {
             } else {
                 results.successes += 1;
             }
-            
+
             results.total_tests += 1;
             self.temp_dirs.push(temp_dir);
         }
-        
+
         Ok(results)
     }
-    
+
     /// Test error scenario properties
     async fn test_error_scenario_properties(&mut self) -> Result<ErrorTestResults> {
         let generator = ErrorScenarioGenerator;
         let error_cases = generator.generate_error_scenarios();
-        
+
         let mut results = ErrorTestResults::new();
-        
+
         for case in error_cases {
             // Simulate error condition and verify proper handling
             let error_handled_correctly = simulate_error_scenario(&case).await;
-            
+
             if error_handled_correctly {
                 results.successes += 1;
             } else {
@@ -837,10 +887,10 @@ impl PropertyTestExecutor {
                     case.description
                 ));
             }
-            
+
             results.total_tests += 1;
         }
-        
+
         Ok(results)
     }
 }
@@ -877,7 +927,9 @@ impl PropertyTestResults {
         self.directory_name_tests.failed += results.failures.len();
         self.directory_name_tests.total += results.total_tests;
         if self.directory_name_tests.total > 0 {
-            self.directory_name_tests.coverage = (self.directory_name_tests.passed as f64 / self.directory_name_tests.total as f64) * 100.0;
+            self.directory_name_tests.coverage = (self.directory_name_tests.passed as f64
+                / self.directory_name_tests.total as f64)
+                * 100.0;
         }
         self.directory_name_tests.failures.extend(results.failures);
         self.total_properties_tested += results.total_tests;
@@ -889,7 +941,9 @@ impl PropertyTestResults {
         self.path_structure_tests.failed += results.failures.len();
         self.path_structure_tests.total += results.total_tests;
         if self.path_structure_tests.total > 0 {
-            self.path_structure_tests.coverage = (self.path_structure_tests.passed as f64 / self.path_structure_tests.total as f64) * 100.0;
+            self.path_structure_tests.coverage = (self.path_structure_tests.passed as f64
+                / self.path_structure_tests.total as f64)
+                * 100.0;
         }
         self.path_structure_tests.failures.extend(results.failures);
         self.total_properties_tested += results.total_tests;
@@ -901,7 +955,8 @@ impl PropertyTestResults {
         self.config_tests.failed += results.failures.len();
         self.config_tests.total += results.total_tests;
         if self.config_tests.total > 0 {
-            self.config_tests.coverage = (self.config_tests.passed as f64 / self.config_tests.total as f64) * 100.0;
+            self.config_tests.coverage =
+                (self.config_tests.passed as f64 / self.config_tests.total as f64) * 100.0;
         }
         self.config_tests.failures.extend(results.failures);
         self.total_properties_tested += results.total_tests;
@@ -913,7 +968,9 @@ impl PropertyTestResults {
         self.error_scenario_tests.failed += results.failures.len();
         self.error_scenario_tests.total += results.total_tests;
         if self.error_scenario_tests.total > 0 {
-            self.error_scenario_tests.coverage = (self.error_scenario_tests.passed as f64 / self.error_scenario_tests.total as f64) * 100.0;
+            self.error_scenario_tests.coverage = (self.error_scenario_tests.passed as f64
+                / self.error_scenario_tests.total as f64)
+                * 100.0;
         }
         self.error_scenario_tests.failures.extend(results.failures);
         self.total_properties_tested += results.total_tests;
@@ -1005,30 +1062,29 @@ impl ErrorTestResults {
 
 // Helper functions for validation and simulation
 fn validate_trunk_name(name: &str) -> bool {
-    name.starts_with("trunk-") && 
-    name.len() > 6 && 
-    !name.ends_with('-') &&
-    !name.contains("--")
+    name.starts_with("trunk-") && name.len() > 6 && !name.ends_with('-') && !name.contains("--")
 }
 
 fn validate_repository_name(name: &str) -> bool {
-    !name.is_empty() &&
-    !name.contains('/') &&
-    !name.contains('\\') &&
-    !name.contains('\0') &&
-    !name.contains('\n') &&
-    !name.contains('\t') &&
-    name.len() <= 255
+    !name.is_empty()
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains('\0')
+        && !name.contains('\n')
+        && !name.contains('\t')
+        && name.len() <= 255
 }
 
 fn extract_repository_name(trunk_path: &Path) -> Result<String> {
-    let parent = trunk_path.parent()
+    let parent = trunk_path
+        .parent()
         .ok_or_else(|| anyhow::anyhow!("No parent directory"))?;
-    
-    let repo_name = parent.file_name()
+
+    let repo_name = parent
+        .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| anyhow::anyhow!("Invalid repository name"))?;
-    
+
     Ok(repo_name.to_string())
 }
 
@@ -1048,11 +1104,11 @@ async fn simulate_error_scenario(case: &ErrorScenarioTestCase) -> bool {
         ErrorType::FilesystemPermission => {
             // Verify that permission errors are handled gracefully
             true
-        },
+        }
         ErrorType::DatabaseCorruption => {
             // Verify that database corruption is detected and handled
             true
-        },
+        }
         _ => {
             // Other error types
             true
@@ -1068,30 +1124,40 @@ mod property_test_validation {
     async fn test_trunk_name_validation_properties() {
         let generator = DirectoryNameGenerator;
         let cases = generator.generate_trunk_names();
-        
+
         // Verify we have comprehensive test cases
         println!("Total trunk name test cases: {}", cases.len());
-        assert!(cases.len() > 50, "Should have comprehensive trunk name test cases (got {})", cases.len());
-        
+        assert!(
+            cases.len() > 50,
+            "Should have comprehensive trunk name test cases (got {})",
+            cases.len()
+        );
+
         // Verify we have both valid and invalid cases
         let valid_count = cases.iter().filter(|c| c.expected_valid).count();
         let invalid_count = cases.iter().filter(|c| !c.expected_valid).count();
-        
+
         assert!(valid_count > 10, "Should have many valid test cases");
         assert!(invalid_count > 10, "Should have many invalid test cases");
-        
+
         println!("✅ Trunk name validation properties verified");
-        println!("   Valid cases: {}, Invalid cases: {}", valid_count, invalid_count);
+        println!(
+            "   Valid cases: {}, Invalid cases: {}",
+            valid_count, invalid_count
+        );
     }
 
     #[tokio::test]
     async fn test_repository_name_validation_properties() {
         let generator = DirectoryNameGenerator;
         let cases = generator.generate_repository_names();
-        
+
         // Verify comprehensive coverage
-        assert!(cases.len() > 20, "Should have comprehensive repository name test cases");
-        
+        assert!(
+            cases.len() > 20,
+            "Should have comprehensive repository name test cases"
+        );
+
         println!("✅ Repository name validation properties verified");
         println!("   Total test cases: {}", cases.len());
     }
@@ -1100,26 +1166,33 @@ mod property_test_validation {
     async fn test_error_scenario_coverage() {
         let generator = ErrorScenarioGenerator;
         let cases = generator.generate_error_scenarios();
-        
+
         // Verify we cover all error types
         let error_types: HashSet<_> = cases.iter().map(|c| &c.error_type).collect();
-        
+
         assert!(error_types.len() >= 6, "Should cover multiple error types");
-        assert!(cases.len() > 10, "Should have comprehensive error scenarios");
-        
+        assert!(
+            cases.len() > 10,
+            "Should have comprehensive error scenarios"
+        );
+
         println!("✅ Error scenario coverage verified");
-        println!("   Error types: {}, Total scenarios: {}", error_types.len(), cases.len());
+        println!(
+            "   Error types: {}, Total scenarios: {}",
+            error_types.len(),
+            cases.len()
+        );
     }
 
     #[tokio::test]
     async fn test_property_test_executor() {
         let mut executor = PropertyTestExecutor::new();
-        
+
         // Test that the executor can run property tests
         let results = executor.test_directory_name_properties().await.unwrap();
-        
+
         assert!(results.total_tests > 0, "Should execute tests");
-        
+
         println!("✅ Property test executor validation complete");
         println!("   Total tests executed: {}", results.total_tests);
     }

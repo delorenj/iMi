@@ -1,8 +1,6 @@
-
 /// Expected CLI command structure that should be added to cli.rs
 #[cfg(test)]
 mod init_command_specification {
-    
 
     /// The Init command should be added to the Commands enum in cli.rs
     ///
@@ -48,7 +46,6 @@ mod init_command_specification {
 /// Functional requirements for the init command
 #[cfg(test)]
 mod functional_requirements {
-    
 
     #[test]
     fn requirement_1_trunk_directory_validation() {
@@ -167,7 +164,6 @@ mod functional_requirements {
 /// Error handling specifications
 #[cfg(test)]
 mod error_specifications {
-    
 
     #[test]
     fn error_not_in_trunk_directory() {
@@ -258,7 +254,6 @@ Try:
 /// Success output specifications
 #[cfg(test)]
 mod success_specifications {
-    
 
     #[test]
     fn standard_success_output() {
@@ -373,7 +368,6 @@ Note: Existing worktree data and sync files were preserved."#;
 /// Configuration file content specifications
 #[cfg(test)]
 mod config_specifications {
-    
 
     #[test]
     fn repo_toml_content() {
@@ -473,7 +467,6 @@ This file contains guidelines specific to your technology stack.
 /// Integration specifications with existing commands
 #[cfg(test)]
 mod integration_specifications {
-    
 
     #[test]
     fn integration_with_feat_command() {
@@ -515,7 +508,6 @@ mod integration_specifications {
 /// Performance and reliability specifications
 #[cfg(test)]
 mod performance_specifications {
-    
 
     #[test]
     fn performance_requirements() {

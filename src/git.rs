@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct GitCredentials {
     pub username: Option<String>,
@@ -21,11 +20,11 @@ impl GitCredentials {
 }
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Repository, WorktreeAddOptions, Cred, RemoteCallbacks};
 use git2::build::CheckoutBuilder;
+use git2::{BranchType, Cred, RemoteCallbacks, Repository, WorktreeAddOptions};
+use std::env;
 use std::path::Path;
 use std::process::Command;
-use std::env;
 
 use crate::error::ImiError;
 
@@ -46,14 +45,14 @@ impl GitManager {
                 return Some(Cred::userpass_plaintext("", &token).ok()?);
             }
         }
-        
+
         // Also check common alternative env var names
         if let Ok(token) = env::var("GITHUB_TOKEN") {
             if !token.is_empty() {
                 return Some(Cred::userpass_plaintext("", &token).ok()?);
             }
         }
-        
+
         if let Ok(token) = env::var("GH_TOKEN") {
             if !token.is_empty() {
                 return Some(Cred::userpass_plaintext("", &token).ok()?);
@@ -66,16 +65,18 @@ impl GitManager {
     /// Prompt user for GitHub Personal Access Token
     fn prompt_for_github_token(&self) -> Option<String> {
         use std::io::{self, Write};
-        
+
         print!("🔑 GitHub Personal Access Token not found in environment.\n");
-        print!("   You can set GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN environment variable.\n");
+        print!(
+            "   You can set GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN environment variable.\n"
+        );
         print!("   Or enter your GitHub PAT now (input will be hidden): ");
         io::stdout().flush().ok()?;
-        
+
         // For now, use a simple input (in a real implementation, you'd want to hide the input)
         let mut input = String::new();
         io::stdin().read_line(&mut input).ok()?;
-        
+
         let token = input.trim().to_string();
         if !token.is_empty() {
             Some(token)
@@ -87,67 +88,78 @@ impl GitManager {
     /// Create authentication callbacks for git operations
     fn create_auth_callbacks(&self) -> RemoteCallbacks<'_> {
         let mut callbacks = RemoteCallbacks::new();
-        
+
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
             if let Some(username) = username_from_url {
                 // Try SSH keys directly from filesystem
                 let home = env::var("HOME").unwrap_or_else(|_| "/home/delorenj".to_string());
                 let ssh_dir = format!("{}/.ssh", home);
-                
+
                 // Try common key files in order of preference
                 let key_files = ["id_ed25519", "id_rsa", "id_ecdsa"];
                 for key_file in &key_files {
                     let private_key_path = format!("{}/{}", ssh_dir, key_file);
                     let public_key_path = format!("{}/{}.pub", ssh_dir, key_file);
-                    
+
                     if std::path::Path::new(&private_key_path).exists() {
                         let public_key_opt = if std::path::Path::new(&public_key_path).exists() {
                             Some(std::path::Path::new(&public_key_path))
                         } else {
                             None
                         };
-                        
+
                         if let Ok(cred) = Cred::ssh_key(
-                            username, 
-                            public_key_opt, 
-                            std::path::Path::new(&private_key_path), 
-                            None
+                            username,
+                            public_key_opt,
+                            std::path::Path::new(&private_key_path),
+                            None,
                         ) {
                             return Ok(cred);
                         }
                     }
                 }
             }
-            
+
             Err(git2::Error::from_str("SSH authentication failed"))
         });
-        
+
         callbacks
     }
 
     /// Check if GitHub authentication is available
     pub fn check_github_auth(&self) -> bool {
         // Check environment variables first
-        env::var("GITHUB_PERSONAL_ACCESS_TOKEN").is_ok() ||
-        env::var("GITHUB_TOKEN").is_ok() ||
-        env::var("GH_TOKEN").is_ok()
+        env::var("GITHUB_PERSONAL_ACCESS_TOKEN").is_ok()
+            || env::var("GITHUB_TOKEN").is_ok()
+            || env::var("GH_TOKEN").is_ok()
     }
 
     /// Display authentication status and help
     pub fn show_auth_help(&self) {
         use colored::*;
-        
+
         if self.check_github_auth() {
             println!("✅ GitHub authentication available via environment variable");
         } else {
             println!("⚠️  GitHub authentication not configured");
             println!("   To authenticate with GitHub, set one of these environment variables:");
-            println!("   • {}", "export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here".bright_cyan());
-            println!("   • {}", "export GITHUB_TOKEN=your_token_here".bright_cyan());
+            println!(
+                "   • {}",
+                "export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here".bright_cyan()
+            );
+            println!(
+                "   • {}",
+                "export GITHUB_TOKEN=your_token_here".bright_cyan()
+            );
             println!("   • {}", "export GH_TOKEN=your_token_here".bright_cyan());
             println!();
-            println!("   Create a Personal Access Token at: {}", "https://github.com/settings/tokens".bright_blue());
-            println!("   Required scopes: repo (for private repos) or public_repo (for public repos)");
+            println!(
+                "   Create a Personal Access Token at: {}",
+                "https://github.com/settings/tokens".bright_blue()
+            );
+            println!(
+                "   Required scopes: repo (for private repos) or public_repo (for public repos)"
+            );
         }
     }
 
@@ -164,19 +176,36 @@ impl GitManager {
     pub async fn get_default_branch(&self, path: &Path) -> Result<String> {
         let repo = self.find_repository(Some(path))?;
 
-        // Handle empty repositories (no commits yet)
-        let head_name = match repo.head() {
-            Ok(head) => {
-                head.shorthand().unwrap_or("main").to_string()
+        // Best method: check remote's HEAD
+        if let Ok(remote_head) = repo.find_reference("refs/remotes/origin/HEAD") {
+            if let Some(branch) = remote_head.symbolic_target().and_then(|s| s.split('/').last()) {
+                return Ok(branch.to_string());
             }
-            Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
-                // Repository exists but has no commits, fallback to "main"
-                "main".to_string()
-            }
-            Err(e) => return Err(e.into())
-        };
+        }
 
-        Ok(head_name)
+        // Fallback: check for main or master
+        if repo.find_branch("main", BranchType::Local).is_ok()
+            || repo.find_branch("origin/main", BranchType::Remote).is_ok()
+        {
+            return Ok("main".to_string());
+        }
+
+        if repo.find_branch("master", BranchType::Local).is_ok()
+            || repo.find_branch("origin/master", BranchType::Remote).is_ok()
+        {
+            return Ok("master".to_string());
+        }
+
+        // Handle empty repositories (no commits yet)
+        if let Err(e) = repo.head() {
+            if e.code() == git2::ErrorCode::UnbornBranch {
+                return Ok("main".to_string());
+            }
+        }
+
+        Err(anyhow::anyhow!(
+            "Could not determine default branch for repository"
+        ))
     }
 
     /// Find the Git repository from the current directory or a specified path
@@ -196,7 +225,7 @@ impl GitManager {
         let remote = repo
             .find_remote("origin")
             .or_else(|_| {
-                repo.remotes()? 
+                repo.remotes()?
                     .get(0)
                     .ok_or(git2::Error::from_str("No remotes found"))
                     .and_then(|name| repo.find_remote(name))
@@ -209,7 +238,7 @@ impl GitManager {
         let name = url
             .split('/')
             .last()
-            .context("Could not extract repository name from URL")? 
+            .context("Could not extract repository name from URL")?
             .trim_end_matches(".git");
 
         Ok(name.to_string())
@@ -248,14 +277,17 @@ impl GitManager {
             if let Ok(mut existing_branch) = repo.find_branch(branch_to_check, BranchType::Local) {
                 // Check if branch is in use by any worktree
                 let is_in_use = self.is_branch_in_use_by_worktree(repo, branch_to_check)?;
-                
+
                 if !is_in_use && !existing_branch.is_head() {
                     println!("🗑️ Removing existing branch: {}", branch_to_check);
                     existing_branch.delete()?;
                     println!("✅ Existing branch removed");
                 } else if branch_to_check == branch {
                     // If the intended branch is in use, we can't recreate it
-                    return Err(anyhow::anyhow!("Cannot recreate branch '{}' as it is currently in use by another worktree", branch));
+                    return Err(anyhow::anyhow!(
+                        "Cannot recreate branch '{}' as it is currently in use by another worktree",
+                        branch
+                    ));
                 }
             }
         }
@@ -273,7 +305,7 @@ impl GitManager {
 
         // Open the worktree repository to set up the branch
         let worktree_repo = Repository::open_from_worktree(&worktree)?;
-        
+
         // If Git auto-created a branch with the worktree name (e.g., feat-iteractive-learning),
         // we need to switch to the correct branch (e.g., feat/iteractive-learning)
         if name != branch {
@@ -282,11 +314,11 @@ impl GitManager {
             let commit = branch_ref.get().peel_to_commit()?;
             worktree_repo.set_head_detached(commit.id())?;
             worktree_repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
-            
-            // Set HEAD to point to the correct branch reference  
+
+            // Set HEAD to point to the correct branch reference
             let branch_refname = format!("refs/heads/{}", branch);
             worktree_repo.set_head(&branch_refname)?;
-            
+
             // Delete the auto-created branch if it's different from what we want
             if let Ok(mut auto_branch) = repo.find_branch(name, BranchType::Local) {
                 if !auto_branch.is_head() {
@@ -331,7 +363,7 @@ impl GitManager {
         // Get list of worktrees and prune any that are prunable
         let worktrees = repo.worktrees()?;
         let mut pruned_count = 0;
-        
+
         for worktree_name in worktrees.iter().flatten() {
             if let Ok(worktree) = repo.find_worktree(worktree_name) {
                 if worktree.is_prunable(None)? {
@@ -340,11 +372,11 @@ impl GitManager {
                 }
             }
         }
-        
+
         if pruned_count > 0 {
             println!("🧹 Pruned {} stale worktree reference(s)", pruned_count);
         }
-        
+
         Ok(())
     }
 
@@ -357,7 +389,10 @@ impl GitManager {
                 branch.delete()?;
                 println!("✅ Local branch '{}' deleted", branch_name);
             } else {
-                println!("⚠️ Cannot delete branch '{}' as it is currently checked out", branch_name);
+                println!(
+                    "⚠️ Cannot delete branch '{}' as it is currently checked out",
+                    branch_name
+                );
             }
         } else {
             println!("ℹ️ Local branch '{}' does not exist", branch_name);
@@ -369,25 +404,26 @@ impl GitManager {
     pub async fn delete_remote_branch(&self, repo: &Repository, branch_name: &str) -> Result<()> {
         // Try to find the remote branch first
         let remote_name = "origin";
-        
+
         // Check if remote branch exists
         let _remote_branch_name = format!("refs/heads/{}", branch_name);
-        
+
         println!("🗑️ Deleting remote branch: {}/{}", remote_name, branch_name);
-        
+
         // Push an empty reference to delete the remote branch
-        let mut remote = repo.find_remote(remote_name)
+        let mut remote = repo
+            .find_remote(remote_name)
             .context("Failed to find remote 'origin'")?;
-        
+
         // Set up callbacks for authentication
         let callbacks = self.create_auth_callbacks();
         let mut push_options = git2::PushOptions::new();
         push_options.remote_callbacks(callbacks);
-        
+
         // Push empty reference to delete the branch
         let refspec = format!(":refs/heads/{}", branch_name);
         remote.push(&[&refspec], Some(&mut push_options))?;
-        
+
         println!("✅ Remote branch '{}/{}' deleted", remote_name, branch_name);
         Ok(())
     }
@@ -395,13 +431,15 @@ impl GitManager {
     /// Check if a branch is in use by any worktree
     fn is_branch_in_use_by_worktree(&self, repo: &Repository, branch_name: &str) -> Result<bool> {
         let worktrees = repo.worktrees()?;
-        
+
         for worktree_name in worktrees.iter().flatten() {
             if let Ok(worktree) = repo.find_worktree(worktree_name) {
                 if let Ok(worktree_repo) = Repository::open_from_worktree(&worktree) {
                     if let Ok(head) = worktree_repo.head() {
                         if let Some(name) = head.shorthand() {
-                            if name == branch_name || head.name() == Some(&format!("refs/heads/{}", branch_name)) {
+                            if name == branch_name
+                                || head.name() == Some(&format!("refs/heads/{}", branch_name))
+                            {
                                 return Ok(true);
                             }
                         }
@@ -409,14 +447,19 @@ impl GitManager {
                 }
             }
         }
-        
+
         Ok(false)
     }
 
     /// Clean up any existing worktree files and directories before creation
-    pub fn cleanup_worktree_artifacts(&self, repo: &Repository, name: &str, path: &Path) -> Result<()> {
+    pub fn cleanup_worktree_artifacts(
+        &self,
+        repo: &Repository,
+        name: &str,
+        path: &Path,
+    ) -> Result<()> {
         println!("🧹 Cleaning up worktree artifacts for: {}", name);
-        
+
         // Remove the git worktree entry if it exists
         if let Ok(worktree) = repo.find_worktree(name) {
             println!("📝 Found existing git worktree entry, removing...");
@@ -438,7 +481,10 @@ impl GitManager {
         let git_dir = repo.path();
         let worktree_admin_dir = git_dir.join("worktrees").join(name);
         if worktree_admin_dir.exists() {
-            println!("⚙️ Removing git admin directory: {}", worktree_admin_dir.display());
+            println!(
+                "⚙️ Removing git admin directory: {}",
+                worktree_admin_dir.display()
+            );
             std::fs::remove_dir_all(worktree_admin_dir)
                 .context("Failed to remove git worktree admin directory")?;
             println!("✅ Git admin directory removed");
@@ -476,7 +522,7 @@ impl GitManager {
 
         // Create authentication callbacks
         let callbacks = self.create_auth_callbacks();
-        
+
         // Create fetch options with authentication
         let mut fetch_options = git2::FetchOptions::new();
         fetch_options.remote_callbacks(callbacks);
@@ -486,7 +532,6 @@ impl GitManager {
     }
 
     /// Check if a branch exists (local or remote)
-    #[allow(dead_code)]
     pub fn branch_exists(&self, repo: &Repository, branch_name: &str) -> bool {
         repo.find_branch(branch_name, BranchType::Local).is_ok()
             || repo
