@@ -296,8 +296,11 @@ impl GitManager {
         let base_commit = repo.revparse_single(&base)?.peel_to_commit()?;
         repo.branch(branch, &base_commit, false)?;
 
-        // Clean up any existing worktree artifacts before creation
-        self.cleanup_worktree_artifacts(repo, name, path)?;
+        // Only clean up if there are actual conflicts (worktree exists or directory exists)
+        let needs_cleanup = self.worktree_exists(repo, name) || path.exists();
+        if needs_cleanup {
+            self.cleanup_worktree_artifacts(repo, name, path)?;
+        }
 
         // Add the worktree with the worktree name, then we'll checkout the correct branch
         let mut options = WorktreeAddOptions::new();

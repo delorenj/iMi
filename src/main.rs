@@ -126,12 +126,11 @@ async fn handle_feature_command(
                 worktree_path.display()
             );
 
-            // Change to the worktree directory
-            env::set_current_dir(&worktree_path)?;
+            // Print command to change directory (processes can't change parent shell's directory)
             println!(
-                "{} Changed to directory: {}",
-                "📁".bright_blue(),
-                worktree_path.display()
+                "\n{} To navigate to the worktree, run:\n   {}",
+                "💡".bright_yellow(),
+                format!("cd {}", worktree_path.display()).bright_cyan()
             );
         }
         Err(e) => {
@@ -176,11 +175,11 @@ async fn handle_review_command(
         worktree_path.display()
     );
 
-    env::set_current_dir(&worktree_path)?;
+    // Print command to change directory (processes can't change parent shell's directory)
     println!(
-        "{} Changed to directory: {}",
-        "📁".bright_blue(),
-        worktree_path.display()
+        "\n{} To navigate to the worktree, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", worktree_path.display()).bright_cyan()
     );
 
     Ok(())
@@ -203,11 +202,11 @@ async fn handle_fix_command(
         worktree_path.display()
     );
 
-    env::set_current_dir(&worktree_path)?;
+    // Print command to change directory (processes can't change parent shell's directory)
     println!(
-        "{} Changed to directory: {}",
-        "📁".bright_blue(),
-        worktree_path.display()
+        "\n{} To navigate to the worktree, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", worktree_path.display()).bright_cyan()
     );
 
     Ok(())
@@ -230,11 +229,11 @@ async fn handle_aiops_command(
         worktree_path.display()
     );
 
-    env::set_current_dir(&worktree_path)?;
+    // Print command to change directory (processes can't change parent shell's directory)
     println!(
-        "{} Changed to directory: {}",
-        "📁".bright_blue(),
-        worktree_path.display()
+        "\n{} To navigate to the worktree, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", worktree_path.display()).bright_cyan()
     );
 
     Ok(())
@@ -257,11 +256,11 @@ async fn handle_devops_command(
         worktree_path.display()
     );
 
-    env::set_current_dir(&worktree_path)?;
+    // Print command to change directory (processes can't change parent shell's directory)
     println!(
-        "{} Changed to directory: {}",
-        "📁".bright_blue(),
-        worktree_path.display()
+        "\n{} To navigate to the worktree, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", worktree_path.display()).bright_cyan()
     );
 
     Ok(())
@@ -271,11 +270,11 @@ async fn handle_trunk_command(manager: &WorktreeManager, repo: Option<&str>) -> 
     println!("{} Switching to trunk worktree", "🌳".bright_green());
     let worktree_path = manager.get_trunk_worktree(repo).await?;
 
-    env::set_current_dir(&worktree_path)?;
+    // Print command to change directory (processes can't change parent shell's directory)
     println!(
-        "{} Changed to trunk directory: {}",
-        "📁".bright_blue(),
-        worktree_path.display()
+        "{} To navigate to trunk, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", worktree_path.display()).bright_cyan()
     );
 
     Ok(())
