@@ -110,8 +110,11 @@ pub enum Commands {
         repo: Option<String>,
     },
 
-    /// Initialize iMi in the current directory (detects trunk- prefix and registers parent as root)
+    /// Initialize iMi in the current directory or clone from GitHub (format: owner/repo)
     Init {
+        /// GitHub repository to clone (format: owner/repo), or path to existing repository
+        repo: Option<String>,
+
         /// Force initialization even if configuration already exists
         #[arg(long)]
         force: bool,

@@ -69,6 +69,7 @@ notify = "6.1"
 # Terminal output
 colored = "2.1"
 indicatif = "0.17"
+dialoguer = "0.11"
 
 # Process management
 which = "6.0"

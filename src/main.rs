@@ -26,8 +26,8 @@ async fn main() -> Result<()> {
 
     if let Some(command) = cli.command {
         match command {
-            Commands::Init { force } => {
-                handle_init_command(force).await?;
+            Commands::Init { repo, force } => {
+                handle_init_command(repo, force).await?;
             }
             _ => {
                 // Load configuration
@@ -317,10 +317,40 @@ async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -
     Ok(())
 }
 
-async fn handle_init_command(force: bool) -> Result<()> {
+async fn handle_init_command(repo: Option<String>, force: bool) -> Result<()> {
     let config = Config::load().await?;
     let db = Database::new(&config.database_path).await?;
     let init_cmd = InitCommand::new(force, config, db);
+
+    // Check if repo argument looks like a GitHub repo (owner/repo format)
+    if let Some(ref repo_arg) = repo {
+        if repo_arg.contains('/') && !repo_arg.contains(':') {
+            // Looks like owner/repo format - clone from GitHub
+            let result = init_cmd.clone_from_github(repo_arg).await?;
+
+            if result.success {
+                println!("{}", result.message.green());
+            } else {
+                println!("{}", result.message.red());
+            }
+
+            return Ok(());
+        } else {
+            // Treat as a local path
+            let path = std::path::PathBuf::from(repo_arg);
+            let result = init_cmd.execute(Some(&path)).await?;
+
+            if result.success {
+                println!("{}", result.message.green());
+            } else {
+                println!("{}", result.message.red());
+            }
+
+            return Ok(());
+        }
+    }
+
+    // No repo argument - normal init
     let result = init_cmd.execute(None).await?;
 
     if result.success {

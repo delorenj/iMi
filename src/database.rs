@@ -231,6 +231,32 @@ impl Database {
         }
     }
 
+    #[allow(dead_code)]
+    pub async fn list_repositories(&self) -> Result<Vec<Repository>> {
+        let rows = sqlx::query("SELECT * FROM repositories WHERE active = TRUE ORDER BY created_at DESC")
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to fetch repositories")?;
+
+        let mut repositories = Vec::new();
+        for row in rows {
+            repositories.push(Repository {
+                id: row.get("id"),
+                name: row.get("name"),
+                path: row.get("path"),
+                remote_url: row.get("remote_url"),
+                default_branch: row.get("default_branch"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                    .with_timezone(&Utc),
+                active: row.get("active"),
+            });
+        }
+
+        Ok(repositories)
+    }
+
     // Worktree operations
     pub async fn create_worktree(
         &self,
