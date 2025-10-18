@@ -31,7 +31,11 @@ async fn setup_test_env() -> Result<TestContext> {
     let db = Database::new(&db_path).await?;
     db.ensure_tables().await?;
 
-    Ok(TestContext { temp_dir, config, db })
+    Ok(TestContext {
+        temp_dir,
+        config,
+        db,
+    })
 }
 
 async fn setup_repo_env() -> Result<(TestContext, PathBuf)> {
@@ -39,7 +43,7 @@ async fn setup_repo_env() -> Result<(TestContext, PathBuf)> {
     let repo_path = ctx.config.root_path.join("my-repo");
     let trunk_path = repo_path.join("trunk-main");
     fs::create_dir_all(&trunk_path).await?;
-    
+
     let output = std::process::Command::new("git")
         .args(["init"])
         .current_dir(&repo_path)
@@ -54,7 +58,12 @@ async fn setup_repo_env() -> Result<(TestContext, PathBuf)> {
     }
 
     std::process::Command::new("git")
-        .args(["remote", "add", "origin", "https://github.com/test/my-repo.git"])
+        .args([
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/test/my-repo.git",
+        ])
         .current_dir(&repo_path)
         .output()
         .context("Failed to add remote")?;
@@ -147,7 +156,7 @@ mod init_rules_tests {
         let ctx = setup_test_env().await?;
         let repo_path = ctx.temp_dir.path().join("my-repo");
         fs::create_dir_all(&repo_path).await?;
-        
+
         let output = std::process::Command::new("git")
             .args(["init"])
             .current_dir(&repo_path)
@@ -162,7 +171,12 @@ mod init_rules_tests {
         }
 
         std::process::Command::new("git")
-            .args(["remote", "add", "origin", "https://github.com/test/my-repo.git"])
+            .args([
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/test/my-repo.git",
+            ])
             .current_dir(&repo_path)
             .output()
             .context("Failed to add remote")?;
@@ -233,7 +247,12 @@ mod init_rules_tests {
         let init_cmd = InitCommand::new(false, ctx.config, ctx.db);
         init_cmd.execute(Some(&trunk_path)).await?;
 
-        let imi_dir = ctx.temp_dir.path().join("code").join("my-repo").join(".iMi");
+        let imi_dir = ctx
+            .temp_dir
+            .path()
+            .join("code")
+            .join("my-repo")
+            .join(".iMi");
         assert!(
             imi_dir.exists(),
             ".iMi directory should be created in the iMi path"

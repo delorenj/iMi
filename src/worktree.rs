@@ -404,6 +404,43 @@ impl WorktreeManager {
         Ok(())
     }
 
+    /// Close a worktree without deleting the branch
+    /// This removes the worktree directory and git reference but preserves the branch
+    pub async fn close_worktree(&self, name: &str, repo: Option<&str>) -> Result<()> {
+        let repo_name = self.resolve_repo_name(repo).await?;
+
+        // Find the actual worktree name - it might be prefixed (e.g., feat-interactive-learning)
+        let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
+
+        // Use IMI_PATH detection for consistent worktree removal
+        let current_dir = env::current_dir()?;
+        let repo = self.git.find_repository(Some(&current_dir))?;
+        let repo_root = repo
+            .workdir()
+            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+        let imi_path = self.detect_imi_path(repo_root)?;
+        let worktree_path = imi_path.join(&actual_worktree_name);
+
+        // Remove directory first
+        if worktree_path.exists() {
+            async_fs::remove_dir_all(&worktree_path)
+                .await
+                .context("Failed to remove worktree directory")?;
+        }
+
+        // Remove from Git (this will now be able to prune since directory is gone)
+        if self.git.worktree_exists(&repo, &actual_worktree_name) {
+            self.git.remove_worktree(&repo, &actual_worktree_name)?;
+        }
+
+        // Deactivate in database
+        self.db
+            .deactivate_worktree(&repo_name, &actual_worktree_name)
+            .await?;
+
+        Ok(())
+    }
+
     /// Show status of worktrees
     pub async fn show_status(&self, repo: Option<&str>) -> Result<()> {
         let worktrees = self.db.list_worktrees(repo).await?;

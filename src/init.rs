@@ -61,7 +61,11 @@ impl InitCommand {
                 if !repos.is_empty() && !self.force {
                     // Show TUI selector
                     println!();
-                    println!("{} {}", "📦".bright_cyan(), "Available Repositories:".bright_cyan().bold());
+                    println!(
+                        "{} {}",
+                        "📦".bright_cyan(),
+                        "Available Repositories:".bright_cyan().bold()
+                    );
                     println!();
 
                     let repo_names: Vec<String> = repos
@@ -177,17 +181,18 @@ impl InitCommand {
         let repo_name = git_manager.get_repository_name(&repo)?;
 
         // Check if we're in a trunk-* directory (proper structure)
-        let dir_name = repo_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let dir_name = repo_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         let is_trunk = dir_name.starts_with("trunk-");
 
         // If not in trunk directory, offer automated restructuring
         if !is_trunk && !self.force {
             println!();
-            println!("{} {}", "⚠️".bright_yellow(), "Current directory:".bright_yellow());
+            println!(
+                "{} {}",
+                "⚠️".bright_yellow(),
+                "Current directory:".bright_yellow()
+            );
             println!("   {}", repo_path.display().to_string().bright_white());
             println!();
             println!("{}", "iMi works best with this structure:".bright_cyan());
@@ -199,10 +204,25 @@ impl InitCommand {
             let repo_container = parent.join(&repo_name);
             let trunk_path = repo_container.join("trunk-main");
 
-            println!("   {}/", repo_container.display().to_string().bright_white());
-            println!("     ├── {}/ {}", "trunk-main".bright_green(), "(your main branch)".dimmed());
-            println!("     ├── {}/ {}", "feat-feature1".bright_blue(), "(feature worktrees)".dimmed());
-            println!("     └── {}/ {}", "fix-bugfix".bright_red(), "(fix worktrees)".dimmed());
+            println!(
+                "   {}/",
+                repo_container.display().to_string().bright_white()
+            );
+            println!(
+                "     ├── {}/ {}",
+                "trunk-main".bright_green(),
+                "(your main branch)".dimmed()
+            );
+            println!(
+                "     ├── {}/ {}",
+                "feat-feature1".bright_blue(),
+                "(feature worktrees)".dimmed()
+            );
+            println!(
+                "     └── {}/ {}",
+                "fix-bugfix".bright_red(),
+                "(fix worktrees)".dimmed()
+            );
             println!();
 
             // Check if target structure already exists
@@ -214,8 +234,14 @@ impl InitCommand {
             }
 
             println!("{}", "This will:".bright_cyan());
-            println!("  1. Create parent directory: {}", repo_container.display().to_string().bright_white());
-            println!("  2. Move current repo to: {}", trunk_path.display().to_string().bright_green());
+            println!(
+                "  1. Create parent directory: {}",
+                repo_container.display().to_string().bright_white()
+            );
+            println!(
+                "  2. Move current repo to: {}",
+                trunk_path.display().to_string().bright_green()
+            );
             println!("  3. Register with iMi");
             println!();
 
@@ -226,7 +252,8 @@ impl InitCommand {
 
             if !should_restructure {
                 return Ok(InitResult::failure(
-                    "Initialization cancelled. Run 'iMi init' again after manual restructuring.".to_string()
+                    "Initialization cancelled. Run 'iMi init' again after manual restructuring."
+                        .to_string(),
                 ));
             }
 
@@ -238,9 +265,15 @@ impl InitCommand {
             let temp_backup = std::env::temp_dir().join(format!("imi_backup_{}", repo_name));
 
             // Execute restructuring with rollback capability
-            match self.restructure_directory(&repo_path, &repo_container, &trunk_path, &temp_backup).await {
+            match self
+                .restructure_directory(&repo_path, &repo_container, &trunk_path, &temp_backup)
+                .await
+            {
                 Ok(_) => {
-                    println!("{} Directory restructured successfully", "✅".bright_green());
+                    println!(
+                        "{} Directory restructured successfully",
+                        "✅".bright_green()
+                    );
 
                     // Clean up backup
                     if temp_backup.exists() {
@@ -257,9 +290,15 @@ impl InitCommand {
                     // Attempt rollback
                     if temp_backup.exists() {
                         println!("{} Attempting rollback...", "🔄".bright_yellow());
-                        if let Err(rollback_err) = self.rollback_restructure(&temp_backup, &repo_path).await {
+                        if let Err(rollback_err) =
+                            self.rollback_restructure(&temp_backup, &repo_path).await
+                        {
                             println!("{} Rollback failed: {}", "❌".bright_red(), rollback_err);
-                            println!("{} Manual intervention required. Backup at: {}", "⚠️".bright_yellow(), temp_backup.display());
+                            println!(
+                                "{} Manual intervention required. Backup at: {}",
+                                "⚠️".bright_yellow(),
+                                temp_backup.display()
+                            );
                         } else {
                             println!("{} Rollback successful", "✅".bright_green());
                             let _ = fs::remove_dir_all(&temp_backup).await;
@@ -289,7 +328,8 @@ impl InitCommand {
         self.copy_dir_recursive(source, backup).await?;
 
         // Step 2: Create container directory
-        fs::create_dir_all(container).await
+        fs::create_dir_all(container)
+            .await
             .context("Failed to create container directory")?;
 
         // Step 3: Move source to trunk_path inside container
@@ -430,7 +470,9 @@ impl InitCommand {
         // Extract repo name from owner/repo format
         let parts: Vec<&str> = github_repo.split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!("Invalid GitHub repository format. Expected: owner/repo"));
+            return Err(anyhow!(
+                "Invalid GitHub repository format. Expected: owner/repo"
+            ));
         }
 
         let repo_name = parts[1];

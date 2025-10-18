@@ -178,7 +178,10 @@ impl GitManager {
 
         // Best method: check remote's HEAD
         if let Ok(remote_head) = repo.find_reference("refs/remotes/origin/HEAD") {
-            if let Some(branch) = remote_head.symbolic_target().and_then(|s| s.split('/').last()) {
+            if let Some(branch) = remote_head
+                .symbolic_target()
+                .and_then(|s| s.split('/').last())
+            {
                 return Ok(branch.to_string());
             }
         }
@@ -191,7 +194,9 @@ impl GitManager {
         }
 
         if repo.find_branch("master", BranchType::Local).is_ok()
-            || repo.find_branch("origin/master", BranchType::Remote).is_ok()
+            || repo
+                .find_branch("origin/master", BranchType::Remote)
+                .is_ok()
         {
             return Ok("master".to_string());
         }

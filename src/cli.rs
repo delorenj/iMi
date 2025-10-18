@@ -104,6 +104,16 @@ pub enum Commands {
         keep_remote: bool,
     },
 
+    /// Close a worktree without merging (cancel the branch)
+    #[command(alias = "cancel")]
+    Close {
+        /// Name of the worktree to close
+        name: String,
+
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+
     /// Start real-time monitoring of worktree activities
     Monitor {
         /// Repository name (optional, monitors all repos if not specified)

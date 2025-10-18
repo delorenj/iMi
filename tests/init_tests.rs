@@ -53,7 +53,12 @@ async fn setup_git_repo(repo_path: &std::path::Path) -> Result<()> {
 
     // Add a remote
     std::process::Command::new("git")
-        .args(["remote", "add", "origin", "https://github.com/test/test-repo.git"])
+        .args([
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/test/test-repo.git",
+        ])
         .current_dir(repo_path)
         .output()
         .context("Failed to add remote")?;

@@ -69,8 +69,6 @@ track_agent_activity = true
     }
 }
 
-
-
 #[cfg(test)]
 mod config_unit_tests {
     use super::*;

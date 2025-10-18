@@ -233,10 +233,11 @@ impl Database {
 
     #[allow(dead_code)]
     pub async fn list_repositories(&self) -> Result<Vec<Repository>> {
-        let rows = sqlx::query("SELECT * FROM repositories WHERE active = TRUE ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await
-            .context("Failed to fetch repositories")?;
+        let rows =
+            sqlx::query("SELECT * FROM repositories WHERE active = TRUE ORDER BY created_at DESC")
+                .fetch_all(&self.pool)
+                .await
+                .context("Failed to fetch repositories")?;
 
         let mut repositories = Vec::new();
         for row in rows {

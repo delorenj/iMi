@@ -156,8 +156,6 @@ async fn test_init_in_trunk_directory() -> Result<()> {
     Ok(())
 }
 
-
-
 /// Test path resolution in nested directory structures
 #[tokio::test]
 #[serial]
@@ -263,9 +261,7 @@ async fn test_init_with_different_branch_names() -> Result<()> {
         let repo_path = utils
             .create_mock_repo(&format!("test-repo-{}", branch.replace('/', "-")))
             .await?;
-        let trunk_path = utils
-            .create_trunk_structure("test-repo", branch)
-            .await?;
+        let trunk_path = utils.create_trunk_structure("test-repo", branch).await?;
 
         // Test InitCommand with different branch structures
         let init_cmd = InitCommand::new(true, utils.config.clone(), utils.database.clone());
@@ -276,5 +272,3 @@ async fn test_init_with_different_branch_names() -> Result<()> {
 
     Ok(())
 }
-
-

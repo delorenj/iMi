@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::*;
-use std::env;
 
 mod cli;
 mod config;
@@ -98,6 +97,9 @@ async fn main() -> Result<()> {
                     }
                     Commands::Prune { repo } => {
                         handle_prune_command(&worktree_manager, repo.as_deref()).await?;
+                    }
+                    Commands::Close { name, repo } => {
+                        handle_close_command(&worktree_manager, &name, repo.as_deref()).await?;
                     }
                 }
             }
@@ -369,6 +371,45 @@ async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>) -> 
     );
     manager.prune_stale_worktrees(repo).await?;
     println!("{} Cleanup complete", "✅".bright_green());
+    Ok(())
+}
+
+async fn handle_close_command(
+    manager: &WorktreeManager,
+    name: &str,
+    repo: Option<&str>,
+) -> Result<()> {
+    println!(
+        "{} Closing worktree: {}",
+        "🚫".bright_yellow(),
+        name.bright_yellow()
+    );
+    manager.close_worktree(name, repo).await?;
+
+    println!("{} Worktree closed successfully", "✅".bright_green());
+
+    match manager.get_trunk_worktree(repo).await {
+        Ok(trunk_path) => {
+            println!(
+                "\n{} To navigate to trunk, run:\n   {}",
+                "💡".bright_yellow(),
+                format!("cd {}", trunk_path.display()).bright_cyan()
+            );
+        }
+        Err(err) => {
+            println!(
+                "{} Unable to locate trunk worktree: {}",
+                "⚠️".bright_yellow(),
+                err
+            );
+            println!(
+                "{} If needed you can recreate it with: {}",
+                "💡".bright_yellow(),
+                "imi trunk".bright_cyan()
+            );
+        }
+    }
+
     Ok(())
 }
 

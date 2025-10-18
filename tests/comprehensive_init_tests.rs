@@ -107,7 +107,13 @@ impl InitTestHelper {
         self._temp_dir.path()
     }
 
-    pub async fn simulate_init_command(&self, force: bool, config: Config, db: Database, path: Option<&std::path::Path>) -> Result<()> {
+    pub async fn simulate_init_command(
+        &self,
+        force: bool,
+        config: Config,
+        db: Database,
+        path: Option<&std::path::Path>,
+    ) -> Result<()> {
         // Use the actual InitCommand implementation
         let init_cmd = InitCommand::new(force, config, db);
         let result = init_cmd.execute(path).await?;
@@ -130,7 +136,8 @@ impl InitTestHelper {
         // Ensure target directory exists
         std::fs::create_dir_all(target_dir)?;
 
-        self.simulate_init_command(force, config, db, Some(target_dir)).await
+        self.simulate_init_command(force, config, db, Some(target_dir))
+            .await
     }
 
     /// Create a test repository structure with proper git initialization
@@ -148,8 +155,12 @@ impl InitTestHelper {
         fs::create_dir_all(&trunk_dir).await?;
 
         // Initialize git repository at repo level
-        let repo = git2::Repository::init(&repo_dir).context("Failed to initialize git repository")?;
-        repo.remote("origin", &format!("https://github.com/test/{}.git", repo_name))?;
+        let repo =
+            git2::Repository::init(&repo_dir).context("Failed to initialize git repository")?;
+        repo.remote(
+            "origin",
+            &format!("https://github.com/test/{}.git", repo_name),
+        )?;
 
         Ok(trunk_dir)
     }
@@ -166,7 +177,8 @@ impl InitTestHelper {
         let trunk_dir = self
             .create_test_repo_with_git(repo_name, trunk_name)
             .await?;
-        self.simulate_init_command_in_dir(&trunk_dir, force, config, db).await
+        self.simulate_init_command_in_dir(&trunk_dir, force, config, db)
+            .await
     }
 }
 
@@ -181,7 +193,13 @@ mod normal_initialization_tests {
         env::set_var("HOME", helper.get_temp_path());
 
         let result = helper
-            .simulate_init_in_git_trunk("my-awesome-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "my-awesome-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -207,7 +225,13 @@ mod normal_initialization_tests {
         let helper = InitTestHelper::new().await.unwrap();
 
         let result = helper
-            .simulate_init_in_git_trunk("develop-repo", "trunk-develop", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "develop-repo",
+                "trunk-develop",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -222,7 +246,13 @@ mod normal_initialization_tests {
         let helper = InitTestHelper::new().await.unwrap();
 
         let result = helper
-            .simulate_init_in_git_trunk("staging-repo", "trunk-staging", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "staging-repo",
+                "trunk-staging",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -245,10 +275,18 @@ mod normal_initialization_tests {
 
         // Initialize git repository at repo level
         let repo = git2::Repository::init(&repo_dir).unwrap();
-        repo.remote("origin", "https://github.com/test/repo-at-root.git").unwrap();
+        repo.remote("origin", "https://github.com/test/repo-at-root.git")
+            .unwrap();
 
         // This should now succeed
-        let result = helper.simulate_init_command_in_dir(&repo_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &repo_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         assert!(
             result.is_ok(),
@@ -268,13 +306,25 @@ mod force_flag_tests {
 
         // First initialization should succeed
         let result1 = helper
-            .simulate_init_in_git_trunk("force-test-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "force-test-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(result1.is_ok(), "First init should succeed");
 
         // Second initialization of SAME repository without force should fail
         let result2 = helper
-            .simulate_init_in_git_trunk("force-test-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "force-test-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -294,13 +344,25 @@ mod force_flag_tests {
 
         // First initialization
         let result1 = helper
-            .simulate_init_in_git_trunk("force-success-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "force-success-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(result1.is_ok(), "First init should succeed");
 
         // Second initialization with force should succeed
         let result2 = helper
-            .simulate_init_in_git_trunk("force-success-repo-2", "trunk-main", true, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "force-success-repo-2",
+                "trunk-main",
+                true,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(result2.is_ok(), "Second init with force should succeed");
@@ -313,7 +375,13 @@ mod force_flag_tests {
 
         // First initialization
         helper
-            .simulate_init_in_git_trunk("preserve-path-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "preserve-path-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await
             .unwrap();
         let config1 = Config::load().await.unwrap();
@@ -321,7 +389,13 @@ mod force_flag_tests {
 
         // Second initialization with force
         helper
-            .simulate_init_in_git_trunk("preserve-path-repo-2", "trunk-main", true, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "preserve-path-repo-2",
+                "trunk-main",
+                true,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await
             .unwrap();
         let config2 = Config::load().await.unwrap();
@@ -354,7 +428,13 @@ mod trunk_directory_detection_tests {
         for trunk_name in valid_trunk_names {
             let repo_name = format!("repo-{}", trunk_name.replace("/", "-"));
             let result = helper
-                .simulate_init_in_git_trunk(&repo_name, trunk_name, false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    &repo_name,
+                    trunk_name,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -391,9 +471,17 @@ mod trunk_directory_detection_tests {
 
             // Initialize git repository at repo level
             let repo = git2::Repository::init(&repo_dir).unwrap();
-            repo.remote("origin", "https://github.com/test/test.git").unwrap();
+            repo.remote("origin", "https://github.com/test/test.git")
+                .unwrap();
 
-            let result = helper.simulate_init_command_in_dir(&test_dir, false, helper.config.clone(), helper.db.clone()).await;
+            let result = helper
+                .simulate_init_command_in_dir(
+                    &test_dir,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
+                .await;
 
             // These should now succeed
             assert!(
@@ -419,7 +507,13 @@ mod trunk_directory_detection_tests {
         for trunk_name in complex_trunk_names {
             let repo_name = format!("repo-{}", trunk_name.replace("/", "-"));
             let result = helper
-                .simulate_init_in_git_trunk(&repo_name, trunk_name, false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    &repo_name,
+                    trunk_name,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -449,7 +543,13 @@ mod repository_root_detection_tests {
 
         for (repo_name, trunk_name) in test_cases {
             let result = helper
-                .simulate_init_in_git_trunk(repo_name, trunk_name, false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    repo_name,
+                    trunk_name,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -479,9 +579,17 @@ mod repository_root_detection_tests {
 
         // Initialize git repository at the deeply nested project level
         let repo = git2::Repository::init(&deep_path).unwrap();
-        repo.remote("origin", "https://github.com/test/awesome-project.git").unwrap();
+        repo.remote("origin", "https://github.com/test/awesome-project.git")
+            .unwrap();
 
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         assert!(
             result.is_ok(),
@@ -499,7 +607,14 @@ mod repository_root_detection_tests {
         let trunk_dir = temp_path.join("trunk-main");
         fs::create_dir_all(&trunk_dir).await.unwrap();
 
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         // Should handle gracefully - either succeed or fail with appropriate error
         println!("Result for directory without parent: {:?}", result);
@@ -529,7 +644,9 @@ mod repository_root_detection_tests {
             let original_dir = env::current_dir().unwrap();
             env::set_current_dir(&symlink_path).unwrap();
 
-            let result = helper.simulate_init_command(false, helper.config.clone(), helper.db.clone(), None).await;
+            let result = helper
+                .simulate_init_command(false, helper.config.clone(), helper.db.clone(), None)
+                .await;
 
             env::set_current_dir(original_dir).unwrap();
 
@@ -563,7 +680,14 @@ mod capitalization_consistency_tests {
             let test_dir = repo_dir.join(dir_name);
             fs::create_dir_all(&test_dir).await.unwrap();
 
-            let result = helper.simulate_init_command_in_dir(&test_dir, false, helper.config.clone(), helper.db.clone()).await;
+            let result = helper
+                .simulate_init_command_in_dir(
+                    &test_dir,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
+                .await;
 
             if should_work {
                 println!("Expected to work: {} -> {:?}", dir_name, result);
@@ -591,7 +715,13 @@ mod capitalization_consistency_tests {
 
         for repo_name in repo_names {
             let result = helper
-                .simulate_init_in_git_trunk(repo_name, "trunk-main", false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    repo_name,
+                    "trunk-main",
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -615,13 +745,25 @@ mod configuration_conflict_tests {
 
         // Just test that init works when config already exists
         let result1 = helper
-            .simulate_init_in_git_trunk("config-conflict-repo-1", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "config-conflict-repo-1",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(result1.is_ok(), "First init should succeed");
 
         let helper2 = InitTestHelper::new().await.unwrap();
         let result2 = helper2
-            .simulate_init_in_git_trunk("config-conflict-repo-2", "trunk-main", true, helper2.config.clone(), helper2.db.clone())
+            .simulate_init_in_git_trunk(
+                "config-conflict-repo-2",
+                "trunk-main",
+                true,
+                helper2.config.clone(),
+                helper2.db.clone(),
+            )
             .await;
         assert!(
             result2.is_ok(),
@@ -640,7 +782,13 @@ mod configuration_conflict_tests {
 
         // Test that init works and config is preserved
         let result = helper
-            .simulate_init_in_git_trunk("preserve-config-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "preserve-config-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(result.is_ok(), "Init should preserve other config settings");
 
@@ -668,7 +816,13 @@ mod configuration_conflict_tests {
 
         // Should handle corrupted config gracefully by recreating it
         let result = helper
-            .simulate_init_in_git_trunk("corrupted-config-repo", "trunk-main", true, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "corrupted-config-repo",
+                "trunk-main",
+                true,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         // The init command should handle this gracefully
@@ -687,7 +841,13 @@ mod database_integration_tests {
         let helper = InitTestHelper::new().await.unwrap();
 
         let result = helper
-            .simulate_init_in_git_trunk("db-integration-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "db-integration-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -708,7 +868,13 @@ mod database_integration_tests {
         let helper = InitTestHelper::new().await.unwrap();
 
         helper
-            .simulate_init_in_git_trunk("worktree-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "worktree-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await
             .unwrap();
 
@@ -732,7 +898,13 @@ mod database_integration_tests {
 
         // Try to create database - this should succeed in our test environment
         let result = helper
-            .simulate_init_in_git_trunk("db-failure-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "db-failure-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         // Should handle database operations gracefully
@@ -764,7 +936,14 @@ mod filesystem_error_handling_tests {
 
         let original_dir = env::current_dir().unwrap();
         // In a real test environment, this would need to simulate permission errors
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         env::set_current_dir(original_dir).unwrap();
 
@@ -783,7 +962,14 @@ mod filesystem_error_handling_tests {
         let trunk_dir = repo_dir.join("trunk-main");
         fs::create_dir_all(&trunk_dir).await.unwrap();
 
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         // Should handle filesystem errors gracefully
         println!("Filesystem full test result: {:?}", result);
@@ -797,7 +983,13 @@ mod filesystem_error_handling_tests {
         // This test would simulate a failure partway through initialization
         // and verify that partial state is cleaned up
         let result = helper
-            .simulate_init_in_git_trunk("cleanup-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "cleanup-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         // Should clean up any partial state on failure
@@ -822,7 +1014,13 @@ mod integration_tests {
 
         // Initialize first
         let init_result = helper
-            .simulate_init_in_git_trunk("integration-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "integration-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(init_result.is_ok(), "Init should succeed");
 
@@ -840,7 +1038,13 @@ mod integration_tests {
 
         // Test from trunk directory
         let trunk_result = helper
-            .simulate_init_in_git_trunk("multi-dir-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "multi-dir-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(
@@ -850,7 +1054,13 @@ mod integration_tests {
 
         // Test another repo with force (since global config already exists)
         let repo_result = helper
-            .simulate_init_in_git_trunk("multi-dir-repo-2", "trunk-main", true, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "multi-dir-repo-2",
+                "trunk-main",
+                true,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         assert!(repo_result.is_ok(), "Init should work with force flag");
     }
@@ -865,7 +1075,13 @@ mod integration_tests {
         for (i, repo_name) in repos.iter().enumerate() {
             let force = i > 0; // Use force for subsequent repos
             let result = helper
-                .simulate_init_in_git_trunk(repo_name, "trunk-main", force, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    repo_name,
+                    "trunk-main",
+                    force,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -896,7 +1112,13 @@ mod performance_and_reliability_tests {
 
         let start = Instant::now();
         let result = helper
-            .simulate_init_in_git_trunk("performance-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "performance-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         let duration = start.elapsed();
 
@@ -917,10 +1139,22 @@ mod performance_and_reliability_tests {
 
         // Simulate concurrent init attempts on the SAME repository
         let result1 = helper
-            .simulate_init_in_git_trunk("concurrent-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "concurrent-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
         let result2 = helper
-            .simulate_init_in_git_trunk("concurrent-repo", "trunk-main", false, helper.config.clone(), helper.db.clone())
+            .simulate_init_in_git_trunk(
+                "concurrent-repo",
+                "trunk-main",
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
             .await;
 
         assert!(result1.is_ok(), "First concurrent init should succeed");
@@ -952,7 +1186,14 @@ mod performance_and_reliability_tests {
         }
 
         let start = Instant::now();
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
         let duration = start.elapsed();
 
         assert!(
@@ -981,7 +1222,13 @@ mod edge_case_tests {
 
         for (repo_name, trunk_name) in unicode_cases {
             let result = helper
-                .simulate_init_in_git_trunk(repo_name, trunk_name, false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    repo_name,
+                    trunk_name,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
 
             assert!(
@@ -1007,7 +1254,14 @@ mod edge_case_tests {
         let trunk_dir = long_path.join("trunk-main");
         fs::create_dir_all(&trunk_dir).await.unwrap();
 
-        let result = helper.simulate_init_command_in_dir(&trunk_dir, false, helper.config.clone(), helper.db.clone()).await;
+        let result = helper
+            .simulate_init_command_in_dir(
+                &trunk_dir,
+                false,
+                helper.config.clone(),
+                helper.db.clone(),
+            )
+            .await;
 
         // Should handle long paths or fail with appropriate error
         println!("Long path test result: {:?}", result);
@@ -1032,7 +1286,13 @@ mod edge_case_tests {
 
         for (repo_name, trunk_name) in special_cases {
             let result = helper
-                .simulate_init_in_git_trunk(repo_name, trunk_name, false, helper.config.clone(), helper.db.clone())
+                .simulate_init_in_git_trunk(
+                    repo_name,
+                    trunk_name,
+                    false,
+                    helper.config.clone(),
+                    helper.db.clone(),
+                )
                 .await;
             println!("Special char test for '{}': {:?}", repo_name, result);
 
