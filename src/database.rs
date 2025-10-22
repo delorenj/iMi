@@ -390,6 +390,37 @@ impl Database {
         Ok(())
     }
 
+    /// Find a worktree by name across all repositories
+    /// This is useful when you have a worktree name but don't know which repo it belongs to
+    pub async fn find_worktree_by_name(&self, worktree_name: &str) -> Result<Option<Worktree>> {
+        let row = sqlx::query(
+            "SELECT * FROM worktrees WHERE worktree_name = ? AND active = TRUE LIMIT 1",
+        )
+        .bind(worktree_name)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to search for worktree by name")?;
+
+        if let Some(row) = row {
+            Ok(Some(Worktree {
+                id: row.get("id"),
+                repo_name: row.get("repo_name"),
+                worktree_name: row.get("worktree_name"),
+                branch_name: row.get("branch_name"),
+                worktree_type: row.get("worktree_type"),
+                path: row.get("path"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                    .with_timezone(&Utc),
+                active: row.get("active"),
+                agent_id: row.get("agent_id"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     // Agent activity operations
     pub async fn log_agent_activity(
         &self,
