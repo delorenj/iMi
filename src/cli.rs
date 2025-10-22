@@ -120,6 +120,12 @@ pub enum Commands {
         repo: Option<String>,
     },
 
+    /// Sync database with actual Git worktrees
+    Sync {
+        /// Repository name (optional, syncs all repos if not specified)
+        repo: Option<String>,
+    },
+
     /// Initialize iMi in the current directory or clone from GitHub (format: owner/repo)
     Init {
         /// GitHub repository to clone (format: owner/repo), or path to existing repository

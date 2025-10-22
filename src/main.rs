@@ -89,6 +89,9 @@ async fn main() -> Result<()> {
                     Commands::Monitor { repo } => {
                         handle_monitor_command(&worktree_manager, repo.as_deref()).await?;
                     }
+                    Commands::Sync { repo } => {
+                        handle_sync_command(&worktree_manager, repo.as_deref()).await?;
+                    }
                     Commands::Init { .. } => {
                         // Already handled
                     }
@@ -319,6 +322,12 @@ async fn handle_remove_command(
 async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
     println!("{} Starting real-time monitoring...", "👁️".bright_purple());
     manager.start_monitoring(repo).await?;
+    Ok(())
+}
+
+async fn handle_sync_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
+    println!("{} Syncing database with Git worktrees...", "🔄".bright_cyan());
+    manager.sync_with_git(repo).await?;
     Ok(())
 }
 

@@ -29,6 +29,13 @@ use std::process::Command;
 use crate::error::ImiError;
 
 #[derive(Debug, Clone)]
+pub struct GitWorktree {
+    pub path: String,
+    pub branch: String,
+    pub commit: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct GitManager;
 
 impl GitManager {
@@ -247,6 +254,12 @@ impl GitManager {
             .trim_end_matches(".git");
 
         Ok(name.to_string())
+    }
+
+    /// Get repository name from current directory
+    pub fn get_repo_name(&self, path: &Path) -> Result<String> {
+        let repo = self.find_repository(Some(path))?;
+        self.get_repository_name(&repo)
     }
 
     /// Create a new worktree
@@ -515,6 +528,41 @@ impl GitManager {
         }
 
         Ok(result)
+    }
+
+    /// List Git worktrees using git worktree list command
+    pub fn list_git_worktrees(&self, repo_path: &Path) -> Result<Vec<GitWorktree>> {
+        let output = self.execute_git_command(repo_path, &["worktree", "list", "--porcelain"])?;
+        let mut worktrees = Vec::new();
+        let mut current_worktree: Option<GitWorktree> = None;
+
+        for line in output.lines() {
+            if line.starts_with("worktree ") {
+                if let Some(wt) = current_worktree.take() {
+                    worktrees.push(wt);
+                }
+                let path = line.strip_prefix("worktree ").unwrap_or("").to_string();
+                current_worktree = Some(GitWorktree {
+                    path,
+                    branch: String::new(),
+                    commit: String::new(),
+                });
+            } else if line.starts_with("HEAD ") {
+                if let Some(ref mut wt) = current_worktree {
+                    wt.commit = line.strip_prefix("HEAD ").unwrap_or("").to_string();
+                }
+            } else if line.starts_with("branch ") {
+                if let Some(ref mut wt) = current_worktree {
+                    wt.branch = line.strip_prefix("branch ").unwrap_or("").to_string();
+                }
+            }
+        }
+
+        if let Some(wt) = current_worktree {
+            worktrees.push(wt);
+        }
+
+        Ok(worktrees)
     }
 
     /// Check if a worktree exists
