@@ -407,19 +407,42 @@ impl WorktreeManager {
     /// Close a worktree without deleting the branch
     /// This removes the worktree directory and git reference but preserves the branch
     pub async fn close_worktree(&self, name: &str, repo: Option<&str>) -> Result<()> {
-        let repo_name = self.resolve_repo_name(repo).await?;
+        // Try to find the worktree in the database first
+        // This allows the command to work from any directory when an explicit name is provided
+        let (repo_name, actual_worktree_name, worktree_path, git_repo) =
+            if let Some(worktree_info) = self.find_worktree_in_database(name, repo).await? {
+                // Found in database - use the stored information
+                let path = PathBuf::from(&worktree_info.path);
 
-        // Find the actual worktree name - it might be prefixed (e.g., feat-interactive-learning)
-        let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
+                // Get the repository path from the database
+                let repo_record = self.db.get_repository(&worktree_info.repo_name).await?
+                    .ok_or_else(|| anyhow::anyhow!(
+                        "Repository not found in database: {}",
+                        worktree_info.repo_name
+                    ))?;
 
-        // Use IMI_PATH detection for consistent worktree removal
-        let current_dir = env::current_dir()?;
-        let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo
-            .workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
-        let imi_path = self.detect_imi_path(repo_root)?;
-        let worktree_path = imi_path.join(&actual_worktree_name);
+                let repo_path_buf = PathBuf::from(repo_record.path);
+
+                // Find the git repository - it should be at the registered path
+                let git_repo = self.git.find_repository(Some(&repo_path_buf))
+                    .context(format!("Failed to find Git repository at: {}", repo_path_buf.display()))?;
+
+                (worktree_info.repo_name, worktree_info.worktree_name, path, git_repo)
+            } else {
+                // Fall back to current directory-based lookup
+                let repo_name = self.resolve_repo_name(repo).await?;
+                let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
+
+                let current_dir = env::current_dir()?;
+                let repo = self.git.find_repository(Some(&current_dir))?;
+                let repo_root = repo
+                    .workdir()
+                    .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+                let imi_path = self.detect_imi_path(repo_root)?;
+                let worktree_path = imi_path.join(&actual_worktree_name);
+
+                (repo_name, actual_worktree_name, worktree_path, repo)
+            };
 
         // Remove directory first
         if worktree_path.exists() {
@@ -429,8 +452,8 @@ impl WorktreeManager {
         }
 
         // Remove from Git (this will now be able to prune since directory is gone)
-        if self.git.worktree_exists(&repo, &actual_worktree_name) {
-            self.git.remove_worktree(&repo, &actual_worktree_name)?;
+        if self.git.worktree_exists(&git_repo, &actual_worktree_name) {
+            self.git.remove_worktree(&git_repo, &actual_worktree_name)?;
         }
 
         // Deactivate in database
@@ -762,6 +785,61 @@ impl WorktreeManager {
         println!("   {} {} entries added", "➕".bright_green(), added);
 
         Ok(())
+    }
+
+    /// Find a worktree in the database by name, searching across all repos if needed
+    async fn find_worktree_in_database(
+        &self,
+        name: &str,
+        repo: Option<&str>,
+    ) -> Result<Option<crate::database::Worktree>> {
+        // If repo is specified, search within that repo
+        if let Some(repo_name) = repo {
+            // Try to find with the exact name first
+            if let Some(worktree) = self.db.get_worktree(repo_name, name).await? {
+                return Ok(Some(worktree));
+            }
+
+            // Try different prefixed versions within the specified repo
+            let possible_names = vec![
+                format!("feat-{}", name),
+                format!("fix-{}", name),
+                format!("aiops-{}", name),
+                format!("devops-{}", name),
+                format!("pr-{}", name),
+            ];
+
+            for possible_name in possible_names {
+                if let Some(worktree) = self.db.get_worktree(repo_name, &possible_name).await? {
+                    return Ok(Some(worktree));
+                }
+            }
+
+            return Ok(None);
+        }
+
+        // No repo specified - search across all repos
+        // First try exact name match
+        if let Some(worktree) = self.db.find_worktree_by_name(name).await? {
+            return Ok(Some(worktree));
+        }
+
+        // Try different prefixed versions across all repos
+        let possible_names = vec![
+            format!("feat-{}", name),
+            format!("fix-{}", name),
+            format!("aiops-{}", name),
+            format!("devops-{}", name),
+            format!("pr-{}", name),
+        ];
+
+        for possible_name in possible_names {
+            if let Some(worktree) = self.db.find_worktree_by_name(&possible_name).await? {
+                return Ok(Some(worktree));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Find the actual worktree name by trying different prefixed versions
