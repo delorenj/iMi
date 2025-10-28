@@ -75,14 +75,14 @@ pub enum Commands {
 
     /// Show status of all worktrees
     Status {
-        /// Repository name (optional, shows all repos if not specified)
+        /// Repository name (optional, uses current git repo if not specified)
         repo: Option<String>,
     },
 
     /// List all active worktrees
     #[command(alias = "ls")]
     List {
-        /// Repository name (optional, shows all repos if not specified)
+        /// Repository name (optional, uses current git repo if not specified)
         repo: Option<String>,
     },
 
@@ -116,7 +116,7 @@ pub enum Commands {
 
     /// Start real-time monitoring of worktree activities
     Monitor {
-        /// Repository name (optional, monitors all repos if not specified)
+        /// Repository name (optional, uses current git repo if not specified)
         repo: Option<String>,
     },
 
@@ -140,6 +140,15 @@ pub enum Commands {
     /// Clean up stale worktree references from Git
     #[command(alias = "cleanup")]
     Prune {
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
+
+    /// Merge a worktree into trunk-main and close it
+    Merge {
+        /// Name of the worktree to merge
+        name: String,
+
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
     },

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
@@ -6,6 +7,7 @@ use tokio::fs;
 use tokio::sync::mpsc;
 use tokio_test::{assert_err, assert_ok};
 
+use git2::Repository;
 use imi::config::Config;
 use imi::database::{Database, Worktree};
 use imi::git::GitManager;
@@ -25,6 +27,11 @@ async fn create_test_config() -> Config {
 
 async fn create_test_monitor_manager() -> (MonitorManager, TempDir) {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let repo_dir = temp_dir.path().join("test-repo");
+    fs::create_dir_all(&repo_dir).await.unwrap();
+    Repository::init(&repo_dir).expect("Failed to initialize test git repository");
+    env::set_current_dir(&repo_dir).expect("Failed to set current dir for test");
+
     let db = create_test_database().await;
     let git = GitManager::new();
     let config = create_test_config().await;
@@ -672,7 +679,7 @@ mod status_reporting_tests {
         // Test periodic status with short timeout
         let result = tokio::time::timeout(
             Duration::from_millis(100),
-            monitor.periodic_status_update(None, worktrees),
+            monitor.periodic_status_update(worktrees),
         )
         .await;
 

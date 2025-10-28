@@ -39,8 +39,14 @@ impl MonitorManager {
         );
         println!("{}", "─".repeat(60).bright_black());
 
+        let repo_name = self.worktree_manager.resolve_repo_name(repo).await?;
+
         // Get active worktrees to monitor
-        let worktrees = self.worktree_manager.db.list_worktrees(repo).await?;
+        let worktrees = self
+            .worktree_manager
+            .db
+            .list_worktrees(Some(&repo_name))
+            .await?;
 
         if worktrees.is_empty() {
             println!("{} No active worktrees to monitor", "ℹ️".bright_blue());
@@ -48,9 +54,10 @@ impl MonitorManager {
         }
 
         println!(
-            "{} Monitoring {} worktrees",
+            "{} Monitoring {} worktrees for {}",
             "📊".bright_cyan(),
-            worktrees.len()
+            worktrees.len(),
+            repo_name.bright_blue()
         );
         for wt in &worktrees {
             println!(
@@ -87,7 +94,7 @@ impl MonitorManager {
 
         // Start monitoring loop
         let monitor_task = self.monitor_loop(rx, path_to_worktree);
-        let status_task = self.periodic_status_update(repo, worktrees.clone());
+        let status_task = self.periodic_status_update(worktrees.clone());
 
         // Wait for Ctrl+C
         println!("{} Press Ctrl+C to stop monitoring", "💡".bright_yellow());
@@ -141,11 +148,7 @@ impl MonitorManager {
     }
 
     /// Periodic status updates
-    pub async fn periodic_status_update(
-        &self,
-        _repo: Option<&str>,
-        worktrees: Vec<Worktree>,
-    ) -> Result<()> {
+    pub async fn periodic_status_update(&self, worktrees: Vec<Worktree>) -> Result<()> {
         let mut interval = time::interval(Duration::from_secs(30));
         let mut last_status_check = Instant::now();
 
@@ -339,9 +342,18 @@ impl MonitorManager {
     /// Show real-time Git statistics
     #[allow(dead_code)]
     pub async fn show_git_stats(&self, repo: Option<&str>) -> Result<()> {
-        let worktrees = self.worktree_manager.db.list_worktrees(repo).await?;
+        let repo_name = self.worktree_manager.resolve_repo_name(repo).await?;
+        let worktrees = self
+            .worktree_manager
+            .db
+            .list_worktrees(Some(&repo_name))
+            .await?;
 
-        println!("{} Git Activity Summary", "📊".bright_cyan().bold());
+        println!(
+            "{} Git Activity Summary for {}",
+            "📊".bright_cyan().bold(),
+            repo_name.bright_blue()
+        );
         println!("{}", "─".repeat(60).bright_black());
 
         let mut total_changes = 0;

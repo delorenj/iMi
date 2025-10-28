@@ -443,7 +443,8 @@ impl WorktreeManager {
 
     /// Show status of worktrees
     pub async fn show_status(&self, repo: Option<&str>) -> Result<()> {
-        let worktrees = self.db.list_worktrees(repo).await?;
+        let repo_name = self.resolve_repo_name(repo).await?;
+        let worktrees = self.db.list_worktrees(Some(&repo_name)).await?;
 
         if worktrees.is_empty() {
             println!("{} No active worktrees found", "ℹ️".bright_blue());
@@ -591,7 +592,7 @@ impl WorktreeManager {
     }
 
     /// Resolve repository name from current directory or provided name
-    async fn resolve_repo_name(&self, repo: Option<&str>) -> Result<String> {
+    pub async fn resolve_repo_name(&self, repo: Option<&str>) -> Result<String> {
         if let Some(name) = repo {
             return Ok(name.to_string());
         }
@@ -735,5 +736,157 @@ impl WorktreeManager {
         // Fall back to repository root's parent (original behavior)
         let imi_path = repo_root.parent().unwrap_or(repo_root);
         Ok(imi_path.to_path_buf())
+    }
+
+    /// Merge a worktree into trunk-main and close it
+    pub async fn merge_worktree(&self, name: &str, repo: Option<&str>) -> Result<()> {
+        let repo_name = self.resolve_repo_name(repo).await?;
+
+        // Find the actual worktree name
+        let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
+
+        println!(
+            "{} Merging worktree: {}",
+            "🔀".bright_cyan(),
+            actual_worktree_name.bright_yellow()
+        );
+
+        // Get worktree info from database
+        let worktree_info = self
+            .db
+            .get_worktree(&repo_name, &actual_worktree_name)
+            .await?
+            .ok_or_else(|| {
+                anyhow::anyhow!("Worktree '{}' not found in database", actual_worktree_name)
+            })?;
+
+        let branch_name = worktree_info.branch_name.clone();
+
+        // Get trunk worktree path
+        let trunk_path = self.get_trunk_worktree(repo).await?;
+
+        println!(
+            "{} Switching to trunk: {}",
+            "🌳".bright_green(),
+            trunk_path.display()
+        );
+
+        // Open the trunk repository
+        let trunk_repo = self.git.find_repository(Some(&trunk_path))?;
+
+        // Ensure trunk is up to date with remote
+        println!("{} Fetching latest changes", "⬇️".bright_blue());
+        self.git.fetch_all(&trunk_repo)?;
+
+        // Get the default branch name
+        let default_branch = self.config.git_settings.default_branch.clone();
+
+        // Verify we're on the default branch in trunk
+        let current_branch = self.git.get_current_branch(&trunk_path)?;
+        if current_branch != default_branch {
+            return Err(anyhow::anyhow!(
+                "Trunk is on branch '{}' instead of '{}'. Please checkout '{}' in trunk first.",
+                current_branch,
+                default_branch,
+                default_branch
+            ));
+        }
+
+        // Check if the worktree has uncommitted changes
+        let worktree_path = PathBuf::from(&worktree_info.path);
+        if worktree_path.exists() {
+            let worktree_status = self.git.get_worktree_status(&worktree_path)?;
+            if !worktree_status.clean {
+                return Err(anyhow::anyhow!(
+                    "Worktree has uncommitted changes. Please commit or stash them first.\n\
+                     Modified: {}, New: {}, Deleted: {}",
+                    worktree_status.modified_files.len(),
+                    worktree_status.new_files.len(),
+                    worktree_status.deleted_files.len()
+                ));
+            }
+        }
+
+        // Perform the merge
+        println!(
+            "{} Merging branch '{}' into '{}'",
+            "🔀".bright_magenta(),
+            branch_name.bright_yellow(),
+            default_branch.bright_green()
+        );
+
+        self.git
+            .merge_branch(&trunk_repo, &branch_name, &default_branch)
+            .context("Failed to merge branch into trunk")?;
+
+        // Push the merged changes to remote
+        println!("{} Pushing merged changes to remote", "⬆️".bright_cyan());
+
+        match self.git.push_to_remote(&trunk_repo, &default_branch) {
+            Ok(_) => {
+                println!("{} Changes pushed to remote", "✅".bright_green());
+            }
+            Err(e) => {
+                println!(
+                    "{} Warning: Failed to push to remote: {}",
+                    "⚠️".bright_yellow(),
+                    e
+                );
+                println!(
+                    "   You may need to push manually from the trunk worktree: cd {} && git push",
+                    trunk_path.display()
+                );
+            }
+        }
+
+        // Close the worktree (this removes the worktree but keeps the branch)
+        println!(
+            "{} Closing worktree: {}",
+            "🧹".bright_cyan(),
+            actual_worktree_name
+        );
+
+        self.close_worktree(name, repo).await?;
+
+        // Delete the merged branch (both local and remote)
+        println!(
+            "{} Deleting merged branch: {}",
+            "🗑️".bright_red(),
+            branch_name
+        );
+
+        self.git.delete_local_branch(&trunk_repo, &branch_name)?;
+
+        match self
+            .git
+            .delete_remote_branch(&trunk_repo, &branch_name)
+            .await
+        {
+            Ok(_) => {
+                println!("{} Remote branch deleted", "✅".bright_green());
+            }
+            Err(e) => {
+                println!(
+                    "{} Warning: Could not delete remote branch '{}': {}",
+                    "⚠️".bright_yellow(),
+                    branch_name,
+                    e
+                );
+                println!("   (This is normal if the branch was already deleted or never pushed)");
+            }
+        }
+
+        println!(
+            "\n{} Merge completed successfully!",
+            "✅".bright_green().bold()
+        );
+        println!(
+            "{} Branch '{}' has been merged into '{}' and cleaned up",
+            "📝".bright_blue(),
+            branch_name.bright_yellow(),
+            default_branch.bright_green()
+        );
+
+        Ok(())
     }
 }

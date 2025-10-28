@@ -6,6 +6,9 @@ experimental = true
 [env]
 _.file = [".env", ".env.local"]
 
+# ============================================================================
+# Test Tasks (defined in main config)
+# ============================================================================
 [tasks.test]
 description = "Run all tests"
 run = "cargo test"
@@ -30,5 +33,429 @@ run = "cargo fmt --all"
 description = "Run all CI checks"
 depends = ["lint", "test-ci"]
 
-[tasks]
-include = ["./.mise/tasks.toml"]
+# ============================================================================
+# Test Tasks
+# ============================================================================
+[tasks.test-unit]
+description = "Run unit tests"
+run = "cargo test --test unit_tests_comprehensive"
+
+[tasks.test-integration]
+description = "Run integration tests"
+run = "cargo test --test integration_tests_comprehensive"
+
+[tasks.test-cli]
+description = "Run CLI tests"
+run = "cargo test --test cli_init_integration"
+
+# ============================================================================
+# Build Tasks
+# ============================================================================
+[tasks.build]
+description = "Build iMi in debug mode"
+run = "cargo build"
+
+[tasks.build-release]
+description = "Build iMi with release optimizations (LTO, stripped)"
+run = "cargo build --release"
+
+[tasks.build-dev]
+description = "Build iMi in dev mode with all features"
+run = "cargo build --all-features"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "cargo clean"
+
+[tasks.check]
+description = "Quick compile check without building"
+run = "cargo check --all-targets --all-features"
+
+[tasks.build-musl]
+description = "Build static binary with musl (Linux x86_64)"
+run = '''
+rustup target add x86_64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl
+'''
+
+# ============================================================================
+# Package Tasks
+# ============================================================================
+[tasks.package]
+description = "Package release binary with documentation"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+ARCH=$(uname -m)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+PACKAGE_NAME="iMi-${VERSION}-${OS}-${ARCH}"
+DIST_DIR="target/dist"
+PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
+
+echo "📦 Creating package: ${PACKAGE_NAME}"
+
+# Create package directory structure
+mkdir -p "${PACKAGE_DIR}/bin"
+mkdir -p "${PACKAGE_DIR}/docs"
+mkdir -p "${PACKAGE_DIR}/completions"
+
+# Copy binary
+cp "target/release/iMi" "${PACKAGE_DIR}/bin/"
+chmod +x "${PACKAGE_DIR}/bin/iMi"
+
+# Copy documentation
+cp README.md "${PACKAGE_DIR}/"
+cp LICENSE "${PACKAGE_DIR}/"
+cp INSTALL.md "${PACKAGE_DIR}/docs/"
+[ -f QUICKSTART.sh ] && cp QUICKSTART.sh "${PACKAGE_DIR}/docs/"
+
+# Generate shell completions
+"${PACKAGE_DIR}/bin/iMi" completions bash > "${PACKAGE_DIR}/completions/iMi.bash" || true
+"${PACKAGE_DIR}/bin/iMi" completions zsh > "${PACKAGE_DIR}/completions/_iMi" || true
+"${PACKAGE_DIR}/bin/iMi" completions fish > "${PACKAGE_DIR}/completions/iMi.fish" || true
+
+# Create tarball
+cd "${DIST_DIR}"
+tar czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+cd - > /dev/null
+
+echo "✅ Package created: ${DIST_DIR}/${PACKAGE_NAME}.tar.gz"
+echo "📊 Package size: $(du -h "${DIST_DIR}/${PACKAGE_NAME}.tar.gz" | cut -f1)"
+'''
+
+[tasks.package-musl]
+description = "Package static musl binary for portable Linux deployment"
+depends = ["build-musl"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+PACKAGE_NAME="iMi-${VERSION}-linux-x86_64-musl"
+DIST_DIR="target/dist"
+PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
+
+echo "📦 Creating musl package: ${PACKAGE_NAME}"
+
+mkdir -p "${PACKAGE_DIR}/bin"
+mkdir -p "${PACKAGE_DIR}/docs"
+
+cp "target/x86_64-unknown-linux-musl/release/iMi" "${PACKAGE_DIR}/bin/"
+chmod +x "${PACKAGE_DIR}/bin/iMi"
+
+cp README.md LICENSE INSTALL.md "${PACKAGE_DIR}/docs/"
+
+cd "${DIST_DIR}"
+tar czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+cd - > /dev/null
+
+echo "✅ Static package created: ${DIST_DIR}/${PACKAGE_NAME}.tar.gz"
+'''
+
+[tasks.package-deb]
+description = "Create Debian package (.deb)"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v cargo-deb &> /dev/null; then
+    echo "Installing cargo-deb..."
+    cargo install cargo-deb
+fi
+
+cargo deb
+
+VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+
+echo "✅ Debian package created: target/debian/imi_${VERSION}_${ARCH}.deb"
+'''
+
+# ============================================================================
+# Install Tasks
+# ============================================================================
+[tasks.install]
+description = "Install iMi to system (requires sudo)"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+INSTALL_DIR="${PREFIX:-/usr/local}/bin"
+BINARY_PATH="target/release/iMi"
+
+if [ ! -f "${BINARY_PATH}" ]; then
+    echo "❌ Binary not found. Run 'mise run build-release' first."
+    exit 1
+fi
+
+echo "📥 Installing iMi to ${INSTALL_DIR}"
+
+# Check if we need sudo
+if [ -w "${INSTALL_DIR}" ]; then
+    cp "${BINARY_PATH}" "${INSTALL_DIR}/iMi"
+else
+    echo "🔐 Installing requires sudo..."
+    sudo cp "${BINARY_PATH}" "${INSTALL_DIR}/iMi"
+    sudo chmod 755 "${INSTALL_DIR}/iMi"
+fi
+
+echo "✅ iMi installed successfully!"
+echo "🚀 Run 'iMi --version' to verify installation"
+'''
+
+[tasks.install-local]
+description = "Install iMi to user's local bin directory (~/.local/bin)"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOCAL_BIN="${HOME}/.local/bin"
+BINARY_PATH="target/release/iMi"
+
+if [ ! -f "${BINARY_PATH}" ]; then
+    echo "❌ Binary not found. Run 'mise run build-release' first."
+    exit 1
+fi
+
+mkdir -p "${LOCAL_BIN}"
+
+echo "📥 Installing iMi to ${LOCAL_BIN}"
+cp "${BINARY_PATH}" "${LOCAL_BIN}/iMi"
+chmod +x "${LOCAL_BIN}/iMi"
+
+# Check if ~/.local/bin is in PATH
+if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
+    echo "⚠️  Warning: ${LOCAL_BIN} is not in your PATH"
+    echo "Add this line to your shell config (~/.bashrc, ~/.zshrc, etc.):"
+    echo '  export PATH="${HOME}/.local/bin:${PATH}"'
+fi
+
+echo "✅ iMi installed to ${LOCAL_BIN}"
+echo "🚀 Run 'iMi --version' to verify installation"
+'''
+
+[tasks.install-completions]
+description = "Install shell completions for current user"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+BINARY_PATH="target/release/iMi"
+
+if [ ! -f "${BINARY_PATH}" ]; then
+    echo "❌ Binary not found. Run 'mise run build-release' first."
+    exit 1
+fi
+
+echo "🔧 Installing shell completions..."
+
+# Bash completions
+if [ -d "${HOME}/.local/share/bash-completion/completions" ]; then
+    "${BINARY_PATH}" completions bash > "${HOME}/.local/share/bash-completion/completions/iMi"
+    echo "✅ Bash completions installed"
+elif [ -d "${HOME}/.bash_completion.d" ]; then
+    mkdir -p "${HOME}/.bash_completion.d"
+    "${BINARY_PATH}" completions bash > "${HOME}/.bash_completion.d/iMi"
+    echo "✅ Bash completions installed to ~/.bash_completion.d"
+fi
+
+# Zsh completions
+if [ -d "${HOME}/.zsh/completions" ]; then
+    "${BINARY_PATH}" completions zsh > "${HOME}/.zsh/completions/_iMi"
+    echo "✅ Zsh completions installed"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    mkdir -p "${HOME}/.zsh/completions"
+    "${BINARY_PATH}" completions zsh > "${HOME}/.zsh/completions/_iMi"
+    echo "✅ Zsh completions installed to ~/.zsh/completions"
+    echo "Add this to your ~/.zshrc if not already present:"
+    echo "  fpath=(~/.zsh/completions \$fpath)"
+    echo "  autoload -U compinit && compinit"
+fi
+
+# Fish completions
+if [ -d "${HOME}/.config/fish/completions" ]; then
+    "${BINARY_PATH}" completions fish > "${HOME}/.config/fish/completions/iMi.fish"
+    echo "✅ Fish completions installed"
+fi
+
+echo "🎉 Shell completions installed successfully!"
+'''
+
+[tasks.uninstall]
+description = "Uninstall iMi from system"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+INSTALL_DIRS=(
+    "/usr/local/bin"
+    "${HOME}/.local/bin"
+    "${HOME}/.cargo/bin"
+)
+
+REMOVED=false
+
+for dir in "${INSTALL_DIRS[@]}"; do
+    if [ -f "${dir}/iMi" ]; then
+        echo "🗑️  Removing ${dir}/iMi"
+        if [ -w "${dir}" ]; then
+            rm -f "${dir}/iMi"
+        else
+            sudo rm -f "${dir}/iMi"
+        fi
+        REMOVED=true
+    fi
+done
+
+# Remove completions
+rm -f "${HOME}/.local/share/bash-completion/completions/iMi" 2>/dev/null || true
+rm -f "${HOME}/.bash_completion.d/iMi" 2>/dev/null || true
+rm -f "${HOME}/.zsh/completions/_iMi" 2>/dev/null || true
+rm -f "${HOME}/.config/fish/completions/iMi.fish" 2>/dev/null || true
+
+if [ "${REMOVED}" = true ]; then
+    echo "✅ iMi uninstalled successfully"
+else
+    echo "ℹ️  iMi not found in standard install locations"
+fi
+'''
+
+# ============================================================================
+# CI/CD Helper Tasks
+# ============================================================================
+[tasks.ci-prepare]
+description = "Prepare environment for CI build"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔧 Preparing CI environment..."
+
+# Install required tools
+if ! command -v jq &> /dev/null; then
+    echo "Installing jq..."
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update && sudo apt-get install -y jq
+    fi
+fi
+
+# Update Rust toolchain
+rustup update stable
+rustup component add clippy rustfmt
+
+echo "✅ CI environment ready"
+'''
+
+[tasks.ci-build]
+description = "Build for CI with all checks"
+depends = ["check", "build-release", "test-ci"]
+run = "echo '✅ CI build completed successfully'"
+
+[tasks.ci-package-all]
+description = "Create all release packages for CI"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "📦 Building all release packages..."
+
+# Build release binary
+mise run build-release
+
+# Create standard package
+mise run package
+
+# Create musl package if on Linux
+if [ "$(uname -s)" = "Linux" ]; then
+    mise run package-musl || echo "⚠️  Musl build skipped (requires musl toolchain)"
+fi
+
+echo "✅ All packages created in target/dist/"
+ls -lh target/dist/ || true
+'''
+
+[tasks.verify-install]
+description = "Verify installation and run basic smoke tests"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔍 Verifying iMi installation..."
+
+if ! command -v iMi &> /dev/null; then
+    echo "❌ iMi not found in PATH"
+    exit 1
+fi
+
+echo "📍 Location: $(which iMi)"
+echo "📋 Version: $(iMi --version)"
+
+# Run basic commands to verify functionality
+echo "🧪 Running smoke tests..."
+iMi --help > /dev/null
+echo "  ✓ Help command works"
+
+echo "✅ Installation verified successfully!"
+'''
+
+[tasks.release-dry-run]
+description = "Simulate a release build without publishing"
+depends = ["clean", "ci-build", "ci-package-all"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🎯 Release dry-run completed successfully!"
+echo ""
+echo "📦 Artifacts created:"
+ls -lh target/dist/*.tar.gz 2>/dev/null || echo "  (no packages found)"
+echo ""
+echo "🚀 To publish, run: cargo publish --dry-run"
+'''
+
+# ============================================================================
+# Utility Tasks
+# ============================================================================
+[tasks.size-check]
+description = "Check binary size and dependencies"
+depends = ["build-release"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+BINARY="target/release/iMi"
+
+echo "📊 Binary Size Analysis"
+echo "======================="
+echo ""
+echo "Release binary: $(du -h ${BINARY} | cut -f1)"
+echo ""
+
+if command -v bloaty &> /dev/null; then
+    echo "Detailed size breakdown:"
+    bloaty ${BINARY}
+else
+    echo "Install 'bloaty' for detailed size analysis: cargo install bloaty"
+fi
+'''
+
+[tasks.deps-tree]
+description = "Display dependency tree"
+run = "cargo tree"
+
+[tasks.deps-audit]
+description = "Audit dependencies for security vulnerabilities"
+run = '''
+if ! command -v cargo-audit &> /dev/null; then
+    echo "Installing cargo-audit..."
+    cargo install cargo-audit
+fi
+cargo audit
+'''

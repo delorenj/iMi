@@ -685,6 +685,133 @@ impl GitManager {
 
         Ok(())
     }
+
+    /// Merge a branch into the default branch (typically trunk-main)
+    pub fn merge_branch(
+        &self,
+        repo: &Repository,
+        source_branch: &str,
+        target_branch: &str,
+    ) -> Result<()> {
+        use colored::*;
+
+        // Ensure we're on the target branch
+        let head = repo.head()?;
+        let current_branch = head
+            .shorthand()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine current branch"))?;
+
+        if current_branch != target_branch {
+            return Err(anyhow::anyhow!(
+                "Not on target branch '{}'. Current branch: '{}'",
+                target_branch,
+                current_branch
+            ));
+        }
+
+        // Find the source branch
+        let source_branch_ref = repo
+            .find_branch(source_branch, BranchType::Local)
+            .context(format!("Source branch '{}' not found", source_branch))?;
+
+        // Get the annotated commit for the source branch
+        let source_commit = source_branch_ref.get().peel_to_commit()?;
+        let annotated_commit = repo.find_annotated_commit(source_commit.id())?;
+
+        // Perform merge analysis
+        let (merge_analysis, _merge_preference) = repo.merge_analysis(&[&annotated_commit])?;
+
+        if merge_analysis.is_up_to_date() {
+            println!(
+                "{} Branch '{}' is already up to date",
+                "ℹ️".bright_blue(),
+                source_branch
+            );
+            return Ok(());
+        }
+
+        if merge_analysis.is_fast_forward() {
+            println!("{} Fast-forward merge possible", "⚡".bright_green());
+
+            // Perform fast-forward merge
+            let target_ref = format!("refs/heads/{}", target_branch);
+            let mut reference = repo.find_reference(&target_ref)?;
+            reference.set_target(source_commit.id(), "Fast-forward merge")?;
+
+            // Update working directory
+            repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
+
+            println!("{} Fast-forward merge completed", "✅".bright_green());
+        } else if merge_analysis.is_normal() {
+            println!("{} Performing normal merge", "🔀".bright_cyan());
+
+            // Perform normal merge
+            repo.merge(&[&annotated_commit], None, None)?;
+
+            // Check if there are conflicts
+            let mut index = repo.index()?;
+            if index.has_conflicts() {
+                return Err(anyhow::anyhow!(
+                    "Merge conflicts detected. Please resolve conflicts manually in the trunk worktree."
+                ));
+            }
+
+            // Create merge commit
+            let signature = repo.signature()?;
+            let parent_commit = repo.head()?.peel_to_commit()?;
+            let tree_id = index.write_tree()?;
+            let tree = repo.find_tree(tree_id)?;
+
+            let commit_message = format!("Merge branch '{}'", source_branch);
+            repo.commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                &commit_message,
+                &tree,
+                &[&parent_commit, &source_commit],
+            )?;
+
+            // Clean up merge state
+            repo.cleanup_state()?;
+
+            println!("{} Merge commit created", "✅".bright_green());
+        } else {
+            return Err(anyhow::anyhow!(
+                "Cannot merge: merge analysis returned unexpected result"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Push changes to remote
+    pub fn push_to_remote(&self, repo: &Repository, branch_name: &str) -> Result<()> {
+        use colored::*;
+
+        println!(
+            "{} Pushing branch '{}' to remote",
+            "⬆️".bright_cyan(),
+            branch_name
+        );
+
+        let mut remote = repo
+            .find_remote("origin")
+            .context("Failed to find remote 'origin'")?;
+
+        // Set up callbacks for authentication
+        let callbacks = self.create_auth_callbacks();
+        let mut push_options = git2::PushOptions::new();
+        push_options.remote_callbacks(callbacks);
+
+        // Push the branch
+        let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+        remote.push(&[&refspec], Some(&mut push_options))?;
+
+        println!("{} Successfully pushed to remote", "✅".bright_green());
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]

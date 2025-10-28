@@ -101,6 +101,9 @@ async fn main() -> Result<()> {
                     Commands::Close { name, repo } => {
                         handle_close_command(&worktree_manager, &name, repo.as_deref()).await?;
                     }
+                    Commands::Merge { name, repo } => {
+                        handle_merge_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
                 }
             }
         }
@@ -409,6 +412,22 @@ async fn handle_close_command(
             );
         }
     }
+
+    Ok(())
+}
+
+async fn handle_merge_command(
+    manager: &WorktreeManager,
+    name: &str,
+    repo: Option<&str>,
+) -> Result<()> {
+    println!(
+        "{} Merging worktree: {}",
+        "🔀".bright_cyan(),
+        name.bright_yellow()
+    );
+
+    manager.merge_worktree(name, repo).await?;
 
     Ok(())
 }
