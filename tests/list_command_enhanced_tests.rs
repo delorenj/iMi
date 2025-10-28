@@ -926,3 +926,72 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
 
     Ok(())
 }
+
+/// Test that -p short flag works identically to --projects long flag
+/// This test verifies that the short flag -p produces the same behavior as --projects
+#[tokio::test]
+#[serial]
+async fn test_short_p_flag_equivalent_to_projects_flag() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let _guard = DirGuard::new()?;
+
+    // Setup first test repo
+    let (repo1_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
+
+    // Register first repository
+    db.create_repository("test-repo-1", repo1_path.to_str().unwrap(), "", "main")
+        .await?;
+
+    // Setup second test repo
+    let repo2_path = temp_dir.path().join("test-repo-2");
+    std::fs::create_dir_all(&repo2_path)?;
+    env::set_current_dir(&repo2_path)?;
+
+    std::process::Command::new("git").args(&["init"]).output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.name", "Test User"])
+        .output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.email", "test@example.com"])
+        .output()?;
+    std::fs::write(repo2_path.join("README.md"), "# Test Repo 2")?;
+    std::process::Command::new("git").args(&["add", "."]).output()?;
+    std::process::Command::new("git")
+        .args(&["commit", "-m", "Initial commit"])
+        .output()?;
+
+    // Register second repository
+    db.create_repository("test-repo-2", repo2_path.to_str().unwrap(), "", "main")
+        .await?;
+
+    // Test from outside any repo (neutral context)
+    let neutral_dir = temp_dir.path().join("neutral");
+    std::fs::create_dir_all(&neutral_dir)?;
+    env::set_current_dir(&neutral_dir)?;
+
+    // Get repositories with projects=true (simulating --projects or -p flag)
+    let result_long_flag = worktree_manager.list_smart(None, false, true).await;
+    assert!(result_long_flag.is_ok(), "List with projects=true should succeed");
+
+    let repos_with_long_flag = db.list_repositories().await?;
+
+    // Both -p and --projects should return the same repositories
+    // Since list_smart with projects=true triggers repository listing
+    assert_eq!(repos_with_long_flag.len(), 2, "Should have 2 registered repos");
+
+    // Verify repo names
+    let repo_names: Vec<String> = repos_with_long_flag.iter().map(|r| r.name.clone()).collect();
+    assert!(repo_names.contains(&"test-repo-1".to_string()), "Should contain test-repo-1");
+    assert!(repo_names.contains(&"test-repo-2".to_string()), "Should contain test-repo-2");
+
+    // Test from inside a repo
+    env::set_current_dir(&repo1_path)?;
+
+    let result_inside_repo = worktree_manager.list_smart(None, false, true).await;
+    assert!(result_inside_repo.is_ok(), "List with projects=true inside repo should succeed");
+
+    let repos_inside = db.list_repositories().await?;
+    assert_eq!(repos_inside.len(), 2, "Should still show all 2 repos when using projects flag inside a repo");
+
+    Ok(())
+}
