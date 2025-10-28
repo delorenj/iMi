@@ -5,6 +5,7 @@
 
 pub mod cli;
 pub mod config;
+pub mod context;
 pub mod database;
 pub mod error;
 pub mod git;
@@ -14,6 +15,9 @@ pub mod worktree;
 
 // Re-export commonly used types
 pub use config::Config;
+pub use context::{
+    GitContext, LocationContext, RepositoryContext, RepositoryRegistration, WorktreeLocationType,
+};
 pub use database::{AgentActivity, Database, Repository, Worktree};
 pub use error::ImiError;
 pub use git::{GitManager, WorktreeStatus};
