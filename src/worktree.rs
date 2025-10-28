@@ -610,8 +610,203 @@ impl WorktreeManager {
         }
     }
 
+    /// Smart context-aware list command
+    /// Implements the decision tree based on context and flags
+    pub async fn list_smart(
+        &self,
+        repo: Option<&str>,
+        worktrees_flag: bool,
+        projects_flag: bool,
+    ) -> Result<()> {
+        let current_dir = env::current_dir()?;
+        let git_context = self.git.detect_context(Some(&current_dir));
+
+        // Extract repository information from context
+        let detected_repo_path = git_context.repo_path();
+        let detected_repo_name = if let Some(repo_path) = detected_repo_path {
+            self.git.get_repo_name(repo_path).ok()
+        } else {
+            None
+        };
+
+        // Handle explicit --projects flag
+        if projects_flag {
+            return self.list_all_repositories().await;
+        }
+
+        // Handle explicit --worktrees flag
+        if worktrees_flag {
+            // If repo is specified, list that repo's worktrees
+            if let Some(repo_name) = repo {
+                return self.list_worktrees_detailed(Some(repo_name)).await;
+            }
+            // If in a repo, list that repo's worktrees
+            if let Some(repo_name) = detected_repo_name.as_ref() {
+                return self.list_worktrees_detailed(Some(repo_name)).await;
+            }
+            // Not in a repo, list all worktrees
+            return self.list_worktrees_detailed(None).await;
+        }
+
+        // Handle explicit --repo flag
+        if let Some(repo_name) = repo {
+            // Check if repo is registered
+            if let Some(_registered) = self.db.get_repository(repo_name).await? {
+                // Registered: list its worktrees
+                return self.list_worktrees_detailed(Some(repo_name)).await;
+            } else {
+                // Not registered: show helpful error
+                println!(
+                    "{} Repository '{}' is not registered",
+                    "⚠️".bright_yellow(),
+                    repo_name.bright_red()
+                );
+                println!(
+                    "\n{} To register this repository, run {} from its directory",
+                    "💡".bright_yellow(),
+                    "imi trunk".bright_green()
+                );
+                return Ok(());
+            }
+        }
+
+        // No explicit flags - use context detection
+        if git_context.is_in_repository() {
+            // We're in a git repository
+            if let Some(repo_name) = detected_repo_name {
+                // Check if this repo is registered
+                if let Some(_registered) = self.db.get_repository(&repo_name).await? {
+                    // Registered: list its worktrees
+                    return self.list_worktrees_detailed(Some(&repo_name)).await;
+                } else {
+                    // Unregistered: show helpful message
+                    println!(
+                        "\n{} {} {}",
+                        "📦".bright_cyan(),
+                        "Repository:".bright_white(),
+                        repo_name.bright_yellow()
+                    );
+                    println!(
+                        "{} {}",
+                        "⚠️".bright_yellow(),
+                        "This repository is not registered with iMi".bright_yellow()
+                    );
+                    println!(
+                        "\n{} To start using iMi with this repository:",
+                        "💡".bright_yellow()
+                    );
+                    println!("   1. Run {} to create the trunk worktree", "imi trunk".bright_green());
+                    println!("   2. Then use {} to create feature worktrees", "imi feat <name>".bright_green());
+                    println!(
+                        "\n{} Once registered, {} will show worktrees for this repo",
+                        "ℹ️".bright_blue(),
+                        "imi list".bright_cyan()
+                    );
+                    return Ok(());
+                }
+            } else {
+                // In a repo but couldn't detect name - unusual case
+                println!(
+                    "{} You are in a Git repository, but the repository name could not be determined",
+                    "⚠️".bright_yellow()
+                );
+                println!(
+                    "\n{} Run {} to register this repository",
+                    "💡".bright_yellow(),
+                    "imi trunk".bright_green()
+                );
+                return Ok(());
+            }
+        } else {
+            // Not in a git repository - list all repositories
+            return self.list_all_repositories().await;
+        }
+    }
+
+    /// List all registered repositories with worktree counts
+    pub async fn list_all_repositories(&self) -> Result<()> {
+        let repositories = self.db.list_repositories().await?;
+
+        if repositories.is_empty() {
+            println!("\n{}", "No Registered Repositories".bright_cyan().bold());
+            println!("{}", "─".repeat(80).bright_black());
+            println!("\n{} No repositories registered yet", "ℹ️".bright_blue());
+            println!(
+                "\n{} Run {} from a git repository to register it",
+                "💡".bright_yellow(),
+                "imi trunk".bright_green()
+            );
+            return Ok(());
+        }
+
+        println!("\n{}", "Registered Repositories".bright_cyan().bold());
+        println!("{}", "═".repeat(80).bright_black());
+
+        for (i, repo) in repositories.iter().enumerate() {
+            // Get worktree count for this repo
+            let worktrees = self.db.list_worktrees(Some(&repo.name)).await?;
+            let worktree_count = worktrees.len();
+
+            println!(
+                "\n{} {} {}",
+                format!("{}.", i + 1).bright_black(),
+                "📦".bright_cyan(),
+                repo.name.bright_green().bold()
+            );
+            println!("   {} Path: {}", "📂".bright_cyan(), repo.path.bright_white());
+            println!(
+                "   {} Branch: {}",
+                "🌿".bright_cyan(),
+                repo.default_branch.bright_yellow()
+            );
+
+            if !repo.remote_url.is_empty() {
+                println!(
+                    "   {} Remote: {}",
+                    "🔗".bright_cyan(),
+                    repo.remote_url.bright_white()
+                );
+            }
+
+            // Show worktree count with appropriate icon
+            let wt_icon = if worktree_count == 0 {
+                "📭"
+            } else {
+                "📬"
+            };
+            println!(
+                "   {} Worktrees: {}",
+                wt_icon,
+                if worktree_count == 0 {
+                    "None".bright_black().to_string()
+                } else {
+                    worktree_count.to_string().bright_white().to_string()
+                }
+            );
+
+            println!(
+                "   {} Created: {}",
+                "📅".bright_black(),
+                repo.created_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_green()
+            );
+
+            if i < repositories.len() - 1 {
+                println!("{}", "─".repeat(80).bright_black());
+            }
+        }
+
+        println!(
+            "\n{} Total: {} repositories",
+            "📊".bright_cyan(),
+            repositories.len().to_string().bright_white().bold()
+        );
+        println!();
+
+        Ok(())
+    }
+
     /// List all worktrees with detailed metadata
-    pub async fn list_worktrees(&self, repo: Option<&str>) -> Result<()> {
+    pub async fn list_worktrees_detailed(&self, repo: Option<&str>) -> Result<()> {
         let worktrees = self.db.list_worktrees(repo).await?;
 
         if worktrees.is_empty() {

@@ -84,6 +84,14 @@ pub enum Commands {
     List {
         /// Repository name (optional, shows all repos if not specified)
         repo: Option<String>,
+
+        /// List only worktrees (conflicts with --projects)
+        #[arg(long, conflicts_with = "projects")]
+        worktrees: bool,
+
+        /// List only projects/repositories (conflicts with --worktrees)
+        #[arg(long, conflicts_with = "worktrees")]
+        projects: bool,
     },
 
     /// Remove a worktree
