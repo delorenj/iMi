@@ -8,6 +8,7 @@ pub mod config;
 pub mod context;
 pub mod database;
 pub mod error;
+pub mod fuzzy;
 pub mod git;
 pub mod init;
 pub mod monitor;

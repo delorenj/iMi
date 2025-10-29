@@ -7,6 +7,7 @@ mod config;
 mod context;
 mod database;
 mod error;
+mod fuzzy;
 mod git;
 mod init;
 mod monitor;
@@ -118,6 +119,20 @@ async fn main() -> Result<()> {
                     }
                     Commands::Merge { name, repo } => {
                         handle_merge_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    Commands::Go {
+                        query,
+                        repo,
+                        worktrees_only,
+                        include_inactive,
+                    } => {
+                        handle_go_command(
+                            &worktree_manager,
+                            query.as_deref(),
+                            repo.as_deref(),
+                            worktrees_only,
+                            include_inactive,
+                        )
+                        .await?;
                     }
                 }
             }
@@ -456,6 +471,30 @@ async fn handle_merge_command(
     );
 
     manager.merge_worktree(name, repo).await?;
+
+async fn handle_go_command(
+    manager: &WorktreeManager,
+    query: Option<&str>,
+    repo: Option<&str>,
+    worktrees_only: bool,
+    include_inactive: bool,
+) -> Result<()> {
+    println!(
+        "{} Searching for worktrees and repositories...",
+        "🔍".bright_cyan()
+    );
+
+    // Perform fuzzy search and get best match or show interactive picker
+    let target_path = manager
+        .fuzzy_navigate(query, repo, worktrees_only, include_inactive)
+        .await?;
+
+    // Print command to change directory (processes can't change parent shell's directory)
+    println!(
+        "\n{} To navigate to the selected location, run:\n   {}",
+        "💡".bright_yellow(),
+        format!("cd {}", target_path.display()).bright_cyan()
+    );
 
     Ok(())
 }

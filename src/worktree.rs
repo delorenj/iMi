@@ -8,6 +8,7 @@ use tokio::fs as async_fs;
 use crate::config::Config;
 use crate::database::Database;
 use crate::error::ImiError;
+use crate::fuzzy::FuzzyMatcher;
 use crate::git::{GitManager, WorktreeStatus};
 
 #[derive(Debug, Clone)]
@@ -275,21 +276,21 @@ impl WorktreeManager {
 
     /// Create sync directories as per PRD specifications
     async fn create_sync_directories(&self, repo_name: &str) -> Result<()> {
-        let global_sync = self.config.get_sync_path(repo_name, true);
-        let repo_sync = self.config.get_sync_path(repo_name, false);
+        let user_sync = self.config.get_sync_path(repo_name, true);
+        let local_sync = self.config.get_sync_path(repo_name, false);
 
-        // Create sync/global directory
-        async_fs::create_dir_all(&global_sync)
+        // Create sync/user directory
+        async_fs::create_dir_all(&user_sync)
             .await
-            .context("Failed to create global sync directory")?;
+            .context("Failed to create user sync directory")?;
 
-        // Create sync/repo directory
-        async_fs::create_dir_all(&repo_sync)
+        // Create sync/local directory
+        async_fs::create_dir_all(&local_sync)
             .await
-            .context("Failed to create repo sync directory")?;
+            .context("Failed to create local sync directory")?;
 
         // Create default sync files if they don't exist
-        let coding_rules = global_sync.join("coding-rules.md");
+        let coding_rules = user_sync.join("coding-rules.md");
         if !coding_rules.exists() {
             async_fs::write(
                 &coding_rules,
@@ -298,7 +299,7 @@ impl WorktreeManager {
             .await?;
         }
 
-        let stack_specific = global_sync.join("stack-specific.md");
+        let stack_specific = user_sync.join("stack-specific.md");
         if !stack_specific.exists() {
             async_fs::write(
                 &stack_specific,
@@ -312,10 +313,10 @@ impl WorktreeManager {
 
     /// Create symlinks for dotfiles and config files
     async fn create_symlinks(&self, repo_name: &str, worktree_path: &Path) -> Result<()> {
-        let repo_sync = self.config.get_sync_path(repo_name, false);
+        let local_sync = self.config.get_sync_path(repo_name, false);
 
         for file_name in &self.config.symlink_files {
-            let source = repo_sync.join(file_name);
+            let source = local_sync.join(file_name);
             let target = worktree_path.join(file_name);
 
             // Create parent directories if needed
@@ -1294,6 +1295,97 @@ impl WorktreeManager {
         }
 
         Ok(())
+    }
+
+    /// Fuzzy navigate to a worktree or repository
+    pub async fn fuzzy_navigate(
+        &self,
+        query: Option<&str>,
+        repo: Option<&str>,
+        worktrees_only: bool,
+        include_inactive: bool,
+    ) -> Result<PathBuf> {
+        let matcher = FuzzyMatcher::new(self.db.clone());
+
+        let selected = if let Some(query_str) = query {
+            // Perform fuzzy search
+            let results = matcher
+                .search(query_str, repo, worktrees_only, include_inactive)
+                .await?;
+
+            if results.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No worktrees or repositories found matching '{}'",
+                    query_str
+                ));
+            }
+
+            // Auto-select top result if score is very high (exact/near match)
+            if results[0].score() >= 0.8 {
+                println!(
+                    "{} Selected: {}",
+                    "✅".bright_green(),
+                    results[0].display_name()
+                );
+                results[0].clone()
+            } else if results.len() == 1 {
+                // Only one result, auto-select it
+                println!(
+                    "{} Selected: {}",
+                    "✅".bright_green(),
+                    results[0].display_name()
+                );
+                results[0].clone()
+            } else {
+                // Multiple ambiguous results - show picker
+                println!(
+                    "{} Multiple matches found for '{}':",
+                    "🔍".bright_yellow(),
+                    query_str
+                );
+
+                use dialoguer::{theme::ColorfulTheme, Select};
+
+                let display_items: Vec<String> = results
+                    .iter()
+                    .map(|target| {
+                        let icon = match target.worktree_type() {
+                            Some("feat") => "🚀",
+                            Some("pr") => "🔍",
+                            Some("fix") => "🔧",
+                            Some("aiops") => "🤖",
+                            Some("devops") => "⚙️",
+                            Some("trunk") => "🌳",
+                            _ => "📁",
+                        };
+                        format!(
+                            "{} {} ({}) - score: {:.2}",
+                            icon,
+                            target.display_name(),
+                            target.repo_name(),
+                            target.score()
+                        )
+                    })
+                    .collect();
+
+                let selection = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Select a target")
+                    .items(&display_items)
+                    .default(0)
+                    .interact()?;
+
+                results[selection].clone()
+            }
+        } else {
+            // No query - show interactive picker
+            if let Some(target) = matcher.interactive_select(repo, worktrees_only).await? {
+                target
+            } else {
+                return Err(anyhow::anyhow!("No worktrees or repositories available"));
+            }
+        };
+
+        Ok(selected.path())
     }
 
     /// Detect IMI_PATH based on repository structure
