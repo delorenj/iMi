@@ -1322,7 +1322,7 @@ impl WorktreeManager {
 
             // Auto-select top result if score is very high (exact/near match)
             if results[0].score() >= 0.8 {
-                println!(
+                eprintln!(
                     "{} Selected: {}",
                     "✅".bright_green(),
                     results[0].display_name()
@@ -1330,7 +1330,7 @@ impl WorktreeManager {
                 results[0].clone()
             } else if results.len() == 1 {
                 // Only one result, auto-select it
-                println!(
+                eprintln!(
                     "{} Selected: {}",
                     "✅".bright_green(),
                     results[0].display_name()
@@ -1338,7 +1338,7 @@ impl WorktreeManager {
                 results[0].clone()
             } else {
                 // Multiple ambiguous results - show picker
-                println!(
+                eprintln!(
                     "{} Multiple matches found for '{}':",
                     "🔍".bright_yellow(),
                     query_str

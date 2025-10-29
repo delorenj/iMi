@@ -479,22 +479,14 @@ async fn handle_go_command(
     worktrees_only: bool,
     include_inactive: bool,
 ) -> Result<()> {
-    println!(
-        "{} Searching for worktrees and repositories...",
-        "🔍".bright_cyan()
-    );
-
     // Perform fuzzy search and get best match or show interactive picker
     let target_path = manager
         .fuzzy_navigate(query, repo, worktrees_only, include_inactive)
         .await?;
 
-    // Print command to change directory (processes can't change parent shell's directory)
-    println!(
-        "\n{} To navigate to the selected location, run:\n   {}",
-        "💡".bright_yellow(),
-        format!("cd {}", target_path.display()).bright_cyan()
-    );
+    // Output only the path to stdout for shell wrapper to capture
+    // All other output must go to stderr to avoid polluting the path
+    print!("{}", target_path.display());
 
     Ok(())
 }
