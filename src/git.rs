@@ -23,9 +23,10 @@ use anyhow::{Context, Result};
 use git2::build::CheckoutBuilder;
 use git2::{BranchType, Cred, RemoteCallbacks, Repository, WorktreeAddOptions};
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::context::{GitContext, WorktreeLocationType};
 use crate::error::ImiError;
 
 #[derive(Debug, Clone)]
@@ -171,7 +172,88 @@ impl GitManager {
     }
 
     pub fn is_in_repository(&self, path: &Path) -> bool {
-        Repository::discover(path).is_ok()
+        let context = self.detect_context(Some(path));
+        context.is_in_repository()
+    }
+
+    /// Detect the Git context from the current directory or a specified path
+    pub fn detect_context(&self, path: Option<&Path>) -> GitContext {
+        let search_path = path.unwrap_or_else(|| Path::new("."));
+
+        // Try to discover a repository
+        let repo = match Repository::discover(search_path) {
+            Ok(repo) => repo,
+            Err(_) => return GitContext::Outside,
+        };
+
+        // Get the repository root path
+        let repo_workdir = match repo.workdir() {
+            Some(workdir) => workdir.to_path_buf(),
+            None => return GitContext::Outside,
+        };
+
+        // Canonicalize paths for comparison
+        let search_path_canonical = match search_path.canonicalize() {
+            Ok(path) => path,
+            Err(_) => return GitContext::Outside,
+        };
+
+        let repo_path_canonical = match repo_workdir.canonicalize() {
+            Ok(path) => path,
+            Err(_) => return GitContext::Outside,
+        };
+
+        // Check if we're in a worktree
+        if let Ok(worktrees) = repo.worktrees() {
+            for worktree_name in worktrees.iter().flatten() {
+                if let Ok(worktree) = repo.find_worktree(worktree_name) {
+                    // Get worktree path
+                    let worktree_path = worktree.path().parent().unwrap_or(worktree.path());
+
+                    if let Ok(worktree_canonical) = worktree_path.canonicalize() {
+                        // Check if current path is within this worktree
+                        if search_path_canonical.starts_with(&worktree_canonical) {
+                            // Determine if this is the trunk worktree
+                            if worktree_canonical == repo_path_canonical {
+                                return GitContext::InTrunk {
+                                    repo_path: repo_path_canonical,
+                                };
+                            } else {
+                                return GitContext::InWorktree {
+                                    repo_path: repo_path_canonical,
+                                    worktree_path: worktree_canonical,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if we're in the trunk (main repository worktree)
+        if search_path_canonical.starts_with(&repo_path_canonical) {
+            return GitContext::InTrunk {
+                repo_path: repo_path_canonical,
+            };
+        }
+
+        // We're in a repository but not in a specific worktree
+        GitContext::InRepository {
+            repo_path: repo_path_canonical,
+        }
+    }
+
+    /// Detect the type of worktree based on its branch
+    pub fn detect_worktree_type(&self, repo: &Repository) -> WorktreeLocationType {
+        // Try to get the current branch
+        if let Ok(head) = repo.head() {
+            if let Some(branch_name) = head.shorthand() {
+                return WorktreeLocationType::from_branch_name(branch_name);
+            }
+        }
+
+        // Default to Other if we can't determine the branch
+        WorktreeLocationType::Other
     }
 
     pub async fn get_remote_url(&self, path: &Path) -> Result<String> {

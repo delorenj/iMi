@@ -4,6 +4,7 @@ use colored::*;
 
 mod cli;
 mod config;
+mod context;
 mod database;
 mod error;
 mod git;
@@ -68,8 +69,18 @@ async fn main() -> Result<()> {
                     Commands::Status { repo } => {
                         handle_status_command(&worktree_manager, repo.as_deref()).await?;
                     }
-                    Commands::List { repo } => {
-                        handle_list_command(&worktree_manager, repo.as_deref()).await?;
+                    Commands::List {
+                        repo,
+                        worktrees,
+                        projects,
+                    } => {
+                        handle_list_command(
+                            &worktree_manager,
+                            repo.as_deref(),
+                            worktrees,
+                            projects,
+                        )
+                        .await?;
                     }
                     Commands::Remove {
                         name,
@@ -291,9 +302,13 @@ async fn handle_status_command(manager: &WorktreeManager, repo: Option<&str>) ->
     Ok(())
 }
 
-async fn handle_list_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
-    println!("{} Active Worktrees", "📋".bright_cyan());
-    manager.list_worktrees(repo).await?;
+async fn handle_list_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    worktrees: bool,
+    projects: bool,
+) -> Result<()> {
+    manager.list_smart(repo, worktrees, projects).await?;
     Ok(())
 }
 
@@ -323,7 +338,10 @@ async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -
 }
 
 async fn handle_sync_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
-    println!("{} Syncing database with Git worktrees...", "🔄".bright_cyan());
+    println!(
+        "{} Syncing database with Git worktrees...",
+        "🔄".bright_cyan()
+    );
     manager.sync_with_git(repo).await?;
     Ok(())
 }
