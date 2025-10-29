@@ -7,7 +7,9 @@ use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(rename = "IMI_DATABASE_PATH")]
     pub database_path: PathBuf,
+    #[serde(rename = "IMI_SYSTEM_PATH")]
     pub root_path: PathBuf,
     pub sync_settings: SyncSettings,
     pub git_settings: GitSettings,
@@ -20,8 +22,8 @@ pub struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
     pub enabled: bool,
-    pub global_sync_path: PathBuf,
-    pub repo_sync_path: PathBuf,
+    pub user_sync_path: PathBuf,
+    pub local_sync_path: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,8 +52,8 @@ impl Default for Config {
             root_path: home_dir.join("code"),
             sync_settings: SyncSettings {
                 enabled: true,
-                global_sync_path: PathBuf::from("sync/global"),
-                repo_sync_path: PathBuf::from("sync/repo"),
+                user_sync_path: PathBuf::from("sync/user"),
+                local_sync_path: PathBuf::from("sync/local"),
             },
             git_settings: GitSettings {
                 default_branch: "main".to_string(),
@@ -179,13 +181,13 @@ impl Config {
         self.get_repo_path(repo_name).join(worktree_name)
     }
 
-    pub fn get_sync_path(&self, repo_name: &str, is_global: bool) -> PathBuf {
+    pub fn get_sync_path(&self, repo_name: &str, is_user: bool) -> PathBuf {
         let repo_path = self.get_repo_path(repo_name);
 
-        if is_global {
-            repo_path.join(&self.sync_settings.global_sync_path)
+        if is_user {
+            repo_path.join(&self.sync_settings.user_sync_path)
         } else {
-            repo_path.join(&self.sync_settings.repo_sync_path)
+            repo_path.join(&self.sync_settings.local_sync_path)
         }
     }
 

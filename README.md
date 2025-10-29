@@ -104,8 +104,8 @@ iMi uses convention over configuration but allows customization via `~/.config/i
 ```toml
 [sync_settings]
 enabled = true
-global_sync_path = "sync/global" 
-repo_sync_path = "sync/repo"
+user_sync_path = "sync/user"
+local_sync_path = "sync/local"
 
 [git_settings]
 default_branch = "main"

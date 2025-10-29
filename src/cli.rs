@@ -122,6 +122,25 @@ pub enum Commands {
         repo: Option<String>,
     },
 
+    /// Navigate to a worktree or repository using fuzzy search
+    Go {
+        /// Fuzzy search query (worktree name, branch name, or repo name)
+        /// If not provided, shows an interactive picker
+        query: Option<String>,
+
+        /// Exact repository name (skip fuzzy search within this repo)
+        #[arg(short = 'r', long)]
+        repo: Option<String>,
+
+        /// Limit search to worktrees only (exclude trunk/repos)
+        #[arg(short = 'w', long)]
+        worktrees_only: bool,
+
+        /// Include inactive/closed worktrees in search
+        #[arg(short = 'a', long)]
+        include_inactive: bool,
+    },
+
     /// Start real-time monitoring of worktree activities
     Monitor {
         /// Repository name (optional, monitors all repos if not specified)

@@ -387,6 +387,48 @@ impl Database {
         Ok(worktrees)
     }
 
+    /// List all worktrees including inactive ones (for fuzzy search with --include-inactive)
+    pub async fn list_all_worktrees(&self, repo_name: Option<&str>) -> Result<Vec<Worktree>> {
+        let query = if let Some(repo) = repo_name {
+            sqlx::query(
+                "SELECT * FROM worktrees \
+                 WHERE repo_name = ? \
+                 ORDER BY active DESC, datetime(updated_at) DESC, datetime(created_at) DESC",
+            )
+            .bind(repo)
+        } else {
+            sqlx::query(
+                "SELECT * FROM worktrees \
+                 ORDER BY active DESC, datetime(updated_at) DESC, datetime(created_at) DESC",
+            )
+        };
+
+        let rows = query
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to fetch all worktrees")?;
+
+        let mut worktrees = Vec::new();
+        for row in rows {
+            worktrees.push(Worktree {
+                id: row.get("id"),
+                repo_name: row.get("repo_name"),
+                worktree_name: row.get("worktree_name"),
+                branch_name: row.get("branch_name"),
+                worktree_type: row.get("worktree_type"),
+                path: row.get("path"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                    .with_timezone(&Utc),
+                active: row.get("active"),
+                agent_id: row.get("agent_id"),
+            });
+        }
+
+        Ok(worktrees)
+    }
+
     pub async fn deactivate_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<()> {
         sqlx::query(
             "UPDATE worktrees SET active = FALSE, updated_at = ? WHERE repo_name = ? AND worktree_name = ?"
