@@ -98,7 +98,7 @@ impl InitCommand {
     }
 
     async fn handle_outside_repo(&self) -> Result<InitResult> {
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
         let db_path = &self.config.database_path;
 
         let config_exists = config_path.exists();

@@ -15,11 +15,17 @@ pub struct WorktreeManager {
     pub git: GitManager,
     pub db: Database,
     pub config: Config,
+    pub repo_path: Option<PathBuf>,
 }
 
 impl WorktreeManager {
-    pub fn new(git: GitManager, db: Database, config: Config) -> Self {
-        Self { git, db, config }
+    pub fn new(git: GitManager, db: Database, config: Config, repo_path: Option<PathBuf>) -> Self {
+        Self {
+            git,
+            db,
+            config,
+            repo_path,
+        }
     }
 
     /// Create a feature worktree
@@ -1163,6 +1169,12 @@ impl WorktreeManager {
     pub async fn resolve_repo_name(&self, repo: Option<&str>) -> Result<String> {
         if let Some(name) = repo {
             return Ok(name.to_string());
+        }
+
+        if let Some(repo_path) = &self.repo_path {
+            if let Some(repo_name) = repo_path.file_name().and_then(|n| n.to_str()) {
+                return Ok(repo_name.to_string());
+            }
         }
 
         // Try to get repo name from current directory
