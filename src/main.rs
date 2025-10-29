@@ -74,8 +74,13 @@ async fn main() -> Result<()> {
                         worktrees,
                         projects,
                     } => {
-                        handle_list_command(&worktree_manager, repo.as_deref(), worktrees, projects)
-                            .await?;
+                        handle_list_command(
+                            &worktree_manager,
+                            repo.as_deref(),
+                            worktrees,
+                            projects,
+                        )
+                        .await?;
                     }
                     Commands::Remove {
                         name,
@@ -333,7 +338,10 @@ async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>) -
 }
 
 async fn handle_sync_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
-    println!("{} Syncing database with Git worktrees...", "🔄".bright_cyan());
+    println!(
+        "{} Syncing database with Git worktrees...",
+        "🔄".bright_cyan()
+    );
     manager.sync_with_git(repo).await?;
     Ok(())
 }

@@ -8,6 +8,7 @@ use chrono::Utc;
 use serial_test::serial;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 use imi::database::{AgentActivity, Database, Repository, Worktree};
@@ -222,6 +223,74 @@ async fn test_worktree_crud_operations() -> Result<()> {
     assert!(
         deactivated.is_none(),
         "Deactivated worktree should not be retrieved"
+    );
+
+    Ok(())
+}
+
+/// Ensure repositories are returned in most-recently-updated order
+#[tokio::test]
+#[serial]
+async fn test_list_repositories_ordered_by_recent_update() -> Result<()> {
+    let utils = DatabaseTestUtils::new().await?;
+
+    // Create two repositories with distinct timestamps
+    let _alpha = utils.create_test_repository("alpha-repo").await?;
+    sleep(Duration::from_millis(25)).await;
+    let _beta = utils.create_test_repository("beta-repo").await?;
+
+    // Touch the first repository to bump its updated_at
+    sleep(Duration::from_millis(25)).await;
+    utils.database.touch_repository("alpha-repo").await?;
+
+    let repos = utils.database.list_repositories().await?;
+    assert_eq!(repos.len(), 2, "Expected two repositories in listing");
+
+    assert_eq!(
+        repos[0].name, "alpha-repo",
+        "Most recently updated repository should appear first"
+    );
+    assert!(
+        repos[0].updated_at >= repos[1].updated_at,
+        "Repository ordering should be sorted by updated_at descending"
+    );
+
+    Ok(())
+}
+
+/// Ensure worktrees are returned in most-recently-updated order
+#[tokio::test]
+#[serial]
+async fn test_list_worktrees_ordered_by_recent_update() -> Result<()> {
+    let utils = DatabaseTestUtils::new().await?;
+
+    utils.create_test_repository("order-repo").await?;
+
+    utils
+        .create_test_worktree("order-repo", "alpha-worktree")
+        .await?;
+    sleep(Duration::from_millis(25)).await;
+    utils
+        .create_test_worktree("order-repo", "beta-worktree")
+        .await?;
+
+    // Touch the first worktree to bump its updated_at
+    sleep(Duration::from_millis(25)).await;
+    utils
+        .database
+        .touch_worktree("order-repo", "alpha-worktree")
+        .await?;
+
+    let worktrees = utils.database.list_worktrees(Some("order-repo")).await?;
+    assert_eq!(worktrees.len(), 2, "Expected two worktrees registered");
+
+    assert_eq!(
+        worktrees[0].worktree_name, "alpha-worktree",
+        "Most recently updated worktree should appear first"
+    );
+    assert!(
+        worktrees[0].updated_at >= worktrees[1].updated_at,
+        "Worktree ordering should be sorted by updated_at descending"
     );
 
     Ok(())
