@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use dirs;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
+use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -12,6 +13,8 @@ pub struct Config {
     pub git_settings: GitSettings,
     pub monitoring_settings: MonitoringSettings,
     pub symlink_files: Vec<String>,
+    #[serde(skip)]
+    pub repo_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,21 +71,56 @@ impl Default for Config {
                 ".vscode/settings.json".to_string(),
                 ".gitignore.local".to_string(),
             ],
+            repo_path: None,
         }
     }
 }
 
 impl Config {
     pub async fn load() -> Result<Self> {
-        let config_path = Self::get_config_path()?;
-        Self::load_from(&config_path).await
+        let global_config_path = Self::get_global_config_path()?;
+        let mut config = Self::load_from(&global_config_path).await?;
+
+        if let Some(project_root) = Self::find_project_root()? {
+            let project_config_path = project_root.join(".iMi").join("config.toml");
+            if project_config_path.exists() {
+                let project_config = Self::load_from(&project_config_path).await?;
+                // Simple merge: project config overrides global
+                config.database_path = project_config.database_path;
+                config.root_path = project_config.root_path;
+                config.sync_settings = project_config.sync_settings;
+                config.git_settings = project_config.git_settings;
+                config.monitoring_settings = project_config.monitoring_settings;
+                config.symlink_files = project_config.symlink_files;
+            }
+            config.repo_path = Some(project_root);
+        }
+
+        Ok(config)
     }
+
+    pub fn find_project_root() -> Result<Option<PathBuf>> {
+        let current_dir = env::current_dir().context("Failed to get current directory")?;
+        let mut current = current_dir.as_path();
+
+        loop {
+            if current.join(".iMi").is_dir() {
+                return Ok(Some(current.to_path_buf()));
+            }
+
+            match current.parent() {
+                Some(parent) => current = parent,
+                None => return Ok(None),
+            }
+        }
+    }
+
 
     pub async fn load_from(path: &std::path::Path) -> Result<Self> {
         if path.exists() {
             let contents = fs::read_to_string(path)
                 .await
-                .context("Failed to read config file")?;
+                .context(format!("Failed to read config file at {:?}", path))?;
 
             let config: Config =
                 toml::from_str(&contents).context("Failed to parse config file")?;
@@ -90,13 +128,15 @@ impl Config {
             Ok(config)
         } else {
             let config = Self::default();
-            config.save_to(path).await?;
+            if path == Self::get_global_config_path()? {
+                 config.save_to(path).await?;
+            }
             Ok(config)
         }
     }
 
     pub async fn save(&self) -> Result<()> {
-        let config_path = Self::get_config_path()?;
+        let config_path = Self::get_global_config_path()?;
         self.save_to(&config_path).await
     }
 
@@ -117,7 +157,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn get_config_path() -> Result<PathBuf> {
+    pub fn get_global_config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .context("Could not find config directory")?
             .join("iMi");
@@ -163,6 +203,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_config_default() {
@@ -185,5 +227,24 @@ mod tests {
 
         let worktree_path = config.get_worktree_path(repo_name, "feat-test");
         assert!(worktree_path.to_string_lossy().contains("feat-test"));
+    }
+
+    #[tokio::test]
+    async fn test_find_project_root() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path().join("my-project");
+        let imi_dir = project_root.join(".iMi");
+        let sub_dir = project_root.join("sub");
+        std::fs::create_dir_all(&imi_dir).unwrap();
+        std::fs::create_dir_all(&sub_dir).unwrap();
+
+        env::set_current_dir(&sub_dir).unwrap();
+
+        let found_root = Config::find_project_root().unwrap();
+        assert_eq!(found_root, Some(project_root));
+
+        env::set_current_dir(dir.path()).unwrap();
+        let not_found_root = Config::find_project_root().unwrap();
+        assert_eq!(not_found_root, None);
     }
 }
