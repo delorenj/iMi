@@ -415,19 +415,34 @@ impl WorktreeManager {
                 let path = PathBuf::from(&worktree_info.path);
 
                 // Get the repository path from the database
-                let repo_record = self.db.get_repository(&worktree_info.repo_name).await?
-                    .ok_or_else(|| anyhow::anyhow!(
-                        "Repository not found in database: {}",
-                        worktree_info.repo_name
-                    ))?;
+                let repo_record = self
+                    .db
+                    .get_repository(&worktree_info.repo_name)
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Repository not found in database: {}",
+                            worktree_info.repo_name
+                        )
+                    })?;
 
                 let repo_path_buf = PathBuf::from(repo_record.path);
 
                 // Find the git repository - it should be at the registered path
-                let git_repo = self.git.find_repository(Some(&repo_path_buf))
-                    .context(format!("Failed to find Git repository at: {}", repo_path_buf.display()))?;
+                let git_repo = self
+                    .git
+                    .find_repository(Some(&repo_path_buf))
+                    .context(format!(
+                        "Failed to find Git repository at: {}",
+                        repo_path_buf.display()
+                    ))?;
 
-                (worktree_info.repo_name, worktree_info.worktree_name, path, git_repo)
+                (
+                    worktree_info.repo_name,
+                    worktree_info.worktree_name,
+                    path,
+                    git_repo,
+                )
             } else {
                 // Fall back to current directory-based lookup
                 let repo_name = self.resolve_repo_name(repo).await?;
@@ -696,8 +711,14 @@ impl WorktreeManager {
                         "\n{} To start using iMi with this repository:",
                         "💡".bright_yellow()
                     );
-                    println!("   1. Run {} to create the trunk worktree", "imi trunk".bright_green());
-                    println!("   2. Then use {} to create feature worktrees", "imi feat <name>".bright_green());
+                    println!(
+                        "   1. Run {} to create the trunk worktree",
+                        "imi trunk".bright_green()
+                    );
+                    println!(
+                        "   2. Then use {} to create feature worktrees",
+                        "imi feat <name>".bright_green()
+                    );
                     println!(
                         "\n{} Once registered, {} will show worktrees for this repo",
                         "ℹ️".bright_blue(),
@@ -754,7 +775,11 @@ impl WorktreeManager {
                 "📦".bright_cyan(),
                 repo.name.bright_green().bold()
             );
-            println!("   {} Path: {}", "📂".bright_cyan(), repo.path.bright_white());
+            println!(
+                "   {} Path: {}",
+                "📂".bright_cyan(),
+                repo.path.bright_white()
+            );
             println!(
                 "   {} Branch: {}",
                 "🌿".bright_cyan(),
@@ -770,11 +795,7 @@ impl WorktreeManager {
             }
 
             // Show worktree count with appropriate icon
-            let wt_icon = if worktree_count == 0 {
-                "📭"
-            } else {
-                "📬"
-            };
+            let wt_icon = if worktree_count == 0 { "📭" } else { "📬" };
             println!(
                 "   {} Worktrees: {}",
                 wt_icon,
@@ -788,7 +809,10 @@ impl WorktreeManager {
             println!(
                 "   {} Created: {}",
                 "📅".bright_black(),
-                repo.created_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_green()
+                repo.created_at
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .bright_green()
             );
 
             if i < repositories.len() - 1 {
@@ -815,13 +839,16 @@ impl WorktreeManager {
             return Ok(());
         }
 
-        println!("\n{}", "Detailed Worktree Information:".bright_cyan().bold());
+        println!(
+            "\n{}",
+            "Detailed Worktree Information:".bright_cyan().bold()
+        );
         println!("{}", "═".repeat(100).bright_black());
 
         for (i, worktree) in worktrees.iter().enumerate() {
             let status_icon = match worktree.worktree_type.as_str() {
                 "feat" => "🚀",
-                "pr" => "🔍", 
+                "pr" => "🔍",
                 "fix" => "🔧",
                 "aiops" => "🤖",
                 "devops" => "⚙️",
@@ -839,26 +866,54 @@ impl WorktreeManager {
             );
 
             // Repository and path info
-            println!("   {} Repo: {}", "📦".bright_cyan(), worktree.repo_name.bright_white());
-            println!("   {} Path: {}", "📂".bright_cyan(), worktree.path.bright_white());
+            println!(
+                "   {} Repo: {}",
+                "📦".bright_cyan(),
+                worktree.repo_name.bright_white()
+            );
+            println!(
+                "   {} Path: {}",
+                "📂".bright_cyan(),
+                worktree.path.bright_white()
+            );
 
             // Timestamps
             println!(
                 "   {} Created: {} | Updated: {}",
                 "📅".bright_cyan(),
-                worktree.created_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_green(),
-                worktree.updated_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_yellow()
+                worktree
+                    .created_at
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .bright_green(),
+                worktree
+                    .updated_at
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+                    .bright_yellow()
             );
 
             // Agent assignment
             if let Some(agent_id) = &worktree.agent_id {
-                println!("   {} Agent: {}", "🤖".bright_magenta(), agent_id.bright_white());
+                println!(
+                    "   {} Agent: {}",
+                    "🤖".bright_magenta(),
+                    agent_id.bright_white()
+                );
             } else {
-                println!("   {} Agent: {}", "🤖".bright_black(), "Unassigned".bright_black());
+                println!(
+                    "   {} Agent: {}",
+                    "🤖".bright_black(),
+                    "Unassigned".bright_black()
+                );
             }
 
             // Database ID for debugging
-            println!("   {} ID: {}", "🔑".bright_black(), worktree.id.bright_black());
+            println!(
+                "   {} ID: {}",
+                "🔑".bright_black(),
+                worktree.id.bright_black()
+            );
 
             // Git status if worktree exists
             let worktree_path = PathBuf::from(&worktree.path);
@@ -880,7 +935,11 @@ impl WorktreeManager {
             }
         }
 
-        println!("\n{} Total: {} active worktrees", "📊".bright_cyan(), worktrees.len().to_string().bright_white().bold());
+        println!(
+            "\n{} Total: {} active worktrees",
+            "📊".bright_cyan(),
+            worktrees.len().to_string().bright_white().bold()
+        );
         Ok(())
     }
 
@@ -901,15 +960,27 @@ impl WorktreeManager {
             self.git.get_repo_name(&current_dir)?
         };
 
-        println!("   {} Checking Git worktrees for repo: {}", "🔍".bright_blue(), repo_name);
-        
+        println!(
+            "   {} Checking Git worktrees for repo: {}",
+            "🔍".bright_blue(),
+            repo_name
+        );
+
         // Get actual Git worktrees
         let git_worktrees = self.git.list_git_worktrees(&current_dir)?;
-        println!("   {} Found {} Git worktrees", "📊".bright_green(), git_worktrees.len());
+        println!(
+            "   {} Found {} Git worktrees",
+            "📊".bright_green(),
+            git_worktrees.len()
+        );
 
         // Get database worktrees
         let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await?;
-        println!("   {} Found {} database entries", "💾".bright_blue(), db_worktrees.len());
+        println!(
+            "   {} Found {} database entries",
+            "💾".bright_blue(),
+            db_worktrees.len()
+        );
 
         let mut synced = 0;
         let mut deactivated = 0;
@@ -917,13 +988,19 @@ impl WorktreeManager {
 
         // Deactivate database entries that don't exist in Git
         for db_worktree in &db_worktrees {
-            let exists_in_git = git_worktrees.iter().any(|git_wt| {
-                PathBuf::from(&git_wt.path) == PathBuf::from(&db_worktree.path)
-            });
-            
+            let exists_in_git = git_worktrees
+                .iter()
+                .any(|git_wt| PathBuf::from(&git_wt.path) == PathBuf::from(&db_worktree.path));
+
             if !exists_in_git {
-                self.db.deactivate_worktree(&repo_name, &db_worktree.worktree_name).await?;
-                println!("   {} Deactivated: {}", "❌".bright_red(), db_worktree.worktree_name);
+                self.db
+                    .deactivate_worktree(&repo_name, &db_worktree.worktree_name)
+                    .await?;
+                println!(
+                    "   {} Deactivated: {}",
+                    "❌".bright_red(),
+                    db_worktree.worktree_name
+                );
                 deactivated += 1;
             } else {
                 synced += 1;
@@ -932,18 +1009,19 @@ impl WorktreeManager {
 
         // Add Git worktrees that aren't in database
         for git_worktree in &git_worktrees {
-            let exists_in_db = db_worktrees.iter().any(|db_wt| {
-                PathBuf::from(&db_wt.path) == PathBuf::from(&git_worktree.path)
-            });
+            let exists_in_db = db_worktrees
+                .iter()
+                .any(|db_wt| PathBuf::from(&db_wt.path) == PathBuf::from(&git_worktree.path));
 
             if !exists_in_db {
                 // Extract worktree info from Git data
                 let path = PathBuf::from(&git_worktree.path);
-                let worktree_name = path.file_name()
+                let worktree_name = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 let worktree_type = if worktree_name.starts_with("feat-") {
                     "feat"
                 } else if worktree_name.starts_with("pr-") {
@@ -960,23 +1038,34 @@ impl WorktreeManager {
                     "unknown"
                 };
 
-                self.db.create_worktree(
-                    &repo_name,
-                    &worktree_name,
-                    &git_worktree.branch,
-                    worktree_type,
-                    &git_worktree.path,
-                    None,
-                ).await?;
-                
-                println!("   {} Added: {} ({})", "➕".bright_green(), worktree_name, worktree_type);
+                self.db
+                    .create_worktree(
+                        &repo_name,
+                        &worktree_name,
+                        &git_worktree.branch,
+                        worktree_type,
+                        &git_worktree.path,
+                        None,
+                    )
+                    .await?;
+
+                println!(
+                    "   {} Added: {} ({})",
+                    "➕".bright_green(),
+                    worktree_name,
+                    worktree_type
+                );
                 added += 1;
             }
         }
 
         println!("\n{} Sync complete:", "✅".bright_green());
         println!("   {} {} entries synced", "🔄".bright_cyan(), synced);
-        println!("   {} {} entries deactivated", "❌".bright_red(), deactivated);
+        println!(
+            "   {} {} entries deactivated",
+            "❌".bright_red(),
+            deactivated
+        );
         println!("   {} {} entries added", "➕".bright_green(), added);
 
         Ok(())

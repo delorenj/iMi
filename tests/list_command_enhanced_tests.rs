@@ -9,7 +9,6 @@
 /// Test Structure:
 /// Each test is independent and creates its own isolated test environment
 /// using temporary directories and databases to ensure no test pollution.
-
 use anyhow::Result;
 use serial_test::serial;
 use std::env;
@@ -43,7 +42,9 @@ impl Drop for DirGuard {
 }
 
 /// Helper function to create a test environment with a git repository
-async fn setup_test_repo(temp_dir: &TempDir) -> Result<(PathBuf, Config, Database, WorktreeManager)> {
+async fn setup_test_repo(
+    temp_dir: &TempDir,
+) -> Result<(PathBuf, Config, Database, WorktreeManager)> {
     let test_repo_path = temp_dir.path().join("test-repo");
     std::fs::create_dir_all(&test_repo_path)?;
 
@@ -52,9 +53,7 @@ async fn setup_test_repo(temp_dir: &TempDir) -> Result<(PathBuf, Config, Databas
     env::set_current_dir(&test_repo_path)?;
 
     // Initialize git repo
-    std::process::Command::new("git")
-        .args(&["init"])
-        .output()?;
+    std::process::Command::new("git").args(&["init"]).output()?;
 
     // Configure git user for tests
     std::process::Command::new("git")
@@ -125,7 +124,9 @@ async fn create_second_repo(temp_dir: &TempDir, name: &str) -> Result<PathBuf> {
         .output()?;
 
     std::fs::write(repo_path.join("README.md"), format!("# {}", name))?;
-    std::process::Command::new("git").args(&["add", "."]).output()?;
+    std::process::Command::new("git")
+        .args(&["add", "."])
+        .output()?;
     std::process::Command::new("git")
         .args(&["commit", "-m", "Initial commit"])
         .output()?;
@@ -144,7 +145,7 @@ async fn create_second_repo(temp_dir: &TempDir, name: &str) -> Result<PathBuf> {
 async fn test_list_outside_repo_shows_all_projects() -> Result<()> {
     // Test: Running list outside any git repository should show all registered projects
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
 
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
@@ -176,7 +177,7 @@ async fn test_list_outside_repo_shows_all_projects() -> Result<()> {
 async fn test_list_inside_registered_repo_shows_worktrees() -> Result<()> {
     // Test: Running list inside a registered repository should show worktrees for that repo
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -194,7 +195,8 @@ async fn test_list_inside_registered_repo_shows_worktrees() -> Result<()> {
         "feat",
         worktree_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Change to the repository directory
     env::set_current_dir(&test_repo_path)?;
@@ -203,7 +205,10 @@ async fn test_list_inside_registered_repo_shows_worktrees() -> Result<()> {
     let result = worktree_manager.list_smart(None, false, false).await;
 
     // Verify command succeeds
-    assert!(result.is_ok(), "List command should succeed inside registered repo");
+    assert!(
+        result.is_ok(),
+        "List command should succeed inside registered repo"
+    );
 
     // Verify worktrees exist
     let worktrees = db.list_worktrees(Some("test-repo")).await?;
@@ -218,7 +223,7 @@ async fn test_list_inside_registered_repo_shows_worktrees() -> Result<()> {
 async fn test_list_inside_unregistered_repo_shows_helpful_message() -> Result<()> {
     // Test: Running list inside an unregistered repository should show onboarding message
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, _db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // DO NOT register the repository - leave it unregistered
@@ -230,7 +235,10 @@ async fn test_list_inside_unregistered_repo_shows_helpful_message() -> Result<()
     let result = worktree_manager.list_smart(None, false, false).await;
 
     // Verify command succeeds (shows message, doesn't error)
-    assert!(result.is_ok(), "List command should handle unregistered repo gracefully");
+    assert!(
+        result.is_ok(),
+        "List command should handle unregistered repo gracefully"
+    );
 
     Ok(())
 }
@@ -240,7 +248,7 @@ async fn test_list_inside_unregistered_repo_shows_helpful_message() -> Result<()
 async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
     // Test: Running list inside a worktree should show worktrees for the parent repo
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -253,8 +261,12 @@ async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
     // Initialize as a git repo so context detection works
     env::set_current_dir(&worktree_path1)?;
     std::process::Command::new("git").args(&["init"]).output()?;
-    std::process::Command::new("git").args(&["config", "user.name", "Test"]).output()?;
-    std::process::Command::new("git").args(&["config", "user.email", "test@example.com"]).output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.name", "Test"])
+        .output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.email", "test@example.com"])
+        .output()?;
 
     db.create_worktree(
         "test-repo",
@@ -263,7 +275,8 @@ async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
         "feat",
         worktree_path1.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     let worktree_path2 = temp_dir.path().join("fix-test-fix");
     std::fs::create_dir_all(&worktree_path2)?;
@@ -274,7 +287,8 @@ async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
         "fix",
         worktree_path2.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Change to the worktree directory
     env::set_current_dir(&worktree_path1)?;
@@ -283,11 +297,18 @@ async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
     let result = worktree_manager.list_smart(None, false, false).await;
 
     // Verify command succeeds
-    assert!(result.is_ok(), "List command should succeed inside worktree");
+    assert!(
+        result.is_ok(),
+        "List command should succeed inside worktree"
+    );
 
     // Verify we can see all worktrees for the parent repo
     let worktrees = db.list_worktrees(Some("test-repo")).await?;
-    assert_eq!(worktrees.len(), 2, "Should see both worktrees from parent repo");
+    assert_eq!(
+        worktrees.len(),
+        2,
+        "Should see both worktrees from parent repo"
+    );
 
     Ok(())
 }
@@ -301,7 +322,7 @@ async fn test_list_inside_worktree_shows_parent_repo_worktrees() -> Result<()> {
 async fn test_projects_flag_outside_repo_lists_all_projects() -> Result<()> {
     // Test: --projects flag outside repo lists all projects
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -330,7 +351,7 @@ async fn test_projects_flag_outside_repo_lists_all_projects() -> Result<()> {
 async fn test_projects_flag_inside_repo_lists_all_projects() -> Result<()> {
     // Test: --projects flag inside repo overrides context and lists all projects
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -339,8 +360,13 @@ async fn test_projects_flag_inside_repo_lists_all_projects() -> Result<()> {
 
     // Create a second repository
     let second_repo_path = create_second_repo(&temp_dir, "second-repo").await?;
-    db.create_repository("second-repo", second_repo_path.to_str().unwrap(), "", "main")
-        .await?;
+    db.create_repository(
+        "second-repo",
+        second_repo_path.to_str().unwrap(),
+        "",
+        "main",
+    )
+    .await?;
 
     // Change to first repo directory
     env::set_current_dir(&test_repo_path)?;
@@ -352,7 +378,11 @@ async fn test_projects_flag_inside_repo_lists_all_projects() -> Result<()> {
 
     // Verify both repositories are accessible
     let repos = db.list_repositories().await?;
-    assert_eq!(repos.len(), 2, "Should list all projects, not just current repo context");
+    assert_eq!(
+        repos.len(),
+        2,
+        "Should list all projects, not just current repo context"
+    );
 
     Ok(())
 }
@@ -362,7 +392,7 @@ async fn test_projects_flag_inside_repo_lists_all_projects() -> Result<()> {
 async fn test_worktrees_flag_outside_repo_lists_all_worktrees() -> Result<()> {
     // Test: --worktrees flag outside repo lists all worktrees from all repos
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -379,7 +409,8 @@ async fn test_worktrees_flag_outside_repo_lists_all_worktrees() -> Result<()> {
         "feat",
         worktree_path1.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     let worktree_path2 = temp_dir.path().join("fix-fix-1");
     std::fs::create_dir_all(&worktree_path2)?;
@@ -390,7 +421,8 @@ async fn test_worktrees_flag_outside_repo_lists_all_worktrees() -> Result<()> {
         "fix",
         worktree_path2.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Change to non-repo directory
     let non_repo_dir = temp_dir.path().join("non-repo");
@@ -404,7 +436,11 @@ async fn test_worktrees_flag_outside_repo_lists_all_worktrees() -> Result<()> {
 
     // Verify worktrees are accessible
     let worktrees = db.list_worktrees(None).await?;
-    assert_eq!(worktrees.len(), 2, "Should list all worktrees from all repos");
+    assert_eq!(
+        worktrees.len(),
+        2,
+        "Should list all worktrees from all repos"
+    );
 
     Ok(())
 }
@@ -414,7 +450,7 @@ async fn test_worktrees_flag_outside_repo_lists_all_worktrees() -> Result<()> {
 async fn test_worktrees_flag_inside_repo_lists_repo_worktrees() -> Result<()> {
     // Test: --worktrees flag inside repo lists worktrees for current repo
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -431,7 +467,8 @@ async fn test_worktrees_flag_inside_repo_lists_repo_worktrees() -> Result<()> {
         "feat",
         worktree_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Change to repo directory
     env::set_current_dir(&test_repo_path)?;
@@ -439,7 +476,10 @@ async fn test_worktrees_flag_inside_repo_lists_repo_worktrees() -> Result<()> {
     // Execute with --worktrees flag
     let result = worktree_manager.list_smart(None, true, false).await;
 
-    assert!(result.is_ok(), "List with --worktrees should succeed inside repo");
+    assert!(
+        result.is_ok(),
+        "List with --worktrees should succeed inside repo"
+    );
 
     // Verify worktrees for this repo
     let worktrees = db.list_worktrees(Some("test-repo")).await?;
@@ -457,7 +497,7 @@ async fn test_worktrees_flag_inside_repo_lists_repo_worktrees() -> Result<()> {
 async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
     // Test: --repo <name> flag lists worktrees for specified repository
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register repositories
@@ -465,8 +505,13 @@ async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
         .await?;
 
     let second_repo_path = create_second_repo(&temp_dir, "second-repo").await?;
-    db.create_repository("second-repo", second_repo_path.to_str().unwrap(), "", "main")
-        .await?;
+    db.create_repository(
+        "second-repo",
+        second_repo_path.to_str().unwrap(),
+        "",
+        "main",
+    )
+    .await?;
 
     // Create worktrees for both repos directly in database
     let worktree_path1 = temp_dir.path().join("feat-feature-1");
@@ -478,7 +523,8 @@ async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
         "feat",
         worktree_path1.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     let worktree_path2 = temp_dir.path().join("feat-feature-2");
     std::fs::create_dir_all(&worktree_path2)?;
@@ -489,7 +535,8 @@ async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
         "feat",
         worktree_path2.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Change to non-repo directory
     let non_repo_dir = temp_dir.path().join("non-repo");
@@ -497,13 +544,19 @@ async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
     env::set_current_dir(&non_repo_dir)?;
 
     // Execute with --repo flag for first repo
-    let result = worktree_manager.list_smart(Some("test-repo"), false, false).await;
+    let result = worktree_manager
+        .list_smart(Some("test-repo"), false, false)
+        .await;
 
     assert!(result.is_ok(), "List with --repo should succeed");
 
     // Verify we get only the specified repo's worktrees
     let worktrees = db.list_worktrees(Some("test-repo")).await?;
-    assert_eq!(worktrees.len(), 1, "Should list only specified repo's worktrees");
+    assert_eq!(
+        worktrees.len(),
+        1,
+        "Should list only specified repo's worktrees"
+    );
     assert_eq!(worktrees[0].worktree_name, "feat-feature-1");
 
     Ok(())
@@ -514,7 +567,7 @@ async fn test_repo_flag_lists_specified_repo_worktrees() -> Result<()> {
 async fn test_repo_flag_with_invalid_repo_shows_error() -> Result<()> {
     // Test: --repo <invalid> shows proper error message
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (_test_repo_path, _config, _db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Change to non-repo directory
@@ -523,10 +576,15 @@ async fn test_repo_flag_with_invalid_repo_shows_error() -> Result<()> {
     env::set_current_dir(&non_repo_dir)?;
 
     // Execute with --repo flag for non-existent repo
-    let result = worktree_manager.list_smart(Some("nonexistent-repo"), false, false).await;
+    let result = worktree_manager
+        .list_smart(Some("nonexistent-repo"), false, false)
+        .await;
 
     // Command should succeed but show helpful error message
-    assert!(result.is_ok(), "List with invalid --repo should handle gracefully");
+    assert!(
+        result.is_ok(),
+        "List with invalid --repo should handle gracefully"
+    );
 
     Ok(())
 }
@@ -536,7 +594,7 @@ async fn test_repo_flag_with_invalid_repo_shows_error() -> Result<()> {
 async fn test_repo_flag_with_projects_flag_shows_projects() -> Result<()> {
     // Test: Conflicting flags - --repo with --projects should show projects
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -549,13 +607,22 @@ async fn test_repo_flag_with_projects_flag_shows_projects() -> Result<()> {
     env::set_current_dir(&non_repo_dir)?;
 
     // Execute with both --repo and --projects (projects should take precedence)
-    let result = worktree_manager.list_smart(Some("test-repo"), false, true).await;
+    let result = worktree_manager
+        .list_smart(Some("test-repo"), false, true)
+        .await;
 
-    assert!(result.is_ok(), "List with --repo and --projects should succeed");
+    assert!(
+        result.is_ok(),
+        "List with --repo and --projects should succeed"
+    );
 
     // Verify we get all repositories (projects flag takes precedence)
     let repos = db.list_repositories().await?;
-    assert_eq!(repos.len(), 1, "Should list all projects when --projects flag is used");
+    assert_eq!(
+        repos.len(),
+        1,
+        "Should list all projects when --projects flag is used"
+    );
 
     Ok(())
 }
@@ -569,7 +636,7 @@ async fn test_repo_flag_with_projects_flag_shows_projects() -> Result<()> {
 async fn test_no_registered_repositories_shows_onboarding() -> Result<()> {
     // Test: No registered repositories shows helpful onboarding message
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (_test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // DO NOT register any repositories
@@ -596,7 +663,7 @@ async fn test_no_registered_repositories_shows_onboarding() -> Result<()> {
 async fn test_no_worktrees_in_registered_repo_shows_empty_message() -> Result<()> {
     // Test: Registered repo with no worktrees shows appropriate empty message
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -625,7 +692,7 @@ async fn test_no_worktrees_in_registered_repo_shows_empty_message() -> Result<()
 async fn test_multiple_registered_repos_all_shown() -> Result<()> {
     // Test: Multiple registered repositories are all shown correctly
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register first repository
@@ -634,8 +701,13 @@ async fn test_multiple_registered_repos_all_shown() -> Result<()> {
 
     // Create and register second repository
     let second_repo_path = create_second_repo(&temp_dir, "second-repo").await?;
-    db.create_repository("second-repo", second_repo_path.to_str().unwrap(), "", "main")
-        .await?;
+    db.create_repository(
+        "second-repo",
+        second_repo_path.to_str().unwrap(),
+        "",
+        "main",
+    )
+    .await?;
 
     // Create and register third repository
     let third_repo_path = create_second_repo(&temp_dir, "third-repo").await?;
@@ -669,7 +741,7 @@ async fn test_multiple_registered_repos_all_shown() -> Result<()> {
 async fn test_repository_with_many_worktrees_displays_correctly() -> Result<()> {
     // Test: Repository with many worktrees displays properly
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Register the repository
@@ -695,7 +767,8 @@ async fn test_repository_with_many_worktrees_displays_correctly() -> Result<()> 
             wt_type,
             wt_path.to_str().unwrap(),
             None,
-        ).await?;
+        )
+        .await?;
     }
 
     // Change to repo directory
@@ -740,7 +813,7 @@ async fn test_repository_with_many_worktrees_displays_correctly() -> Result<()> 
 async fn test_full_workflow_init_register_create_list() -> Result<()> {
     // Test: Complete workflow from initialization to listing
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (test_repo_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Step 1: Register repository (simulating trunk command)
@@ -758,8 +831,12 @@ async fn test_full_workflow_init_register_create_list() -> Result<()> {
     let original_dir = env::current_dir()?;
     env::set_current_dir(&feat_path)?;
     std::process::Command::new("git").args(&["init"]).output()?;
-    std::process::Command::new("git").args(&["config", "user.name", "Test"]).output()?;
-    std::process::Command::new("git").args(&["config", "user.email", "test@example.com"]).output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.name", "Test"])
+        .output()?;
+    std::process::Command::new("git")
+        .args(&["config", "user.email", "test@example.com"])
+        .output()?;
     env::set_current_dir(&original_dir)?;
 
     db.create_worktree(
@@ -769,7 +846,8 @@ async fn test_full_workflow_init_register_create_list() -> Result<()> {
         "feat",
         feat_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
     assert!(feat_path.exists(), "Feature worktree should exist");
 
     let fix_path = temp_dir.path().join("fix-login-bug");
@@ -781,7 +859,8 @@ async fn test_full_workflow_init_register_create_list() -> Result<()> {
         "fix",
         fix_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
     assert!(fix_path.exists(), "Fix worktree should exist");
 
     // Step 3: List from outside repo (should show all repos)
@@ -814,7 +893,9 @@ async fn test_full_workflow_init_register_create_list() -> Result<()> {
     assert!(result.is_ok(), "List with --worktrees should succeed");
 
     // Step 7: Test --repo flag
-    let result = worktree_manager.list_smart(Some("test-repo"), false, false).await;
+    let result = worktree_manager
+        .list_smart(Some("test-repo"), false, false)
+        .await;
     assert!(result.is_ok(), "List with --repo should succeed");
 
     Ok(())
@@ -825,7 +906,7 @@ async fn test_full_workflow_init_register_create_list() -> Result<()> {
 async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
     // Test: Complex workflow with multiple repos and context switching
     let temp_dir = TempDir::new()?;
-    let _guard = DirGuard::new()?;  // Ensure directory is restored on test completion
+    let _guard = DirGuard::new()?; // Ensure directory is restored on test completion
     let (repo1_path, _config, db, worktree_manager) = setup_test_repo(&temp_dir).await?;
 
     // Create and register first repository
@@ -847,7 +928,8 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
         "feat",
         wt1_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     let wt2_path = temp_dir.path().join("fix-fix-a");
     std::fs::create_dir_all(&wt2_path)?;
@@ -858,7 +940,8 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
         "fix",
         wt2_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Create worktrees for repo-2 directly in database
     let wt3_path = temp_dir.path().join("feat-feature-b");
@@ -870,7 +953,8 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
         "feat",
         wt3_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     let wt4_path = temp_dir.path().join("devops-devops-b");
     std::fs::create_dir_all(&wt4_path)?;
@@ -881,7 +965,8 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
         "devops",
         wt4_path.to_str().unwrap(),
         None,
-    ).await?;
+    )
+    .await?;
 
     // Test 1: List from repo-1 (should show only repo-1 worktrees)
     env::set_current_dir(&repo1_path)?;
@@ -912,16 +997,27 @@ async fn test_multi_repo_workflow_with_context_switching() -> Result<()> {
     env::set_current_dir(&non_repo_dir)?;
 
     let result = worktree_manager.list_smart(None, true, false).await;
-    assert!(result.is_ok(), "List --worktrees from outside should succeed");
+    assert!(
+        result.is_ok(),
+        "List --worktrees from outside should succeed"
+    );
 
     let all_worktrees = db.list_worktrees(None).await?;
-    assert_eq!(all_worktrees.len(), 4, "Should have 4 total worktrees across both repos");
+    assert_eq!(
+        all_worktrees.len(),
+        4,
+        "Should have 4 total worktrees across both repos"
+    );
 
     // Test 5: List specific repo with --repo flag from any context
-    let result = worktree_manager.list_smart(Some("repo-1"), false, false).await;
+    let result = worktree_manager
+        .list_smart(Some("repo-1"), false, false)
+        .await;
     assert!(result.is_ok(), "List --repo repo-1 should succeed");
 
-    let result = worktree_manager.list_smart(Some("repo-2"), false, false).await;
+    let result = worktree_manager
+        .list_smart(Some("repo-2"), false, false)
+        .await;
     assert!(result.is_ok(), "List --repo repo-2 should succeed");
 
     Ok(())
@@ -955,7 +1051,9 @@ async fn test_short_p_flag_equivalent_to_projects_flag() -> Result<()> {
         .args(&["config", "user.email", "test@example.com"])
         .output()?;
     std::fs::write(repo2_path.join("README.md"), "# Test Repo 2")?;
-    std::process::Command::new("git").args(&["add", "."]).output()?;
+    std::process::Command::new("git")
+        .args(&["add", "."])
+        .output()?;
     std::process::Command::new("git")
         .args(&["commit", "-m", "Initial commit"])
         .output()?;
@@ -971,27 +1069,50 @@ async fn test_short_p_flag_equivalent_to_projects_flag() -> Result<()> {
 
     // Get repositories with projects=true (simulating --projects or -p flag)
     let result_long_flag = worktree_manager.list_smart(None, false, true).await;
-    assert!(result_long_flag.is_ok(), "List with projects=true should succeed");
+    assert!(
+        result_long_flag.is_ok(),
+        "List with projects=true should succeed"
+    );
 
     let repos_with_long_flag = db.list_repositories().await?;
 
     // Both -p and --projects should return the same repositories
     // Since list_smart with projects=true triggers repository listing
-    assert_eq!(repos_with_long_flag.len(), 2, "Should have 2 registered repos");
+    assert_eq!(
+        repos_with_long_flag.len(),
+        2,
+        "Should have 2 registered repos"
+    );
 
     // Verify repo names
-    let repo_names: Vec<String> = repos_with_long_flag.iter().map(|r| r.name.clone()).collect();
-    assert!(repo_names.contains(&"test-repo-1".to_string()), "Should contain test-repo-1");
-    assert!(repo_names.contains(&"test-repo-2".to_string()), "Should contain test-repo-2");
+    let repo_names: Vec<String> = repos_with_long_flag
+        .iter()
+        .map(|r| r.name.clone())
+        .collect();
+    assert!(
+        repo_names.contains(&"test-repo-1".to_string()),
+        "Should contain test-repo-1"
+    );
+    assert!(
+        repo_names.contains(&"test-repo-2".to_string()),
+        "Should contain test-repo-2"
+    );
 
     // Test from inside a repo
     env::set_current_dir(&repo1_path)?;
 
     let result_inside_repo = worktree_manager.list_smart(None, false, true).await;
-    assert!(result_inside_repo.is_ok(), "List with projects=true inside repo should succeed");
+    assert!(
+        result_inside_repo.is_ok(),
+        "List with projects=true inside repo should succeed"
+    );
 
     let repos_inside = db.list_repositories().await?;
-    assert_eq!(repos_inside.len(), 2, "Should still show all 2 repos when using projects flag inside a repo");
+    assert_eq!(
+        repos_inside.len(),
+        2,
+        "Should still show all 2 repos when using projects flag inside a repo"
+    );
 
     Ok(())
 }

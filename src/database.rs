@@ -233,11 +233,14 @@ impl Database {
 
     #[allow(dead_code)]
     pub async fn list_repositories(&self) -> Result<Vec<Repository>> {
-        let rows =
-            sqlx::query("SELECT * FROM repositories WHERE active = TRUE ORDER BY created_at DESC")
-                .fetch_all(&self.pool)
-                .await
-                .context("Failed to fetch repositories")?;
+        let rows = sqlx::query(
+            "SELECT * FROM repositories \
+             WHERE active = TRUE \
+             ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch repositories")?;
 
         let mut repositories = Vec::new();
         for row in rows {
@@ -344,10 +347,18 @@ impl Database {
 
     pub async fn list_worktrees(&self, repo_name: Option<&str>) -> Result<Vec<Worktree>> {
         let query = if let Some(repo) = repo_name {
-            sqlx::query("SELECT * FROM worktrees WHERE repo_name = ? AND active = TRUE ORDER BY created_at DESC")
-                .bind(repo)
+            sqlx::query(
+                "SELECT * FROM worktrees \
+                 WHERE repo_name = ? AND active = TRUE \
+                 ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
+            )
+            .bind(repo)
         } else {
-            sqlx::query("SELECT * FROM worktrees WHERE active = TRUE ORDER BY created_at DESC")
+            sqlx::query(
+                "SELECT * FROM worktrees \
+                 WHERE active = TRUE \
+                 ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
+            )
         };
 
         let rows = query
@@ -386,6 +397,35 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to deactivate worktree")?;
+
+        Ok(())
+    }
+
+    /// Update a repository's modification timestamp without altering other fields
+    #[allow(dead_code)]
+    pub async fn touch_repository(&self, name: &str) -> Result<()> {
+        sqlx::query("UPDATE repositories SET updated_at = ? WHERE name = ?")
+            .bind(Utc::now().to_rfc3339())
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("Failed to update repository timestamp")?;
+
+        Ok(())
+    }
+
+    /// Update a worktree's modification timestamp without altering other fields
+    #[allow(dead_code)]
+    pub async fn touch_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE worktrees SET updated_at = ? WHERE repo_name = ? AND worktree_name = ?",
+        )
+        .bind(Utc::now().to_rfc3339())
+        .bind(repo_name)
+        .bind(worktree_name)
+        .execute(&self.pool)
+        .await
+        .context("Failed to update worktree timestamp")?;
 
         Ok(())
     }
