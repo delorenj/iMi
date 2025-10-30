@@ -117,6 +117,9 @@ async fn main() -> Result<()> {
                     Commands::Close { name, repo } => {
                         handle_close_command(&worktree_manager, &name, repo.as_deref()).await?;
                     }
+                    Commands::Merge { name, repo } => {
+                        handle_merge_command(&worktree_manager, &name, repo.as_deref()).await?;
+                    }
                     Commands::Go {
                         query,
                         repo,
@@ -473,6 +476,16 @@ async fn handle_go_command(
     // All other output must go to stderr to avoid polluting the path
     print!("{}", target_path.display());
 
+    Ok(())
+}
+
+async fn handle_merge_command(
+    manager: &WorktreeManager,
+    name: &str,
+    repo: Option<&str>,
+) -> Result<()> {
+    println!("{} Merging worktree: {}", "🔀".bright_cyan(), name.bright_yellow());
+    manager.merge_worktree(name, repo).await?;
     Ok(())
 }
 
