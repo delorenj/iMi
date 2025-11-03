@@ -51,23 +51,8 @@ impl WorktreeManager {
         pr_number: u32,
         repo: Option<&str>,
     ) -> Result<PathBuf> {
-        let worktree_name = format!("pr-{}", pr_number);
-        let branch_name = format!("pr/{}", pr_number);
-
-        // Try to use gh CLI for PR checkout
-        if let Ok(path) = self.create_pr_worktree_with_gh(pr_number, repo).await {
-            return Ok(path);
-        }
-
-        // Fallback to manual creation
-        self.create_worktree_internal(
-            repo,
-            &worktree_name,
-            &branch_name,
-            "pr",
-            Some(&self.config.git_settings.default_branch),
-        )
-        .await
+        // Use gh CLI for PR checkout - this includes validation
+        self.create_pr_worktree_with_gh(pr_number, repo).await
     }
 
     /// Create a fix worktree
@@ -1166,10 +1151,46 @@ impl WorktreeManager {
         Ok(name.to_string())
     }
 
+    /// Parse repository argument to extract org/repo pattern
+    /// Supports: "name", "org/repo", or defaults org to "delorenj" if omitted
+    fn parse_repo_argument(&self, repo_arg: &str) -> (Option<String>, String) {
+        if repo_arg.contains('/') {
+            // Format: org/repo
+            let parts: Vec<&str> = repo_arg.splitn(2, '/').collect();
+            (Some(parts[0].to_string()), parts[1].to_string())
+        } else {
+            // Just repo name - default org to delorenj
+            (Some("delorenj".to_string()), repo_arg.to_string())
+        }
+    }
+
     /// Resolve repository name from current directory or provided name
+    /// Handles GitHub org/repo format: searches database by remote_url pattern
     async fn resolve_repo_name(&self, repo: Option<&str>) -> Result<String> {
-        if let Some(name) = repo {
-            return Ok(name.to_string());
+        if let Some(repo_arg) = repo {
+            // Parse the argument to check if it's org/repo format
+            let (org, repo_name) = self.parse_repo_argument(repo_arg);
+
+            if let Some(org) = org {
+                // Query database for repo matching github pattern
+                let repos = self.db.list_repositories().await?;
+
+                for db_repo in repos {
+                    // Match against remote_url pattern: github.com/{org}/{repo}
+                    if db_repo.remote_url.contains(&format!("{}/{}", org, repo_name)) {
+                        return Ok(db_repo.name);
+                    }
+                }
+
+                // Not found in database
+                return Err(anyhow::anyhow!(
+                    "Repository {}/{} is not registered in iMi. Run 'imi init github.com/{}/{}' first.",
+                    org, repo_name, org, repo_name
+                ));
+            } else {
+                // Plain name lookup
+                return Ok(repo_arg.to_string());
+            }
         }
 
         if let Some(repo_path) = &self.repo_path {

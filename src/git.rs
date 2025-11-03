@@ -758,60 +758,69 @@ impl GitManager {
         }
     }
 
-    /// Checkout a PR using gh cli
+    /// Validate PR exists using gh CLI
+    pub fn validate_pr_exists(&self, repo_path: &Path, pr_number: u32) -> Result<bool> {
+        let output = Command::new("gh")
+            .current_dir(repo_path)
+            .args(&["pr", "view", &pr_number.to_string(), "--json", "number"])
+            .output();
+
+        match output {
+            Ok(output) if output.status.success() => Ok(true),
+            Ok(_) => Ok(false),
+            Err(e) => Err(anyhow::anyhow!(
+                "Failed to validate PR existence (is gh CLI installed?): {}",
+                e
+            )),
+        }
+    }
+
+    /// Checkout a PR using gh cli and create worktree
     pub fn checkout_pr(
         &self,
         repo_path: &Path,
         pr_number: u32,
         worktree_path: &Path,
     ) -> Result<()> {
-        // Use gh CLI to checkout PR as worktree
+        // Validate PR exists first
+        if !self.validate_pr_exists(repo_path, pr_number)? {
+            return Err(anyhow::anyhow!(
+                "PR #{} does not exist in this repository. Check the PR number and try again.",
+                pr_number
+            ));
+        }
+
+        // Fetch the PR branch using gh CLI
+        let branch_name = format!("pr-{}", pr_number);
         let output = Command::new("gh")
             .current_dir(repo_path)
             .args(&[
                 "pr",
                 "checkout",
                 &pr_number.to_string(),
-                "--worktree",
-                worktree_path.to_str().unwrap(),
+                "-b",
+                &branch_name,
+                "--force",
             ])
-            .output();
+            .output()
+            .context("Failed to execute gh pr checkout")?;
 
-        match output {
-            Ok(output) if output.status.success() => Ok(()),
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                Err(anyhow::anyhow!("Failed to checkout PR: {}", stderr))
-            }
-            Err(_e) => {
-                // Fallback: try to create worktree manually
-                self.create_worktree_for_pr(repo_path, pr_number, worktree_path)
-                    .context("Failed to checkout PR and fallback method also failed")
-            }
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow::anyhow!("Failed to checkout PR: {}", stderr));
         }
-    }
 
-    fn create_worktree_for_pr(
-        &self,
-        repo_path: &Path,
-        pr_number: u32,
-        worktree_path: &Path,
-    ) -> Result<()> {
+        // Now create a worktree from the checked out PR branch
         let repo = Repository::open(repo_path)?;
-        let pr_branch = format!("pr-{}", pr_number);
-
-        // Fetch the PR ref
         self.execute_git_command(
             repo_path,
             &[
-                "fetch",
-                "origin",
-                &format!("pull/{}/head:{}", pr_number, pr_branch),
+                "worktree",
+                "add",
+                worktree_path.to_str().unwrap(),
+                &branch_name,
             ],
         )?;
-
-        // Create worktree for the PR branch
-        self.create_worktree(&repo, &pr_branch, worktree_path, &pr_branch, None)?;
 
         Ok(())
     }
