@@ -120,6 +120,9 @@ async fn main() -> Result<()> {
                     Commands::Merge { name, repo } => {
                         handle_merge_command(&worktree_manager, &name, repo.as_deref()).await?;
                     }
+                    Commands::Repair { repo } => {
+                        handle_repair_command(&worktree_manager, repo.as_deref()).await?;
+                    }
                     Commands::Go {
                         query,
                         repo,
@@ -486,6 +489,16 @@ async fn handle_merge_command(
 ) -> Result<()> {
     println!("{} Merging worktree: {}", "🔀".bright_cyan(), name.bright_yellow());
     manager.merge_worktree(name, repo).await?;
+    Ok(())
+}
+
+async fn handle_repair_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
+    println!(
+        "{} Repairing repository paths after move...",
+        "🔧".bright_yellow()
+    );
+    manager.repair_paths(repo).await?;
+    println!("{} Repair complete", "✅".bright_green());
     Ok(())
 }
 

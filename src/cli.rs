@@ -185,4 +185,10 @@ pub enum Commands {
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
     },
+
+    /// Repair absolute paths after moving a repository
+    Repair {
+        /// Repository name (optional, uses current repo if not specified)
+        repo: Option<String>,
+    },
 }

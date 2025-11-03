@@ -1486,4 +1486,139 @@ impl WorktreeManager {
 
         Ok(())
     }
+
+    /// Repair absolute paths after moving a repository
+    pub async fn repair_paths(&self, repo: Option<&str>) -> Result<()> {
+        use std::fs;
+
+        let repo_name = self.resolve_repo_name(repo).await?;
+
+        // Get the trunk path (actual git repository location)
+        let trunk_path = self.config.get_trunk_path(&repo_name);
+
+        println!("{} Repairing paths for repository: {}", "🔍".bright_cyan(), repo_name.bright_yellow());
+        println!("{} Trunk repository: {}", "📂".bright_blue(), trunk_path.display());
+
+        // Open the repository
+        let git_repo = self.git.find_repository(Some(&trunk_path))?;
+
+        // Get all worktrees from Git
+        let worktrees = git_repo.worktrees()?;
+        let mut repaired_count = 0;
+        let mut errors = Vec::new();
+
+        // 1. Repair worktree metadata in .git/worktrees/<name>/
+        for worktree_name in worktrees.iter().flatten() {
+            println!("\n{} Processing worktree: {}", "🔧".bright_yellow(), worktree_name.bright_green());
+
+            // Get the worktree
+            let worktree = match git_repo.find_worktree(worktree_name) {
+                Ok(wt) => wt,
+                Err(e) => {
+                    errors.push(format!("Failed to find worktree '{}': {}", worktree_name, e));
+                    continue;
+                }
+            };
+
+            // Get current worktree path
+            let worktree_path = worktree.path().parent().unwrap_or(worktree.path());
+
+            // Repair gitdir file (.git/worktrees/<name>/gitdir)
+            let gitdir_file = git_repo.path().join("worktrees").join(worktree_name).join("gitdir");
+            if gitdir_file.exists() {
+                let expected_gitdir_content = worktree_path.join(".git");
+                match fs::write(&gitdir_file, format!("{}\n", expected_gitdir_content.display())) {
+                    Ok(_) => {
+                        println!("  {} Updated gitdir file", "✓".bright_green());
+                        repaired_count += 1;
+                    }
+                    Err(e) => errors.push(format!("Failed to update gitdir for '{}': {}", worktree_name, e)),
+                }
+            }
+
+            // Repair commondir file (.git/worktrees/<name>/commondir)
+            let commondir_file = git_repo.path().join("worktrees").join(worktree_name).join("commondir");
+            if commondir_file.exists() {
+                // Calculate relative path from worktree's .git to main repo's .git
+                let main_git_dir = git_repo.path();
+                match fs::write(&commondir_file, format!("{}\n", main_git_dir.display())) {
+                    Ok(_) => {
+                        println!("  {} Updated commondir file", "✓".bright_green());
+                        repaired_count += 1;
+                    }
+                    Err(e) => errors.push(format!("Failed to update commondir for '{}': {}", worktree_name, e)),
+                }
+            }
+
+            // Repair worktree's .git file (<worktree>/.git)
+            let worktree_git_file = worktree_path.join(".git");
+            if worktree_git_file.exists() {
+                let expected_git_content = format!("gitdir: {}",
+                    git_repo.path().join("worktrees").join(worktree_name).display()
+                );
+                match fs::write(&worktree_git_file, format!("{}\n", expected_git_content)) {
+                    Ok(_) => {
+                        println!("  {} Updated .git file in worktree", "✓".bright_green());
+                        repaired_count += 1;
+                    }
+                    Err(e) => errors.push(format!("Failed to update .git file for '{}': {}", worktree_name, e)),
+                }
+            }
+
+            // Update database entry for this worktree
+            if let Ok(Some(wt_db_entry)) = self.db.get_worktree(&repo_name, worktree_name).await {
+                let current_path = worktree_path.to_string_lossy().to_string();
+                if wt_db_entry.path != current_path {
+                    match self.db.create_worktree(
+                        &repo_name,
+                        worktree_name,
+                        &wt_db_entry.branch_name,
+                        &wt_db_entry.worktree_type,
+                        &current_path,
+                        wt_db_entry.agent_id.as_deref(),
+                    ).await {
+                        Ok(_) => {
+                            println!("  {} Updated database path", "✓".bright_green());
+                            repaired_count += 1;
+                        }
+                        Err(e) => errors.push(format!("Failed to update database for '{}': {}", worktree_name, e)),
+                    }
+                }
+            }
+        }
+
+        // 2. Update repository path in database (using trunk path)
+        if let Ok(Some(repo_db_entry)) = self.db.get_repository(&repo_name).await {
+            let current_trunk_path = trunk_path.to_string_lossy().to_string();
+            if repo_db_entry.path != current_trunk_path {
+                println!("\n{} Updating repository path in database", "🔄".bright_cyan());
+                match self.db.create_repository(
+                    &repo_name,
+                    &current_trunk_path,
+                    &repo_db_entry.remote_url,
+                    &repo_db_entry.default_branch,
+                ).await {
+                    Ok(_) => {
+                        println!("  {} Database repository path updated", "✓".bright_green());
+                        repaired_count += 1;
+                    }
+                    Err(e) => errors.push(format!("Failed to update repository path in database: {}", e)),
+                }
+            }
+        }
+
+        // Report results
+        println!("\n{} Repair Summary", "📊".bright_cyan());
+        println!("  Repaired items: {}", repaired_count.to_string().bright_green());
+
+        if !errors.is_empty() {
+            println!("\n{} Errors encountered:", "⚠️".bright_yellow());
+            for error in &errors {
+                println!("  • {}", error.bright_red());
+            }
+            return Err(anyhow::anyhow!("Repair completed with {} errors", errors.len()));
+        }
+
+        Ok(())
+    }
 }
