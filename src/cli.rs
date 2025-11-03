@@ -36,7 +36,8 @@ pub enum Commands {
         /// Pull request number
         pr_number: u32,
 
-        /// Repository name (optional, uses current repo if not specified)  
+        /// Repository: local name, {org}/{repo}, or {owner}/{repo} (defaults to delorenj/{repo} if org omitted)
+        /// When invoked outside a git project, queries iMi database for registered repos
         repo: Option<String>,
     },
 
