@@ -720,15 +720,19 @@ impl GitManager {
         let mut new_files = Vec::new();
         let mut deleted_files = Vec::new();
 
+        // Iterate through all status entries and collect changes
         for status in statuses.iter() {
             let file_path = status.path().unwrap_or("").to_string();
             let status_flags = status.status();
 
+            // Check for modified files (both working tree and index)
             if status_flags.is_wt_modified() || status_flags.is_index_modified() {
                 modified_files.push(file_path);
             } else if status_flags.is_wt_new() || status_flags.is_index_new() {
+                // Check for new/untracked files
                 new_files.push(file_path);
             } else if status_flags.is_wt_deleted() || status_flags.is_index_deleted() {
+                // Check for deleted files
                 deleted_files.push(file_path);
             }
         }
@@ -736,13 +740,20 @@ impl GitManager {
         // Get commits ahead/behind info
         let (ahead, behind) = self.get_ahead_behind(&repo)?;
 
+        // Calculate clean status: true if no modified, new, or deleted files
+        // This must be calculated AFTER iterating through statuses, not from is_empty()
+        // which would check the already-consumed iterator
+        let is_clean = modified_files.is_empty()
+            && new_files.is_empty()
+            && deleted_files.is_empty();
+
         Ok(WorktreeStatus {
             modified_files,
             new_files,
             deleted_files,
             commits_ahead: ahead,
             commits_behind: behind,
-            clean: statuses.is_empty(),
+            clean: is_clean,
         })
     }
 

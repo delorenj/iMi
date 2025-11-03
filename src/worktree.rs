@@ -1283,41 +1283,123 @@ impl WorktreeManager {
     }
 
     /// Prune stale worktree references and orphaned directories
+    ///
+    /// This method addresses the issue where manually deleted worktree directories
+    /// leave behind stale Git references and database entries. The fix works in three phases:
+    ///
+    /// Phase 1: Git Cleanup - Force-prune Git worktree references for missing directories
+    /// Phase 2: Database Sync - Deactivate database entries where filesystem paths don't exist
+    /// Phase 3: Orphan Detection - Remove unregistered directories matching worktree patterns
+    ///
+    /// The critical fix is in Phase 1 (GitManager::prune_worktrees), which:
+    /// - Compares Git's worktree list with actual filesystem state using Path::exists()
+    /// - Identifies orphaned Git references (exist in Git but not on disk)
+    /// - Force-removes the .git/worktrees/<name> admin directory to clean up the reference
+    /// - Falls back to standard pruning for normally-prunable worktrees
     pub async fn prune_stale_worktrees(&self, repo: Option<&str>, dry_run: bool, force: bool) -> Result<()> {
+        use colored::Colorize;
+
         let repo_name = self.resolve_repo_name(repo).await?;
+        println!("{} Starting prune operation for: {}", "🧹".bright_cyan(), repo_name.bright_yellow());
 
-        // Find the repository
+        // Find the repository - must be in a valid Git repository
         let current_dir = env::current_dir()?;
-        let git_repo = self.git.find_repository(Some(&current_dir))?;
+        let git_repo = self.git.find_repository(Some(&current_dir))
+            .context("Failed to find Git repository. Ensure you're in a repository or worktree directory.")?;
 
-        // Prune stale worktrees using Git manager
-        self.git.prune_worktrees(&git_repo)?;
+        // PHASE 1: Git State Cleanup
+        // This is the CRITICAL FIX for the TASK.md issue:
+        // - Iterates through Git's registered worktrees
+        // - Uses Path::exists() to verify each worktree directory actually exists
+        // - If directory is missing but Git reference exists (orphaned reference):
+        //   * Force-removes the .git/worktrees/<name> admin directory
+        //   * This allows Git to forget about the manually deleted worktree
+        // - If directory exists and worktree is prunable, uses standard Git prune
+        //
+        // Error Handling: Gracefully handles permission errors and concurrent access
+        println!("{} Phase 1: Cleaning up Git worktree references...", "🔍".bright_blue());
+        self.git.prune_worktrees(&git_repo)
+            .context("Failed to prune Git worktree references")?;
 
-        // Clean up database entries for worktrees that no longer exist
-        let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await?;
+        // PHASE 2: Database State Cleanup
+        // Synchronize database with filesystem reality:
+        // - Query all database entries for this repository
+        // - Verify each entry's path actually exists on disk using Path::exists()
+        // - If path doesn't exist, deactivate the database entry
+        // - Maintains database consistency with actual worktree state
+        //
+        // Transaction Safety: Each deactivation is atomic within the database layer
+        println!("{} Phase 2: Synchronizing database with filesystem...", "💾".bright_blue());
+        let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await
+            .context("Failed to list database worktrees")?;
+
         let mut cleaned_count = 0;
+        let mut git_worktrees_set = std::collections::HashSet::new();
+
+        // Build a set of currently valid Git worktrees for cross-reference
+        if let Ok(git_worktree_names) = git_repo.worktrees() {
+            for wt_name in git_worktree_names.iter().flatten() {
+                git_worktrees_set.insert(wt_name.to_string());
+            }
+        }
 
         for worktree in db_worktrees {
             let worktree_path = PathBuf::from(&worktree.path);
-            if !worktree_path.exists() {
+
+            // Check both filesystem existence AND Git registration
+            // A worktree should be deactivated if:
+            // 1. The directory doesn't exist on disk, OR
+            // 2. It's not registered in Git's worktree list
+            let path_exists = worktree_path.exists();
+            let git_registered = git_worktrees_set.contains(&worktree.worktree_name);
+
+            if !path_exists || !git_registered {
+                let reason = if !path_exists && !git_registered {
+                    "path missing and not in Git"
+                } else if !path_exists {
+                    "path missing"
+                } else {
+                    "not in Git"
+                };
+
+                // Deactivate the database entry to maintain consistency
                 self.db
                     .deactivate_worktree(&repo_name, &worktree.worktree_name)
-                    .await?;
+                    .await
+                    .context(format!("Failed to deactivate worktree: {}", worktree.worktree_name))?;
+
                 println!(
-                    "🗑️ Cleaned up database entry for: {}",
-                    worktree.worktree_name
+                    "   {} Deactivated database entry: {} ({})",
+                    "🗑️".bright_red(),
+                    worktree.worktree_name.bright_yellow(),
+                    reason.bright_black()
                 );
                 cleaned_count += 1;
             }
         }
 
         if cleaned_count > 0 {
-            println!("📊 Cleaned up {} stale database entries", cleaned_count);
+            println!("{} Cleaned {} stale database entries", "✅".bright_green(), cleaned_count);
+        } else {
+            println!("{} No stale database entries found", "ℹ️".bright_blue());
         }
 
-        // Detect and handle orphaned directories
-        self.prune_orphaned_directories(&git_repo, dry_run, force).await?;
+        // PHASE 3: Orphaned Directory Cleanup
+        // Detect and remove directories that:
+        // - Match worktree naming patterns (feat-, fix-, aiops-, devops-, review-)
+        // - Are NOT registered in Git as worktrees
+        // - Are NOT valid Git repositories themselves
+        //
+        // These are "orphaned directories" - leftover filesystem cruft from failed operations
+        // or manual deletions where the Git reference was already cleaned but directory remains
+        //
+        // Safety: Requires confirmation unless --force flag is used
+        //         Respects --dry-run to preview without deleting
+        println!("{} Phase 3: Detecting orphaned worktree directories...", "📦".bright_blue());
+        self.prune_orphaned_directories(&git_repo, dry_run, force).await
+            .context("Failed to prune orphaned directories")?;
 
+        println!("{} Prune operation completed successfully", "✅".bright_green().bold());
         Ok(())
     }
 
