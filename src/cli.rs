@@ -86,11 +86,11 @@ pub enum Commands {
         repo: Option<String>,
 
         /// List only worktrees (conflicts with --projects)
-        #[arg(long, conflicts_with = "projects")]
+        #[arg(short = 'w', long, conflicts_with = "projects")]
         worktrees: bool,
 
         /// List only projects/repositories (conflicts with --worktrees)
-        #[arg(long, conflicts_with = "worktrees")]
+        #[arg(short = 'p', long, conflicts_with = "worktrees")]
         projects: bool,
     },
 
