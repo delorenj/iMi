@@ -1,6 +1,6 @@
 [package]
 name = "iMi"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Jarad DeLorenzo <jaradd@gmail.com>"]
 description = "iMi - Decentralized git worktree management tool built from the ground up for distributed agentic workflows."
@@ -88,9 +88,9 @@ serial_test = "0.9.0"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(disabled_test_framework)',
-    'cfg(disabled_docs_coverage)',
-    'cfg(disabled_comprehensive_runner)'
+  'cfg(disabled_test_framework)',
+  'cfg(disabled_docs_coverage)',
+  'cfg(disabled_comprehensive_runner)',
 ] }
 
 [profile.release]
@@ -98,4 +98,3 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
-
