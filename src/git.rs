@@ -463,21 +463,43 @@ impl GitManager {
 
     /// Prune all stale worktree references
     pub fn prune_worktrees(&self, repo: &Repository) -> Result<()> {
+        use colored::Colorize;
+
         // Get list of worktrees and prune any that are prunable
         let worktrees = repo.worktrees()?;
         let mut pruned_count = 0;
 
         for worktree_name in worktrees.iter().flatten() {
             if let Ok(worktree) = repo.find_worktree(worktree_name) {
-                if worktree.is_prunable(None)? {
+                // Check if the worktree directory actually exists
+                let worktree_path = worktree.path().parent().unwrap_or(worktree.path());
+                let directory_exists = worktree_path.exists();
+
+                // If directory doesn't exist, force-prune by removing admin directory
+                if !directory_exists {
+                    println!("🔍 Found stale worktree reference: {} (directory missing)", worktree_name);
+
+                    // Force-remove the administrative directory
+                    let git_dir = repo.path();
+                    let worktree_admin_dir = git_dir.join("worktrees").join(worktree_name);
+
+                    if worktree_admin_dir.exists() {
+                        std::fs::remove_dir_all(&worktree_admin_dir)
+                            .context(format!("Failed to remove worktree admin directory for {}", worktree_name))?;
+                        println!("🗑️  Removed Git admin directory for: {}", worktree_name.bright_yellow());
+                        pruned_count += 1;
+                    }
+                } else if worktree.is_prunable(None)? {
+                    // Standard pruning for normally-prunable worktrees
                     worktree.prune(None)?;
+                    println!("🧹 Pruned worktree reference: {}", worktree_name);
                     pruned_count += 1;
                 }
             }
         }
 
         if pruned_count > 0 {
-            println!("🧹 Pruned {} stale worktree reference(s)", pruned_count);
+            println!("✅ Pruned {} stale worktree reference(s)", pruned_count);
         }
 
         Ok(())

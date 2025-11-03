@@ -1324,9 +1324,11 @@ impl WorktreeManager {
     /// Detect and remove orphaned worktree directories
     async fn prune_orphaned_directories(&self, git_repo: &git2::Repository, dry_run: bool, force: bool) -> Result<()> {
         // Get the parent directory where worktrees live
+        // git_repo.path() returns path to .git directory
+        // We want the parent of the trunk directory (where worktrees are siblings to trunk)
         let worktree_root = git_repo.path()
-            .parent()
-            .and_then(|p| p.parent())
+            .parent()  // trunk-main/
+            .and_then(|p| p.parent())  // parent containing trunk-main and worktrees
             .context("Failed to determine worktree root directory")?;
 
         // Get list of currently registered worktrees from git
