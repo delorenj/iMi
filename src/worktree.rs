@@ -1413,7 +1413,6 @@ impl WorktreeManager {
     /// Merge a worktree into trunk-main and close it
     pub async fn merge_worktree(&self, name: &str, repo: Option<&str>) -> Result<()> {
         let repo_name = self.resolve_repo_name(repo).await?;
-<<<<<<< HEAD
 
         // Find the actual worktree name
         let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
@@ -1466,34 +1465,6 @@ impl WorktreeManager {
         }
 
         // Check if the worktree has uncommitted changes
-=======
-        let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
-
-        println!("{} Merging worktree: {}", "🔀".bright_cyan(), actual_worktree_name.bright_yellow());
-
-        let worktree_info = self.db.get_worktree(&repo_name, &actual_worktree_name).await?
-            .ok_or_else(|| anyhow::anyhow!("Worktree '{}' not found", actual_worktree_name))?;
-
-        let branch_name = worktree_info.branch_name.clone();
-        let trunk_path = self.get_trunk_worktree(repo).await?;
-
-        println!("{} Switching to trunk: {}", "🌳".bright_green(), trunk_path.display());
-
-        let trunk_repo = self.git.find_repository(Some(&trunk_path))?;
-        println!("{} Fetching latest changes", "⬇️".bright_blue());
-        self.git.fetch_all(&trunk_repo)?;
-
-        let default_branch = self.config.git_settings.default_branch.clone();
-        let current_branch = self.git.get_current_branch(&trunk_path)?;
-
-        if current_branch != default_branch {
-            return Err(anyhow::anyhow!(
-                "Trunk is on branch '{}' instead of '{}'. Please checkout '{}' first.",
-                current_branch, default_branch, default_branch
-            ));
-        }
-
->>>>>>> 44e1d18 (feat: Implement imi merge command for worktree merging)
         let worktree_path = PathBuf::from(&worktree_info.path);
         if worktree_path.exists() {
             let worktree_status = self.git.get_worktree_status(&worktree_path)?;
@@ -1508,7 +1479,6 @@ impl WorktreeManager {
             }
         }
 
-<<<<<<< HEAD
         // Perform the merge
         println!(
             "{} Merging branch '{}' into '{}'",
@@ -1574,38 +1544,10 @@ impl WorktreeManager {
                     branch_name,
                     e
                 );
-=======
-        println!("{} Merging branch '{}' into '{}'", "🔀".bright_magenta(), branch_name.bright_yellow(), default_branch.bright_green());
-
-        self.git.merge_branch(&trunk_repo, &branch_name, &default_branch)
-            .context("Failed to merge branch into trunk")?;
-
-        println!("{} Pushing merged changes to remote", "⬆️".bright_cyan());
-
-        match self.git.push_to_remote(&trunk_repo, &default_branch) {
-            Ok(_) => println!("{} Changes pushed to remote", "✅".bright_green()),
-            Err(e) => {
-                println!("{} Warning: Failed to push to remote: {}", "⚠️".bright_yellow(), e);
-                println!("   You may need to push manually: cd {} && git push", trunk_path.display());
-            }
-        }
-
-        println!("{} Closing worktree: {}", "🧹".bright_cyan(), actual_worktree_name);
-        self.close_worktree(name, repo).await?;
-
-        println!("{} Deleting merged branch: {}", "🗑️".bright_red(), branch_name);
-        self.git.delete_local_branch(&trunk_repo, &branch_name)?;
-
-        match self.git.delete_remote_branch(&trunk_repo, &branch_name).await {
-            Ok(_) => println!("{} Remote branch deleted", "✅".bright_green()),
-            Err(e) => {
-                println!("{} Warning: Could not delete remote branch '{}': {}", "⚠️".bright_yellow(), branch_name, e);
->>>>>>> 44e1d18 (feat: Implement imi merge command for worktree merging)
                 println!("   (This is normal if the branch was already deleted or never pushed)");
             }
         }
 
-<<<<<<< HEAD
         println!(
             "\n{} Merge completed successfully!",
             "✅".bright_green().bold()
@@ -1616,10 +1558,6 @@ impl WorktreeManager {
             branch_name.bright_yellow(),
             default_branch.bright_green()
         );
-=======
-        println!("\n{} Merge completed successfully!", "✅".bright_green().bold());
-        println!("{} Branch '{}' has been merged into '{}' and cleaned up", "📝".bright_blue(), branch_name.bright_yellow(), default_branch.bright_green());
->>>>>>> 44e1d18 (feat: Implement imi merge command for worktree merging)
 
         Ok(())
     }
