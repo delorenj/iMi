@@ -111,8 +111,8 @@ async fn main() -> Result<()> {
                     Commands::Completion { shell } => {
                         handle_completion_command(&shell);
                     }
-                    Commands::Prune { repo } => {
-                        handle_prune_command(&worktree_manager, repo.as_deref()).await?;
+                    Commands::Prune { repo, dry_run, force } => {
+                        handle_prune_command(&worktree_manager, repo.as_deref(), dry_run, force).await?;
                     }
                     Commands::Close { name, repo } => {
                         handle_close_command(&worktree_manager, &name, repo.as_deref()).await?;
@@ -411,12 +411,12 @@ async fn handle_init_command(repo: Option<String>, force: bool) -> Result<()> {
     Ok(())
 }
 
-async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>) -> Result<()> {
+async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>, dry_run: bool, force: bool) -> Result<()> {
     println!(
         "{} Cleaning up stale worktree references",
         "🧹".bright_cyan()
     );
-    manager.prune_stale_worktrees(repo).await?;
+    manager.prune_stale_worktrees(repo, dry_run, force).await?;
     println!("{} Cleanup complete", "✅".bright_green());
     Ok(())
 }

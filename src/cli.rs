@@ -175,6 +175,14 @@ pub enum Commands {
     Prune {
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
+
+        /// Show what would be removed without actually removing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Remove orphaned directories without confirmation
+        #[arg(long)]
+        force: bool,
     },
 
     /// Merge a worktree into trunk-main and close it

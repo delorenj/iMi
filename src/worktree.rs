@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use colored::*;
+use dialoguer::Confirm;
 use std::env;
 use std::os::unix::fs;
 use std::path::{Path, PathBuf};
@@ -1260,8 +1261,8 @@ impl WorktreeManager {
         Ok(())
     }
 
-    /// Prune stale worktree references
-    pub async fn prune_stale_worktrees(&self, repo: Option<&str>) -> Result<()> {
+    /// Prune stale worktree references and orphaned directories
+    pub async fn prune_stale_worktrees(&self, repo: Option<&str>, dry_run: bool, force: bool) -> Result<()> {
         let repo_name = self.resolve_repo_name(repo).await?;
 
         // Find the repository
@@ -1271,7 +1272,7 @@ impl WorktreeManager {
         // Prune stale worktrees using Git manager
         self.git.prune_worktrees(&git_repo)?;
 
-        // Also clean up database entries for worktrees that no longer exist
+        // Clean up database entries for worktrees that no longer exist
         let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await?;
         let mut cleaned_count = 0;
 
@@ -1293,7 +1294,181 @@ impl WorktreeManager {
             println!("📊 Cleaned up {} stale database entries", cleaned_count);
         }
 
+        // Detect and handle orphaned directories
+        self.prune_orphaned_directories(&git_repo, dry_run, force).await?;
+
         Ok(())
+    }
+
+    /// Detect and remove orphaned worktree directories
+    async fn prune_orphaned_directories(&self, git_repo: &git2::Repository, dry_run: bool, force: bool) -> Result<()> {
+        // Get the parent directory where worktrees live
+        let worktree_root = git_repo.path()
+            .parent()
+            .and_then(|p| p.parent())
+            .context("Failed to determine worktree root directory")?;
+
+        // Get list of currently registered worktrees from git
+        let registered_worktrees: Vec<String> = git_repo.worktrees()?
+            .iter()
+            .flatten()
+            .map(|s| s.to_string())
+            .collect();
+
+        // Scan parent directory for potential orphaned directories
+        let mut orphaned_dirs = Vec::new();
+        let mut entries = async_fs::read_dir(worktree_root).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+
+            // Skip if not a directory
+            if !path.is_dir() {
+                continue;
+            }
+
+            let dir_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+
+            // Skip hidden directories and trunk
+            if dir_name.starts_with('.') || dir_name.starts_with("trunk-") {
+                continue;
+            }
+
+            // Check if matches worktree naming pattern
+            let matches_pattern = dir_name.starts_with("feat-")
+                || dir_name.starts_with("fix-")
+                || dir_name.starts_with("aiops-")
+                || dir_name.starts_with("devops-")
+                || dir_name.starts_with("review-");
+
+            if !matches_pattern {
+                continue;
+            }
+
+            // Check if registered as a worktree
+            let is_registered = registered_worktrees.iter().any(|wt| wt == dir_name);
+
+            if is_registered {
+                continue;
+            }
+
+            // Check if it's a valid git repository
+            let is_valid_repo = git2::Repository::open(&path).is_ok();
+
+            if is_valid_repo {
+                // Valid repo but not registered - could be manually created
+                continue;
+            }
+
+            // This is an orphaned directory - collect info
+            let size = self.get_directory_size(&path).await?;
+            orphaned_dirs.push((path.clone(), dir_name.to_string(), size));
+        }
+
+        if orphaned_dirs.is_empty() {
+            return Ok(());
+        }
+
+        // Display orphaned directories
+        println!("\n{} Found {} orphaned worktree directories:",
+            "📦".bright_yellow(),
+            orphaned_dirs.len()
+        );
+
+        let mut total_size = 0u64;
+        for (_, name, size) in &orphaned_dirs {
+            println!("  {} {} ({})",
+                "•".bright_yellow(),
+                name.bright_white(),
+                self.format_size(*size).bright_cyan()
+            );
+            total_size += size;
+        }
+
+        println!("\n{} Total size: {}",
+            "💾".bright_cyan(),
+            self.format_size(total_size).bright_yellow()
+        );
+
+        if dry_run {
+            println!("\n{} Dry run - no directories removed", "ℹ️".bright_blue());
+            return Ok(());
+        }
+
+        // Ask for confirmation unless force flag is set
+        let should_remove = if force {
+            true
+        } else {
+            Confirm::new()
+                .with_prompt("Remove these orphaned directories?")
+                .default(false)
+                .interact()?
+        };
+
+        if !should_remove {
+            println!("{} Skipping removal", "⏭️".bright_yellow());
+            return Ok(());
+        }
+
+        // Remove orphaned directories
+        let mut removed_count = 0;
+        for (path, name, _) in orphaned_dirs {
+            match async_fs::remove_dir_all(&path).await {
+                Ok(_) => {
+                    println!("🗑️ Removed: {}", name.bright_green());
+                    removed_count += 1;
+                }
+                Err(e) => {
+                    println!("❌ Failed to remove {}: {}", name.bright_red(), e);
+                }
+            }
+        }
+
+        if removed_count > 0 {
+            println!("\n{} Removed {} orphaned directories",
+                "✅".bright_green(),
+                removed_count
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Calculate directory size recursively
+    fn get_directory_size<'a>(&'a self, path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + 'a>> {
+        Box::pin(async move {
+            let mut total_size = 0u64;
+            let mut entries = async_fs::read_dir(path).await?;
+
+            while let Some(entry) = entries.next_entry().await? {
+                let entry_path = entry.path();
+                let metadata = async_fs::metadata(&entry_path).await?;
+
+                if metadata.is_file() {
+                    total_size += metadata.len();
+                } else if metadata.is_dir() {
+                    total_size += self.get_directory_size(&entry_path).await?;
+                }
+            }
+
+            Ok(total_size)
+        })
+    }
+
+    /// Format byte size to human-readable string
+    fn format_size(&self, bytes: u64) -> String {
+        const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+        let mut size = bytes as f64;
+        let mut unit_idx = 0;
+
+        while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
+            size /= 1024.0;
+            unit_idx += 1;
+        }
+
+        format!("{:.2} {}", size, UNITS[unit_idx])
     }
 
     /// Fuzzy navigate to a worktree or repository
