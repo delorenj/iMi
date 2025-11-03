@@ -1,6 +1,6 @@
 [package]
 name = "iMi"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Jarad DeLorenzo <jaradd@gmail.com>"]
 description = "iMi - Decentralized git worktree management tool built from the ground up for distributed agentic workflows."
