@@ -219,16 +219,27 @@ impl WorktreeManager {
         let repo_name = self.resolve_repo_name(repo).await?;
         let worktree_name = format!("pr-{}", pr_number);
 
-        // Use IMI_PATH detection for consistent worktree placement
-        let current_dir = env::current_dir()?;
-        let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo
-            .workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
-        let imi_path = self.detect_imi_path(repo_root)?;
-        let worktree_path = imi_path.join(&worktree_name);
-
-        let trunk_path = self.config.get_trunk_path(&repo_name);
+        // Get worktree path - apply IMI_PATH logic to both registered and unregistered repos
+        let (worktree_path, trunk_path) =
+            if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+                // Use registered repository path with IMI_PATH detection
+                let registered_path = PathBuf::from(&registered_repo.path);
+                let imi_path = self.detect_imi_path(&registered_path)?;
+                let worktree_path = imi_path.join(&worktree_name);
+                let trunk_path = self.config.get_trunk_path(&repo_name);
+                (worktree_path, trunk_path)
+            } else {
+                // Fall back to current repository location with IMI_PATH detection
+                let current_dir = env::current_dir()?;
+                let repo = self.git.find_repository(Some(&current_dir))?;
+                let repo_root = repo
+                    .workdir()
+                    .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+                let imi_path = self.detect_imi_path(repo_root)?;
+                let worktree_path = imi_path.join(&worktree_name);
+                let trunk_path = self.config.get_trunk_path(&repo_name);
+                (worktree_path, trunk_path)
+            };
 
         // Try to checkout PR using gh CLI
         let _repo = self.git.find_repository(Some(&trunk_path))?;

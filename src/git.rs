@@ -823,28 +823,32 @@ impl GitManager {
             ));
         }
 
-        // Fetch the PR branch using gh CLI
-        let branch_name = format!("pr-{}", pr_number);
+        // Use gh pr view to get the PR's head ref without checking it out
         let output = Command::new("gh")
             .current_dir(repo_path)
-            .args(&[
-                "pr",
-                "checkout",
-                &pr_number.to_string(),
-                "-b",
-                &branch_name,
-                "--force",
-            ])
+            .args(&["pr", "view", &pr_number.to_string(), "--json", "headRefName", "-q", ".headRefName"])
             .output()
-            .context("Failed to execute gh pr checkout")?;
+            .context("Failed to get PR head ref")?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to checkout PR: {}", stderr));
+            return Err(anyhow::anyhow!("Failed to get PR info: {}", stderr));
         }
 
-        // Now create a worktree from the checked out PR branch
-        let repo = Repository::open(repo_path)?;
+        let remote_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        // Fetch the PR ref from remote without checking it out
+        let branch_name = format!("pr-{}", pr_number);
+        self.execute_git_command(
+            repo_path,
+            &[
+                "fetch",
+                "origin",
+                &format!("{}:{}", remote_branch, branch_name),
+            ],
+        )?;
+
+        // Create worktree from the fetched branch
         self.execute_git_command(
             repo_path,
             &[
