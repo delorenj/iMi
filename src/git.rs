@@ -714,7 +714,17 @@ impl GitManager {
     /// Get worktree status (modified files, commits ahead/behind, etc.)
     pub fn get_worktree_status(&self, repo_path: &Path) -> Result<WorktreeStatus> {
         let repo = Repository::open(repo_path)?;
-        let statuses = repo.statuses(None)?;
+
+        // Configure status options to match `git status` behavior:
+        // - Include untracked files
+        // - Exclude ignored files (this was causing false positives)
+        // - Recurse into untracked directories
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .exclude_submodules(true);
+
+        let statuses = repo.statuses(Some(&mut opts))?;
 
         let mut modified_files = Vec::new();
         let mut new_files = Vec::new();

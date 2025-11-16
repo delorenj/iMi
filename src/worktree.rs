@@ -1733,13 +1733,30 @@ impl WorktreeManager {
         if worktree_path.exists() {
             let worktree_status = self.git.get_worktree_status(&worktree_path)?;
             if !worktree_status.clean {
-                return Err(anyhow::anyhow!(
-                    "Worktree has uncommitted changes. Please commit or stash them first.\n\
-                     Modified: {}, New: {}, Deleted: {}",
-                    worktree_status.modified_files.len(),
-                    worktree_status.new_files.len(),
-                    worktree_status.deleted_files.len()
-                ));
+                let mut error_msg = String::from("Worktree has uncommitted changes. Please commit or stash them first.\n");
+
+                if !worktree_status.modified_files.is_empty() {
+                    error_msg.push_str(&format!("\nModified files ({}):\n", worktree_status.modified_files.len()));
+                    for file in &worktree_status.modified_files {
+                        error_msg.push_str(&format!("  - {}\n", file));
+                    }
+                }
+
+                if !worktree_status.new_files.is_empty() {
+                    error_msg.push_str(&format!("\nNew files ({}):\n", worktree_status.new_files.len()));
+                    for file in &worktree_status.new_files {
+                        error_msg.push_str(&format!("  - {}\n", file));
+                    }
+                }
+
+                if !worktree_status.deleted_files.is_empty() {
+                    error_msg.push_str(&format!("\nDeleted files ({}):\n", worktree_status.deleted_files.len()));
+                    for file in &worktree_status.deleted_files {
+                        error_msg.push_str(&format!("  - {}\n", file));
+                    }
+                }
+
+                return Err(anyhow::anyhow!(error_msg));
             }
         }
 
