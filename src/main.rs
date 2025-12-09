@@ -232,6 +232,9 @@ async fn main() -> Result<()> {
                     Commands::Project { command } => {
                         handle_project_command(command, json_mode).await?;
                     }
+                    Commands::Clone { repo } => {
+                        handle_clone_command(&repo).await?;
+                    }
                 }
             }
         }
@@ -240,621 +243,78 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn handle_feature_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Creating feature worktree: {}",
-            "🚀".bright_cyan(),
-            name.bright_green()
-        );
-    }
+async fn handle_clone_command(repo: &str) -> Result<()> {
+    println!("{} Cloning repository: {}", "🔄".bright_cyan(), repo.bright_white());
 
-    match manager.create_feature_worktree(name, repo).await {
-        Ok(worktree_path) => {
-            if json_mode {
-                JsonResponse::success(serde_json::json!({
-                    "worktree_path": worktree_path.display().to_string(),
-                    "worktree_name": format!("feat-{}", name),
-                    "message": "Feature worktree created successfully"
-                }))
-                .print();
-            } else {
-                println!(
-                    "{} Feature worktree created at: {}",
-                    "✅".bright_green(),
-                    worktree_path.display()
-                );
-
-                // Print command to change directory (processes can't change parent shell's directory)
-                println!(
-                    "\n{} To navigate to the worktree, run:\n   {}",
-                    "💡".bright_yellow(),
-                    format!("cd {}", worktree_path.display()).bright_cyan()
-                );
-            }
-        }
-        Err(e) => {
-            if json_mode {
-                JsonResponse::error(e.to_string()).print();
-                return Err(e);
-            }
-
-            let error_msg = e.to_string().to_lowercase();
-            // Check if it's an authentication error
-            if error_msg.contains("authentication")
-                || error_msg.contains("auth")
-                || error_msg.contains("credential")
-                || error_msg.contains("ssh")
-            {
-                println!("{} Authentication failed", "❌".bright_red());
-                println!();
-
-                // Show authentication help
-                let git_manager = GitManager::new();
-                git_manager.show_auth_help();
-                println!();
-
-                return Err(e);
-            }
-            return Err(e);
-        }
-    }
-
-    Ok(())
-}
-
-async fn handle_review_command(
-    manager: &WorktreeManager,
-    pr_number: u32,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Creating review worktree for PR: {}",
-            "🔍".bright_yellow(),
-            pr_number.to_string().bright_green()
-        );
-    }
-
-    let worktree_path = manager.create_review_worktree(pr_number, repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_path": worktree_path.display().to_string(),
-            "pr_number": pr_number,
-            "message": "Review worktree created successfully"
-        }))
-        .print();
-    } else {
-        println!(
-            "{} Review worktree created at: {}",
-            "✅".bright_green(),
-            worktree_path.display()
-        );
-
-        // Print command to change directory (processes can't change parent shell's directory)
-        println!(
-            "\n{} To navigate to the worktree, run:\n   {}",
-            "💡".bright_yellow(),
-            format!("cd {}", worktree_path.display()).bright_cyan()
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_fix_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Creating fix worktree: {}",
-            "🔧".bright_red(),
-            name.bright_green()
-        );
-    }
-
-    let worktree_path = manager.create_fix_worktree(name, repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_path": worktree_path.display().to_string(),
-            "worktree_name": format!("fix-{}", name),
-            "message": "Fix worktree created successfully"
-        }))
-        .print();
-    } else {
-        println!(
-            "{} Fix worktree created at: {}",
-            "✅".bright_green(),
-            worktree_path.display()
-        );
-
-        // Print command to change directory (processes can't change parent shell's directory)
-        println!(
-            "\n{} To navigate to the worktree, run:\n   {}",
-            "💡".bright_yellow(),
-            format!("cd {}", worktree_path.display()).bright_cyan()
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_aiops_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Creating aiops worktree: {}",
-            "🤖".bright_magenta(),
-            name.bright_green()
-        );
-    }
-
-    let worktree_path = manager.create_aiops_worktree(name, repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_path": worktree_path.display().to_string(),
-            "worktree_name": format!("aiops-{}", name),
-            "message": "Aiops worktree created successfully"
-        }))
-        .print();
-    } else {
-        println!(
-            "{} Aiops worktree created at: {}",
-            "✅".bright_green(),
-            worktree_path.display()
-        );
-
-        // Print command to change directory (processes can't change parent shell's directory)
-        println!(
-            "\n{} To navigate to the worktree, run:\n   {}",
-            "💡".bright_yellow(),
-            format!("cd {}", worktree_path.display()).bright_cyan()
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_devops_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Creating devops worktree: {}",
-            "⚙️".bright_blue(),
-            name.bright_green()
-        );
-    }
-
-    let worktree_path = manager.create_devops_worktree(name, repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_path": worktree_path.display().to_string(),
-            "worktree_name": format!("devops-{}", name),
-            "message": "Devops worktree created successfully"
-        }))
-        .print();
-    } else {
-        println!(
-            "{} Devops worktree created at: {}",
-            "✅".bright_green(),
-            worktree_path.display()
-        );
-
-        // Print command to change directory (processes can't change parent shell's directory)
-        println!(
-            "\n{} To navigate to the worktree, run:\n   {}",
-            "💡".bright_yellow(),
-            format!("cd {}", worktree_path.display()).bright_cyan()
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_trunk_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!("{} Switching to trunk worktree", "🌳".bright_green());
-    }
-
-    let worktree_path = manager.get_trunk_worktree(repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_path": worktree_path.display().to_string(),
-            "message": "Trunk worktree located"
-        }))
-        .print();
-    } else {
-        // Print command to change directory (processes can't change parent shell's directory)
-        println!(
-            "{} To navigate to trunk, run:\n   {}",
-            "💡".bright_yellow(),
-            format!("cd {}", worktree_path.display()).bright_cyan()
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_status_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if json_mode {
-        // For JSON mode, we need to capture the status data instead of printing
-        // This would require modifying WorktreeManager.show_status() to return data
-        // For now, we'll use a simple response
-        JsonResponse::success(serde_json::json!({
-            "message": "Status command in JSON mode not yet fully implemented",
-            "note": "Use non-JSON mode for detailed status"
-        }))
-        .print();
-    } else {
-        println!("{} Worktree Status", "📊".bright_cyan());
-        manager.show_status(repo).await?;
-    }
-    Ok(())
-}
-
-async fn handle_list_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    worktrees: bool,
-    projects: bool,
-    json_mode: bool,
-) -> Result<()> {
-    if json_mode {
-        // For JSON mode, would need to capture list data
-        // For now, simple response
-        JsonResponse::success(serde_json::json!({
-            "message": "List command in JSON mode not yet fully implemented",
-            "note": "Use non-JSON mode for detailed listing"
-        }))
-        .print();
-    } else {
-        manager.list_smart(repo, worktrees, projects).await?;
-    }
-    Ok(())
-}
-
-async fn handle_remove_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    keep_branch: bool,
-    keep_remote: bool,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Removing worktree: {}",
-            "🗑️".bright_red(),
-            name.bright_yellow()
-        );
-    }
-
-    manager
-        .remove_worktree(name, repo, keep_branch, keep_remote)
-        .await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "worktree_name": name,
-            "message": "Worktree removed successfully"
-        }))
-        .print();
-    } else {
-        println!("{} Worktree removed successfully", "✅".bright_green());
-    }
-    Ok(())
-}
-
-async fn handle_monitor_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if json_mode {
-        JsonResponse::error(
-            "Monitor command does not support JSON mode (interactive mode only)".to_string(),
-        )
-        .print();
-        return Err(anyhow::anyhow!(
-            "Monitor command requires interactive terminal"
-        ));
-    }
-
-    println!("{} Starting real-time monitoring...", "👁️".bright_purple());
-    manager.start_monitoring(repo).await?;
-    Ok(())
-}
-
-async fn handle_sync_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Syncing database with Git worktrees...",
-            "🔄".bright_cyan()
-        );
-    }
-
-    manager.sync_with_git(repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "message": "Database synced successfully"
-        }))
-        .print();
-    }
-    Ok(())
-}
-
-async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool) -> Result<()> {
     let config = Config::load().await?;
     let db = Database::new(&config.database_path).await?;
-    let init_cmd = InitCommand::new(force, config, db);
+    let init_cmd = InitCommand::new(false, config, db);
 
-    // Check if repo argument looks like a GitHub repo (owner/repo format)
-    if let Some(ref repo_arg) = repo {
-        if repo_arg.contains('/') && !repo_arg.contains(':') {
-            // Looks like owner/repo format - clone from GitHub
-            let result = init_cmd.clone_from_github(repo_arg).await?;
+    let result = init_cmd.clone_repository(repo).await?;
 
-            if json_mode {
-                if result.success {
-                    JsonResponse::success(serde_json::json!({
-                        "message": result.message,
-                        "repo": repo_arg
-                    }))
-                    .print();
-                } else {
-                    JsonResponse::error(result.message).print();
-                }
-            } else {
-                if result.success {
-                    println!("{}", result.message.green());
-                } else {
-                    println!("{}", result.message.red());
-                }
-            }
-
-            return Ok(());
-        } else {
-            // Treat as a local path
-            let path = std::path::PathBuf::from(repo_arg);
-            let result = init_cmd.execute(Some(&path)).await?;
-
-            if json_mode {
-                if result.success {
-                    JsonResponse::success(serde_json::json!({
-                        "message": result.message,
-                        "path": path.display().to_string()
-                    }))
-                    .print();
-                } else {
-                    JsonResponse::error(result.message).print();
-                }
-            } else {
-                if result.success {
-                    println!("{}", result.message.green());
-                } else {
-                    println!("{}", result.message.red());
-                }
-            }
-
-            return Ok(());
-        }
-    }
-
-    // No repo argument - normal init
-    let result = init_cmd.execute(None).await?;
-
-    if json_mode {
-        if result.success {
-            JsonResponse::success(serde_json::json!({
-                "message": result.message
-            }))
-            .print();
-        } else {
-            JsonResponse::error(result.message).print();
-        }
+    if result.success {
+        println!("{}", result.message.green());
     } else {
-        if result.success {
-            println!("{}", result.message.green());
-        } else {
-            println!("{}", result.message.red());
-        }
+        println!("{}", result.message.red());
     }
 
     Ok(())
 }
 
-async fn handle_prune_command(
-    manager: &WorktreeManager,
-    repo: Option<&str>,
-    dry_run: bool,
-    force: bool,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Cleaning up stale worktree references",
-            "🧹".bright_cyan()
-        );
-    }
+async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Result<()> {
+    match command {
+        ProjectCommands::Create {
+            concept,
+            prd,
+            name,
+            payload,
+        } => {
+            // Check GitHub authentication first
+            if let Err(e) = github::check_auth() {
+                if json_mode {
+                    JsonResponse::error(format!("GitHub authentication failed: {}", e)).print();
+                } else {
+                    eprintln!("{}", format!("{}", e).red());
+                    github::show_auth_help();
+                }
+                return Err(e);
+            }
 
-    manager.prune_stale_worktrees(repo, dry_run, force).await?;
+            // Build project config from input
+            let config = if let Some(payload_str) = payload {
+                ProjectConfig::from_json(&payload_str)?
+            } else if let Some(prd_path) = prd {
+                ProjectConfig::from_prd(&prd_path, name)?
+            } else if let Some(concept_str) = concept {
+                ProjectConfig::from_concept(&concept_str, name)?
+            } else {
+                let err_msg = "Must provide one of: --concept, --prd, or --payload";
+                if json_mode {
+                    JsonResponse::error(err_msg.to_string()).print();
+                }
+                return Err(anyhow::anyhow!(err_msg));
+            };
 
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "message": "Cleanup complete",
-            "dry_run": dry_run
-        }))
-        .print();
-    } else {
-        println!("{} Cleanup complete", "✅".bright_green());
-    }
-    Ok(())
-}
+            // Create the project
+            let creator = ProjectCreator::new()?;
+            let project_path = creator.create_project(config.clone()).await?;
 
-async fn handle_close_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Closing worktree: {}",
-            "🚫".bright_yellow(),
-            name.bright_yellow()
-        );
-    }
-
-    manager.close_worktree(name, repo).await?;
-
-    if json_mode {
-        match manager.get_trunk_worktree(repo).await {
-            Ok(trunk_path) => {
+            if json_mode {
                 JsonResponse::success(serde_json::json!({
-                    "message": "Worktree closed successfully",
-                    "worktree_name": name,
-                    "trunk_path": trunk_path.display().to_string()
+                    "message": "Project created successfully",
+                    "project_name": config.name,
+                    "project_path": project_path.display().to_string(),
+                    "stack": format!("{:?}", config.stack),
+                    "github_url": format!("https://github.com/{}/{}",
+                        std::env::var("USER").unwrap_or_else(|_| "user".to_string()),
+                        config.name)
                 }))
                 .print();
             }
-            Err(_) => {
-                JsonResponse::success(serde_json::json!({
-                    "message": "Worktree closed successfully",
-                    "worktree_name": name,
-                    "warning": "Unable to locate trunk worktree"
-                }))
-                .print();
-            }
-        }
-    } else {
-        println!("{} Worktree closed successfully", "✅".bright_green());
 
-        match manager.get_trunk_worktree(repo).await {
-            Ok(trunk_path) => {
-                println!(
-                    "\n{} To navigate to trunk, run:\n   {}",
-                    "💡".bright_yellow(),
-                    format!("cd {}", trunk_path.display()).bright_cyan()
-                );
-            }
-            Err(err) => {
-                println!(
-                    "{} Unable to locate trunk worktree: {}",
-                    "⚠️".bright_yellow(),
-                    err
-                );
-                println!(
-                    "{} If needed you can recreate it with: {}",
-                    "💡".bright_yellow(),
-                    "imi trunk".bright_cyan()
-                );
-            }
+            Ok(())
         }
     }
-
-    Ok(())
-}
-
-async fn handle_go_command(
-    manager: &WorktreeManager,
-    query: Option<&str>,
-    repo: Option<&str>,
-    worktrees_only: bool,
-    include_inactive: bool,
-    json_mode: bool,
-) -> Result<()> {
-    // Perform fuzzy search and get best match or show interactive picker
-    let target_path = manager
-        .fuzzy_navigate(query, repo, worktrees_only, include_inactive)
-        .await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "target_path": target_path.display().to_string()
-        }))
-        .print();
-    } else {
-        // Output only the path to stdout for shell wrapper to capture
-        // All other output must go to stderr to avoid polluting the path
-        print!("{}", target_path.display());
-    }
-
-    Ok(())
-}
-
-async fn handle_merge_command(
-    manager: &WorktreeManager,
-    name: &str,
-    repo: Option<&str>,
-    json_mode: bool,
-) -> Result<()> {
-    if !json_mode {
-        println!(
-            "{} Merging worktree: {}",
-            "🔀".bright_cyan(),
-            name.bright_yellow()
-        );
-    }
-
-    manager.merge_worktree(name, repo).await?;
-
-    if json_mode {
-        JsonResponse::success(serde_json::json!({
-            "message": "Worktree merged successfully",
-            "worktree_name": name
-        }))
-        .print();
-    }
-
-    Ok(())
-}
-
-fn handle_completion_command(shell: &clap_complete::Shell) {
-    use clap::CommandFactory;
-    use clap_complete::{generate, Generator};
-    use std::io;
-
-    fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
-        generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
-    }
-
-    let mut cmd = cli::Cli::command();
-    print_completions(*shell, &mut cmd);
 }
 
 async fn handle_add_command(
@@ -1065,63 +525,3 @@ async fn handle_types_command(
                 );
             }
         }
-    }
-
-    Ok(())
-}
-
-async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Result<()> {
-    match command {
-        ProjectCommands::Create {
-            concept,
-            prd,
-            name,
-            payload,
-        } => {
-            // Check GitHub authentication first
-            if let Err(e) = github::check_auth() {
-                if json_mode {
-                    JsonResponse::error(format!("GitHub authentication failed: {}", e)).print();
-                } else {
-                    eprintln!("{}", format!("{}", e).red());
-                    github::show_auth_help();
-                }
-                return Err(e);
-            }
-
-            // Build project config from input
-            let config = if let Some(payload_str) = payload {
-                ProjectConfig::from_json(&payload_str)?
-            } else if let Some(prd_path) = prd {
-                ProjectConfig::from_prd(&prd_path, name)?
-            } else if let Some(concept_str) = concept {
-                ProjectConfig::from_concept(&concept_str, name)?
-            } else {
-                let err_msg = "Must provide one of: --concept, --prd, or --payload";
-                if json_mode {
-                    JsonResponse::error(err_msg.to_string()).print();
-                }
-                return Err(anyhow::anyhow!(err_msg));
-            };
-
-            // Create the project
-            let creator = ProjectCreator::new()?;
-            let project_path = creator.create_project(config.clone()).await?;
-
-            if json_mode {
-                JsonResponse::success(serde_json::json!({
-                    "message": "Project created successfully",
-                    "project_name": config.name,
-                    "project_path": project_path.display().to_string(),
-                    "stack": format!("{:?}", config.stack),
-                    "github_url": format!("https://github.com/{}/{}",
-                        std::env::var("USER").unwrap_or_else(|_| "user".to_string()),
-                        config.name)
-                }))
-                .print();
-            }
-
-            Ok(())
-        }
-    }
-}

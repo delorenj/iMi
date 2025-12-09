@@ -57,84 +57,29 @@
 
 **Decision:** Ship current implementation, gaps are polish not blockers.
 
+### Phase 1.8: Clone Command Implementation
+Implement the `clone` command.
+
+## Specification
+
+The `clone` command should create a copy of a given repository from a remote source to the local machine. It should function identically to the `git clone` command, with the following acceptions:
+
+- It should accept only a single argument: the name of the repository to clone
+- If `user` is left out and only `name` is provided, it should default to "delorenj"
+- The arg can be provided in 3 formats:
+  - `name`
+  - `user/name`
+  - `https://github.com/user/name.git`
+- The repo should be cloned into a directory named after the repository, in the `iMi System Path` (set in the `~/.config/iMi/config.toml`)
+  - e.g., if cloning `repo-name`, it should create a directory called `repo-name` in the iMi System Path and clone the repo there with the name `trunk-main`
+  - In this case (this server), the full path would be `/home/delorenj/code/repo-name/trunk-main`
+  - If the target directory already exists then there are two possibilities:
+    1. The repo is already an iMi repo, so instead of cloning, it should just `igo` to the directory and log a message indicating that the repo already exists and that it is switching to it.
+    2. The repo is not an iMi repo (hasn't been initialized with iMi), so it should log a message indicating that the target directory already exists but it is not an iMi repo and it will convert it into one by initializing it with iMi after cloning. There is a script that does this `/home/delorenj/.config/zshyzsh/scripts/imify.py`. Ideally this script should be implemented as an iMi command in the future, but for now it can be called directly.
+    - The script safely rearranged the existing contents of the directory into the iMi structure and then runs `iMi init`
+    - `repo-name/` becomes the `repo-name/trunk-main/` directory.
+
 ### Next: Phase 2 - FastMCP Server
 Ready to begin MCP server implementation per plan at ~/.claude/plans/structured-tinkering-stearns.md
 
 ## Usage
-
-### New Hierarchical Commands
-
-```bash
-# List available worktree types
-imi types list
-imi types list --json
-
-# Add custom worktree type
-imi types add experiment --description "Experimental features"
-imi types add prototype --branch-prefix "proto/" --worktree-prefix "proto-"
-
-# Remove custom type (builtin types protected)
-imi types remove experiment
-
-# Create worktrees using unified add command
-imi add feat "user-authentication"
-imi add fix "login-bug"
-imi add experiment "new-ui-concept"
-
-# Old commands still work (deprecated)
-imi feat "user-authentication"  # Shows deprecation warning
-imi fix "login-bug"
-```
-
-### Project Creation
-
-```
-imi project create [--concept|-c] "An android app that helps you plan lego builds. Use Flutter." [--name|-n] "LegoJoe"
-
-# Use a markdown doc to describe concept
-iMi prooject create [--prd|-p] /some/markdown.md #if name is null, will look to prd or concept for explicit name and fallback to deciding on its own.
-
-# Or use Bloodbank command
-imi.project.create
-
-{
-  "concept": "Blah Blah",
-  "name": "SomeProjectName"
-}
-
-# Can also use arbitrary structured json data to describe anything
-# Vague stuff will just be guessed. Wrong? Who cares! It's awesome.
-
-{
- "name": "MyProject",
- "api": "FastAPI",
- "frontend": "react dashboard",
- "mise-tasks": [
-  "hello-world"
-  ]
-}
-```
-
-## Instructions
-
-Use bmad workflow.
-Spawn a staff level architect to answer questions for me.
-Best guesses are fine.
-Continue from phase to phase until acceptance criteria are met
-
-## Acceptance Criteria
-
-Above example commands result in:
-
-- new gh repo for each `create`
-- works via CLI or Bloodbank command
-- gh repo contains the base boilerplate for whatever stack the repo requires
-  - Bootstrapped with mise.toml, .mise/tasks
-  - Python apps bootstrapped with UV, hatchling packaging
-  - React apps bootstrapped with `bun`, Typescript, tailwindcss, vite, shadcn
-  - Containerization with docker compose, `compose.yml`.
-  - If postgres required, use native postgres on 192.168.1.12:5432 $DEFAULT_USERNAME:$DEFAULT_PASSWORD
-  - If redis required, use native passwordless redis on 192.168.1.12:6743
-  - If qdrant required, use qdrant.delo.sh
-  - Sensible readme added
-  - Public repo, unless otherwise specified

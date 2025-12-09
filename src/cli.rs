@@ -227,6 +227,13 @@ pub enum Commands {
         #[command(subcommand)]
         command: ProjectCommands,
     },
+
+    /// Clone a repository from GitHub and set up iMi structure
+    Clone {
+        /// Repository to clone (formats: name, user/name, or https://github.com/user/name.git)
+        /// If only name is provided, defaults to delorenj/{name}
+        repo: String,
+    },
 }
 
 #[derive(Subcommand)]
