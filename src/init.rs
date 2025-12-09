@@ -413,10 +413,14 @@ impl InitCommand {
             .await
             .unwrap_or_else(|_| "main".to_string());
 
+        let repo_path_str = repo_path
+            .to_str()
+            .context("Repository path contains invalid UTF-8 characters")?;
+
         self.db
             .create_repository(
                 repo_name,
-                repo_path.to_str().unwrap(),
+                repo_path_str,
                 &remote_url,
                 &default_branch,
             )
@@ -427,7 +431,10 @@ impl InitCommand {
             repo_name
         );
 
-        let imi_dir = repo_path.parent().unwrap().join(".iMi");
+        let imi_parent = repo_path
+            .parent()
+            .context("Repository path has no parent directory")?;
+        let imi_dir = imi_parent.join(".iMi");
         fs::create_dir_all(&imi_dir)
             .await
             .context("Failed to create .iMi directory")?;
@@ -459,7 +466,292 @@ impl InitCommand {
         Ok((imi_path, repo_name))
     }
 
-    /// Clone a repository from GitHub and set up iMi structure
+    /// Clone a repository with enhanced logic for multiple formats and existing directory handling
+    pub async fn clone_repository(&self, repo_arg: &str) -> Result<InitResult> {
+        // Parse the repository argument into owner/repo format
+        let (owner, repo_name, git_url) = self.parse_repo_argument(repo_arg)?;
+
+        println!(
+            "{} Cloning {}/{} from GitHub...",
+            "🔍".bright_cyan(),
+            owner.bright_white(),
+            repo_name.bright_white()
+        );
+
+        // Determine clone location using config's IMI_SYSTEM_PATH (root_path)
+        let repo_container = self.config.root_path.join(&repo_name);
+        let trunk_path = repo_container.join("trunk-main");
+
+        // Check if directory already exists
+        if repo_container.exists() {
+            return self.handle_existing_directory(&repo_container, &trunk_path, &repo_name, &owner).await;
+        }
+
+        // Create container directory and clone
+        fs::create_dir_all(&repo_container)
+            .await
+            .context("Failed to create repository container")?;
+
+        println!(
+            "{} Cloning into {}...",
+            "📁".bright_blue(),
+            trunk_path.display().to_string().bright_white()
+        );
+
+        let trunk_path_str = trunk_path
+            .to_str()
+            .context("Repository path contains invalid UTF-8 characters")?;
+
+        // Ensure git inherits environment for credential helper and disable terminal prompts
+        let output = tokio::process::Command::new("git")
+            .args(&["clone", &git_url, trunk_path_str])
+            .env("GIT_TERMINAL_PROMPT", "0") // Disable interactive credential prompts
+            .output()
+            .await
+            .context("Failed to execute git clone")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+
+            // Attempt cleanup with proper error handling
+            if let Err(cleanup_err) = fs::remove_dir_all(&repo_container).await {
+                eprintln!("{} Failed to cleanup directory after clone failure: {}",
+                    "⚠️".bright_yellow(),
+                    cleanup_err
+                );
+            }
+
+            // Parse git errors for better user feedback
+            let error_msg = if stderr.contains("Authentication failed") || stderr.contains("authentication") {
+                format!("Authentication failed for {}/{}. Check your SSH keys or GitHub token (gh auth login)", owner, repo_name)
+            } else if stderr.contains("not found") || stderr.contains("does not exist") {
+                format!("Repository {}/{} not found on GitHub. Verify the repository exists and you have access.", owner, repo_name)
+            } else if stderr.contains("No space") || stderr.contains("disk") {
+                "Insufficient disk space to clone repository".to_string()
+            } else {
+                format!("Git clone failed: {}", stderr)
+            };
+
+            return Err(anyhow!("{}", error_msg));
+        }
+
+        println!("{} Clone complete!", "✅".bright_green());
+
+        // Now initialize iMi in the cloned repository
+        self.register_repository(&trunk_path, &repo_name).await
+    }
+
+    /// Handle existing directory - either switch to existing iMi repo or convert non-iMi repo
+    async fn handle_existing_directory(
+        &self,
+        repo_container: &Path,
+        trunk_path: &Path,
+        repo_name: &str,
+        _owner: &str,
+    ) -> Result<InitResult> {
+        // Check if trunk-main exists (indicating iMi repo)
+        if trunk_path.exists() {
+            // This is already an iMi repo
+            println!(
+                "{} Repository already exists as iMi repo at: {}",
+                "ℹ️".bright_blue(),
+                repo_container.display()
+            );
+
+            // Check if it's registered in the database
+            match self.db.get_repository(repo_name).await? {
+                Some(_) => {
+                    println!(
+                        "{} Repository '{}' is already registered. Switching to it...",
+                        "✅".bright_green(),
+                        repo_name
+                    );
+                }
+                None => {
+                    println!(
+                        "{} Repository exists but not registered. Registering now...",
+                        "🔧".bright_yellow()
+                    );
+                    self.register_repository(trunk_path, repo_name).await?;
+                }
+            }
+
+            return Ok(InitResult::success(format!(
+                "Repository already exists at {}\nTo navigate: cd {} or use 'igo {}'",
+                repo_container.display(),
+                trunk_path.display(),
+                repo_name
+            )));
+        }
+
+        // Directory exists but is not an iMi repo - need to convert it
+        println!(
+            "{} Directory exists but is not an iMi repository.",
+            "⚠️".bright_yellow()
+        );
+        println!(
+            "{} Converting to iMi structure using imify.py...",
+            "🔄".bright_cyan()
+        );
+
+        // Call the imify.py script
+        let imify_script = dirs::home_dir()
+            .context("Could not determine home directory")?
+            .join(".config/zshyzsh/scripts/imify.py");
+
+        if !imify_script.exists() {
+            return Err(anyhow!(
+                "imify.py script not found at {}. Please ensure it exists.",
+                imify_script.display()
+            ));
+        }
+
+        // Verify parent directory exists for working directory
+        let parent_dir = repo_container
+            .parent()
+            .context("Repository container has no parent directory")?;
+
+        // Run imify.py on the directory
+        let output = tokio::process::Command::new("python3")
+            .arg(&imify_script)
+            .arg(repo_container)
+            .current_dir(parent_dir)
+            .output()
+            .await
+            .context("Failed to execute imify.py")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow!("Failed to convert directory to iMi structure: {}", stderr));
+        }
+
+        println!("{} Conversion complete!", "✅".bright_green());
+
+        // Now register the repository
+        self.register_repository(trunk_path, repo_name).await
+    }
+
+    /// Validate repository name for security
+    fn validate_repo_name(name: &str) -> Result<()> {
+        // Disallow empty names
+        if name.is_empty() {
+            return Err(anyhow!("Repository name cannot be empty"));
+        }
+
+        // Disallow path traversal
+        if name.contains("..") {
+            return Err(anyhow!("Repository name cannot contain '..'"));
+        }
+
+        // Disallow absolute paths
+        if name.starts_with('/') || name.starts_with('\\') {
+            return Err(anyhow!("Repository name cannot be an absolute path"));
+        }
+
+        // Disallow null bytes and newlines
+        if name.contains('\0') || name.contains('\n') || name.contains('\r') {
+            return Err(anyhow!("Repository name contains invalid characters"));
+        }
+
+        // Disallow shell metacharacters
+        let dangerous_chars = ['&', '|', ';', '$', '`', '(', ')', '<', '>', '!', '{', '}', '[', ']', '*', '?', '~'];
+        if name.chars().any(|c| dangerous_chars.contains(&c)) {
+            return Err(anyhow!("Repository name contains shell metacharacters"));
+        }
+
+        // Only allow alphanumeric, dash, underscore, dot, forward slash (for owner/repo)
+        let valid_chars = name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/');
+        if !valid_chars {
+            return Err(anyhow!("Repository name contains invalid characters"));
+        }
+
+        Ok(())
+    }
+
+    /// Parse repository argument into (owner, repo_name, git_url)
+    /// Supports three formats:
+    /// 1. "name" -> defaults to "delorenj/name"
+    /// 2. "user/name" -> uses provided owner
+    /// 3. "https://github.com/user/name.git" -> extracts owner and name
+    /// Note: All formats result in SSH URLs (git@github.com:owner/repo.git) for authentication
+    fn parse_repo_argument(&self, repo_arg: &str) -> Result<(String, String, String)> {
+        // Check if it's a full GitHub URL
+        if repo_arg.starts_with("http://") || repo_arg.starts_with("https://") {
+            // Reject insecure HTTP
+            if repo_arg.starts_with("http://") {
+                return Err(anyhow!("HTTP URLs are not supported. Use HTTPS for security."));
+            }
+
+            // Verify it's a GitHub URL
+            if !repo_arg.contains("github.com") {
+                return Err(anyhow!("Only github.com repositories are supported"));
+            }
+
+            // Extract owner/repo from URL - handle both https://github.com/owner/repo and https://github.com/owner/repo.git
+            let url_without_protocol = repo_arg
+                .trim_start_matches("https://")
+                .trim_start_matches("http://");
+
+            // Remove github.com/ prefix
+            let path_part = url_without_protocol
+                .strip_prefix("github.com/")
+                .context("Invalid GitHub URL format")?;
+
+            // Split on / to get owner and repo
+            let parts: Vec<&str> = path_part.split('/').collect();
+            if parts.len() < 2 {
+                return Err(anyhow!("Invalid GitHub URL format: expected owner/repo"));
+            }
+
+            let owner = parts[0].to_string();
+            let repo_name = parts[1].trim_end_matches(".git").to_string();
+
+            // Validate extracted names
+            Self::validate_repo_name(&owner)?;
+            Self::validate_repo_name(&repo_name)?;
+
+            // Use SSH URL for authentication
+            let git_url = format!("git@github.com:{}/{}.git", owner, repo_name);
+
+            return Ok((owner, repo_name, git_url));
+        }
+
+        // Check if it contains a slash (owner/repo format)
+        if repo_arg.contains('/') {
+            let parts: Vec<&str> = repo_arg.split('/').collect();
+            if parts.len() != 2 {
+                return Err(anyhow!(
+                    "Invalid repository format. Expected: name, user/name, or full URL"
+                ));
+            }
+
+            let owner = parts[0].to_string();
+            let repo_name = parts[1].to_string();
+
+            // Validate both parts
+            Self::validate_repo_name(&owner)?;
+            Self::validate_repo_name(&repo_name)?;
+
+            // Use SSH URL for authentication
+            let git_url = format!("git@github.com:{}/{}.git", owner, repo_name);
+
+            return Ok((owner, repo_name, git_url));
+        }
+
+        // Just a name - default to delorenj
+        let owner = "delorenj".to_string();
+        let repo_name = repo_arg.to_string();
+
+        // Validate the repository name
+        Self::validate_repo_name(&repo_name)?;
+
+        // Use SSH URL for authentication
+        let git_url = format!("git@github.com:{}/{}.git", owner, repo_name);
+
+        Ok((owner, repo_name, git_url))
+    }
+
+    /// Clone a repository from GitHub and set up iMi structure (legacy method)
     pub async fn clone_from_github(&self, github_repo: &str) -> Result<InitResult> {
         println!(
             "{} Cloning {} from GitHub...",

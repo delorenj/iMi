@@ -135,6 +135,10 @@ async fn main() -> Result<()> {
                         )
                         .await?;
                     }
+                    Commands::Clone { repo } => {
+                        // Clone command needs its own path as it may need to initialize
+                        handle_clone_command(&repo).await?;
+                    }
                 }
             }
         }
@@ -500,4 +504,22 @@ fn handle_completion_command(shell: &clap_complete::Shell) {
 
     let mut cmd = cli::Cli::command();
     print_completions(*shell, &mut cmd);
+}
+
+async fn handle_clone_command(repo: &str) -> Result<()> {
+    println!("{} Cloning repository: {}", "🔄".bright_cyan(), repo.bright_white());
+
+    let config = Config::load().await?;
+    let db = Database::new(&config.database_path).await?;
+    let init_cmd = InitCommand::new(false, config, db);
+
+    let result = init_cmd.clone_repository(repo).await?;
+
+    if result.success {
+        println!("{}", result.message.green());
+    } else {
+        println!("{}", result.message.red());
+    }
+
+    Ok(())
 }

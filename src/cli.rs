@@ -194,4 +194,11 @@ pub enum Commands {
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
     },
+
+    /// Clone a repository from GitHub and set up iMi structure
+    Clone {
+        /// Repository to clone (formats: name, user/name, or https://github.com/user/name.git)
+        /// If only name is provided, defaults to delorenj/{name}
+        repo: String,
+    },
 }

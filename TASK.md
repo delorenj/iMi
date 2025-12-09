@@ -1,69 +1,22 @@
 # TASK
 
-Pruning stale worktree references in `imi` should work as expected.
-Although, just a normal git worktree prune doesn't seem to work either (see below).
+Implement the `clone` command.
 
-AFIK, the feat-pr-validation-fix worktree was deleted manually outside of git, so both `imi prune` and `git worktree prune` should be able to clean up the stale reference.
+## Specification
 
-```sh
-~/code/iMi  delorenj in 🌐 big-chungus in
-❯ imi -v
-imi 0.2.0
+The `clone` command should create a copy of a given repository from a remote source to the local machine. It should function identically to the `git clone` command, with the following acceptions:
 
-~/code/iMi  delorenj in 🌐 big-chungus in
-❯ imi prune
-🧹 Cleaning up stale worktree references
-Error: Git repository not found at path: /home/delorenj/code/iMi
-
-~/code/iMi  delorenj in 🌐 big-chungus in
-❯ cd trunk-main
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ imi prune
-🧹 Cleaning up stale worktree references
-✅ Cleanup complete
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ ls ..
-feat-pr-validation-fix  pr-458  sync  trunk-main
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ cd ../feat-pr-validation-fix
-mise WARN  Config files in ~/code/iMi/feat-pr-validation-fix/.mise.toml are not trusted.
-Trust them with `mise trust`. See https://mise.jdx.dev/cli/trust.html for more information.
-mise WARN  Config files in ~/code/iMi/feat-pr-validation-fix/.mise.toml are not trusted.
-Trust them with `mise trust`. See https://mise.jdx.dev/cli/trust.html for more information.
-
-code/iMi/feat-pr-validation-fix  feat/pr-validation-fix$ delorenj in 🌐 big-chungus in is 📦 v0.1.0  via 🦀 v1.89.0
-❯ mt
-mise trusted /home/delorenj/code/iMi/feat-pr-validation-fix
-
-code/iMi/feat-pr-validation-fix  feat/pr-validation-fix$ delorenj in 🌐 big-chungus in is 📦 v0.1.0  via 🦀 v1.89.0
-❯ git status
-On branch feat/pr-validation-fix
-Your branch is up to date with 'origin/feat/pr-validation-fix'.
-
-nothing to commit, working tree clean
-
-code/iMi/feat-pr-validation-fix  feat/pr-validation-fix$ delorenj in 🌐 big-chungus in is 📦 v0.1.0  via 🦀 v1.89.0
-❯ git push
-Everything up-to-date
-
-code/iMi/feat-pr-validation-fix  feat/pr-validation-fix$ delorenj in 🌐 big-chungus in is 📦 v0.1.0  via 🦀 v1.89.0
-❯ cd -
-~/code/iMi/trunk-main
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ gwt list
-/home/delorenj/code/iMi/trunk-main              0e95400 [main]
-/home/delorenj/code/iMi/feat-pr-validation-fix  204c863 [feat/pr-validation-fix]
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ gwt prune
-
-code/iMi/trunk-main  main$ delorenj in 🌐 big-chungus in is 📦 v0.2.0  via 🦀 v1.89.0
-❯ gwt list
-/home/delorenj/code/iMi/trunk-main              0e95400 [main]
-/home/delorenj/code/iMi/feat-pr-validation-fix  204c863 [feat/pr-validation-fix]
-
-```
+- It should accept only a single argument: the name of the repository to clone
+- If `user` is left out and only `name` is provided, it should default to "delorenj"
+- The arg can be provided in 3 formats:
+  - `name`
+  - `user/name`
+  - `https://github.com/user/name.git`
+- The repo should be cloned into a directory named after the repository, in the `iMi System Path` (set in the `~/.config/iMi/config.toml`)
+  - e.g., if cloning `repo-name`, it should create a directory called `repo-name` in the iMi System Path and clone the repo there with the name `trunk-main`
+  - In this case (this server), the full path would be `/home/delorenj/code/repo-name/trunk-main`
+  - If the target directory already exists then there are two possibilities:
+    1. The repo is already an iMi repo, so instead of cloning, it should just `igo` to the directory and log a message indicating that the repo already exists and that it is switching to it.
+    2. The repo is not an iMi repo (hasn't been initialized with iMi), so it should log a message indicating that the target directory already exists but it is not an iMi repo and it will convert it into one by initializing it with iMi after cloning. There is a script that does this `/home/delorenj/.config/zshyzsh/scripts/imify.py`. Ideally this script should be implemented as an iMi command in the future, but for now it can be called directly.
+    - The script safely rearranged the existing contents of the directory into the iMi structure and then runs `iMi init`
+    - `repo-name/` becomes the `repo-name/trunk-main/` directory.
