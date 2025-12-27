@@ -1,0 +1,27 @@
+project: iMi
+sprint_number: 1
+start_date: 2025-12-27
+status: in_progress
+
+stories:
+  - id: STORY-001
+    title: Add Project Create Command to iMi CLI
+    epic: Project Management Automation
+    priority: Must Have
+    story_points: 8
+    status: defined
+    assigned_to: Unassigned
+    document_path: docs/stories/STORY-001.md
+    created_date: 2025-12-27
+    started_date: null
+    completed_date: null
+
+sprint_stats:
+  total_stories: 1
+  total_points: 8
+  completed_stories: 0
+  completed_points: 0
+  in_progress_stories: 0
+  in_progress_points: 0
+
+last_updated: 2025-12-27

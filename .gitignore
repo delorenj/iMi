@@ -69,3 +69,6 @@ hive-mind-prompt-*.txt
 
 .gemini/
 gha-creds-*.json
+
+# Claude Code conversation threads
+docs/threads/
