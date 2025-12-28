@@ -4,12 +4,14 @@
 //! parallel multi-agent workflows with opinionated defaults and real-time visibility.
 
 pub mod cli;
+pub mod commands;
 pub mod config;
 pub mod context;
 pub mod database;
 pub mod error;
 pub mod fuzzy;
 pub mod git;
+pub mod github;
 pub mod init;
 pub mod monitor;
 pub mod worktree;

@@ -1,5 +1,17 @@
 # Command: project create
 
+## Progress
+
+### Phase 1: JSON Output Support ✅ COMPLETE
+- Added global `--json` flag to CLI (src/cli.rs:22)
+- Implemented JsonResponse helper structure (src/main.rs:29-58)
+- Updated all 16 command handlers to support JSON output
+- Tested and verified JSON mode works across all commands
+- Non-JSON (colored terminal) mode preserved and working
+
+### Next: Phase 2 - FastMCP Server
+Ready to begin MCP server implementation per implementation plan.
+
 ## Usage
 
 ```

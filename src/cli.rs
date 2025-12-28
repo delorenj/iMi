@@ -16,6 +16,10 @@ pub struct Cli {
 
     #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
     version: Option<bool>,
+
+    /// Output results in JSON format (available for all commands)
+    #[arg(long, global = true)]
+    pub json: bool,
 }
 
 #[derive(Subcommand)]
@@ -193,5 +197,33 @@ pub enum Commands {
 
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
+    },
+
+    /// Create a new project with boilerplate scaffolding
+    Project {
+        #[command(subcommand)]
+        command: ProjectCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ProjectCommands {
+    /// Create a new project with GitHub repository and boilerplate
+    Create {
+        /// Project concept description (natural language)
+        #[arg(short = 'c', long = "concept")]
+        concept: Option<String>,
+
+        /// Path to PRD markdown file
+        #[arg(short = 'p', long = "prd")]
+        prd: Option<String>,
+
+        /// Explicit project name (optional, will be inferred from concept/prd if not provided)
+        #[arg(short = 'n', long = "name")]
+        name: Option<String>,
+
+        /// JSON payload for structured project definition
+        #[arg(long = "json")]
+        json: Option<String>,
     },
 }
