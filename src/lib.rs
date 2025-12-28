@@ -21,7 +21,7 @@ pub use config::Config;
 pub use context::{
     GitContext, LocationContext, RepositoryContext, RepositoryRegistration, WorktreeLocationType,
 };
-pub use database::{AgentActivity, Database, Repository, Worktree};
+pub use database::{AgentActivity, Database, Repository, Worktree, WorktreeType};
 pub use error::ImiError;
 pub use git::{GitManager, WorktreeStatus};
 pub use init::{InitCommand, InitResult};

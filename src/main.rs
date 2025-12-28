@@ -17,7 +17,7 @@ mod init;
 mod monitor;
 mod worktree;
 
-use cli::{Cli, Commands, ProjectCommands};
+use cli::{Cli, Commands, ProjectCommands, TypeCommands};
 use commands::project::{ProjectConfig, ProjectCreator};
 use config::Config;
 use database::Database;
@@ -87,7 +87,14 @@ async fn main() -> Result<()> {
                     WorktreeManager::new(git_manager, db, config.clone(), config.repo_path.clone());
 
                 match command {
+                    Commands::Add { worktree_type, name, repo, pr } => {
+                        handle_add_command(&worktree_manager, &worktree_type, &name, repo.as_deref(), pr, json_mode).await?;
+                    }
+                    Commands::Types(type_cmd) => {
+                        handle_types_command(&worktree_manager, type_cmd, json_mode).await?;
+                    }
                     Commands::Feat { name, repo } => {
+                        eprintln!("⚠️  Warning: 'imi feat' is deprecated. Use 'imi add feat {}' instead.", name);
                         handle_feature_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
                     }
                     Commands::Review { pr_number, repo } => {
@@ -753,6 +760,185 @@ fn handle_completion_command(shell: &clap_complete::Shell) {
 
     let mut cmd = cli::Cli::command();
     print_completions(*shell, &mut cmd);
+}
+
+async fn handle_add_command(
+    manager: &WorktreeManager,
+    worktree_type: &str,
+    name: &str,
+    repo: Option<&str>,
+    pr: Option<u32>,
+    json_mode: bool,
+) -> Result<()> {
+    // Get the database from manager
+    let db = &manager.db;
+
+    // Validate worktree type exists
+    let wt_type = db.get_worktree_type(worktree_type).await
+        .context(format!(
+            "Unknown worktree type '{}'. Run 'imi types' to see available types.",
+            worktree_type
+        ))?;
+
+    if !json_mode {
+        println!(
+            "{} Creating {} worktree: {}",
+            "🚀".bright_cyan(),
+            wt_type.name,
+            name.bright_green()
+        );
+    }
+
+    // Handle review type specially (needs PR number)
+    if worktree_type == "review" {
+        let pr_number = pr.context(
+            "PR number required for review worktree. Use: imi add review <name> --pr <number>"
+        )?;
+        return handle_review_command(manager, pr_number, repo, json_mode).await;
+    }
+
+    // Route to appropriate handler based on type
+    match worktree_type {
+        "feat" => handle_feature_command(manager, name, repo, json_mode).await,
+        "fix" => handle_fix_command(manager, name, repo, json_mode).await,
+        "aiops" => handle_aiops_command(manager, name, repo, json_mode).await,
+        "devops" => handle_devops_command(manager, name, repo, json_mode).await,
+        _ => {
+            // Custom worktree type - use generic creation
+            let worktree_path = manager.create_custom_worktree(name, worktree_type, repo).await?;
+
+            if json_mode {
+                JsonResponse::success(serde_json::json!({
+                    "worktree_path": worktree_path.display().to_string(),
+                    "worktree_name": format!("{}-{}", worktree_type, name),
+                    "worktree_type": worktree_type,
+                    "message": format!("{} worktree created successfully", worktree_type)
+                })).print();
+            } else {
+                println!(
+                    "{} {} worktree created at: {}",
+                    "✅".bright_green(),
+                    worktree_type,
+                    worktree_path.display()
+                );
+
+                println!(
+                    "\n{} To navigate to the worktree, run:\n   {}",
+                    "💡".bright_yellow(),
+                    format!("cd {}", worktree_path.display()).bright_cyan()
+                );
+            }
+
+            Ok(())
+        }
+    }
+}
+
+async fn handle_types_command(
+    manager: &WorktreeManager,
+    type_cmd: TypeCommands,
+    json_mode: bool,
+) -> Result<()> {
+    let db = &manager.db;
+
+    match type_cmd {
+        TypeCommands::List => {
+            let types = db.list_worktree_types().await?;
+
+            if json_mode {
+                let types_json: Vec<_> = types.iter().map(|t| serde_json::json!({
+                    "name": t.name,
+                    "branch_prefix": t.branch_prefix,
+                    "worktree_prefix": t.worktree_prefix,
+                    "description": t.description,
+                    "is_builtin": t.is_builtin,
+                })).collect();
+
+                JsonResponse::success(serde_json::json!({
+                    "types": types_json,
+                    "count": types.len()
+                })).print();
+            } else {
+                println!("{} Available Worktree Types:\n", "📋".bright_cyan());
+
+                for wt_type in types {
+                    let builtin_badge = if wt_type.is_builtin {
+                        "[builtin]".bright_blue()
+                    } else {
+                        "[custom]".bright_yellow()
+                    };
+
+                    println!(
+                        "  {} {} - {}",
+                        wt_type.name.bright_green(),
+                        builtin_badge,
+                        wt_type.description.as_deref().unwrap_or("No description")
+                    );
+                    println!(
+                        "      Branch: {}  Worktree: {}",
+                        wt_type.branch_prefix.bright_cyan(),
+                        wt_type.worktree_prefix.bright_cyan()
+                    );
+                }
+
+                println!("\n{} Usage: imi add <type> <name>", "💡".bright_yellow());
+            }
+        }
+        TypeCommands::Add {
+            name,
+            branch_prefix,
+            worktree_prefix,
+            description,
+        } => {
+            if !json_mode {
+                println!("{} Adding new worktree type: {}", "➕".bright_cyan(), name.bright_green());
+            }
+
+            let wt_type = db.add_worktree_type(
+                &name,
+                branch_prefix.as_deref(),
+                worktree_prefix.as_deref(),
+                description.as_deref(),
+            ).await?;
+
+            if json_mode {
+                JsonResponse::success(serde_json::json!({
+                    "message": "Worktree type added successfully",
+                    "type": {
+                        "name": wt_type.name,
+                        "branch_prefix": wt_type.branch_prefix,
+                        "worktree_prefix": wt_type.worktree_prefix,
+                        "description": wt_type.description,
+                    }
+                })).print();
+            } else {
+                println!("{} Worktree type '{}' added successfully!", "✅".bright_green(), name);
+                println!("  Branch prefix: {}", wt_type.branch_prefix.bright_cyan());
+                println!("  Worktree prefix: {}", wt_type.worktree_prefix.bright_cyan());
+                if let Some(desc) = wt_type.description {
+                    println!("  Description: {}", desc);
+                }
+            }
+        }
+        TypeCommands::Remove { name } => {
+            if !json_mode {
+                println!("{} Removing worktree type: {}", "🗑️".bright_red(), name.bright_yellow());
+            }
+
+            db.remove_worktree_type(&name).await?;
+
+            if json_mode {
+                JsonResponse::success(serde_json::json!({
+                    "message": "Worktree type removed successfully",
+                    "type_name": name
+                })).print();
+            } else {
+                println!("{} Worktree type '{}' removed successfully", "✅".bright_green(), name);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Result<()> {

@@ -198,6 +198,105 @@ imi go feat-my-feature --json
 }
 ```
 
+### Worktree Type Management
+
+#### List Types
+
+```bash
+imi types list --json
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 6,
+    "types": [
+      {
+        "name": "feat",
+        "branch_prefix": "feat/",
+        "worktree_prefix": "feat-",
+        "description": "Feature development",
+        "is_builtin": true
+      },
+      {
+        "name": "experiment",
+        "branch_prefix": "experiment/",
+        "worktree_prefix": "experiment-",
+        "description": "Experimental features",
+        "is_builtin": false
+      }
+    ]
+  }
+}
+```
+
+#### Add Type
+
+```bash
+imi types add experiment --description "Experimental features" --json
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Worktree type 'experiment' added successfully!",
+    "type": {
+      "name": "experiment",
+      "branch_prefix": "experiment/",
+      "worktree_prefix": "experiment-",
+      "description": "Experimental features"
+    }
+  }
+}
+```
+
+#### Remove Type
+
+```bash
+imi types remove experiment --json
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Worktree type 'experiment' removed successfully"
+  }
+}
+```
+
+**Error Response (builtin protection):**
+```json
+{
+  "success": false,
+  "error": "Cannot remove builtin worktree type 'feat'"
+}
+```
+
+### Unified Add Command
+
+```bash
+imi add feat "user-auth" --json
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "worktree_path": "/home/user/code/myproject/feat-user-auth",
+    "worktree_name": "feat-user-auth",
+    "worktree_type": "feat",
+    "message": "feat worktree created successfully"
+  }
+}
+```
+
 ### Project Creation
 
 ```bash

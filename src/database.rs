@@ -47,6 +47,17 @@ pub struct Repository {
     pub active: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WorktreeType {
+    pub id: i64,
+    pub name: String,
+    pub branch_prefix: String,
+    pub worktree_prefix: String,
+    pub description: Option<String>,
+    pub is_builtin: bool,
+    pub created_at: DateTime<Utc>,
+}
+
 impl Database {
     pub async fn new<P: AsRef<Path>>(database_path: P) -> Result<Self> {
         let database_url = format!("sqlite:{}", database_path.as_ref().display());
@@ -102,6 +113,27 @@ impl Database {
         .execute(&self.pool)
         .await
         .context("Failed to create repositories table")?;
+
+        // Create worktree_types table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS worktree_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                branch_prefix TEXT NOT NULL,
+                worktree_prefix TEXT NOT NULL,
+                description TEXT,
+                is_builtin BOOLEAN NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .context("Failed to create worktree_types table")?;
+
+        // Seed built-in worktree types
+        self.seed_builtin_types().await?;
 
         // Create worktrees table
         sqlx::query(
@@ -579,5 +611,142 @@ impl Database {
         }
 
         Ok(activities)
+    }
+
+    // Worktree Type operations
+    async fn seed_builtin_types(&self) -> Result<()> {
+        let builtins = vec![
+            ("feat", "feat/", "feat-", "Feature development"),
+            ("fix", "fix/", "fix-", "Bug fixes"),
+            ("aiops", "aiops/", "aiops-", "AI operations (agents, rules, MCP configs, workflows)"),
+            ("devops", "devops/", "devops-", "DevOps tasks (CI, repo organization, deploys)"),
+            ("review", "pr-review/", "pr-review-", "Pull request reviews"),
+        ];
+
+        let now = Utc::now();
+
+        for (name, branch_prefix, worktree_prefix, description) in builtins {
+            sqlx::query(
+                r#"
+                INSERT OR IGNORE INTO worktree_types
+                (name, branch_prefix, worktree_prefix, description, is_builtin, created_at)
+                VALUES (?, ?, ?, ?, 1, ?)
+                "#,
+            )
+            .bind(name)
+            .bind(branch_prefix)
+            .bind(worktree_prefix)
+            .bind(description)
+            .bind(now.to_rfc3339())
+            .execute(&self.pool)
+            .await
+            .context("Failed to seed builtin worktree types")?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_worktree_type(&self, name: &str) -> Result<WorktreeType> {
+        let row = sqlx::query("SELECT * FROM worktree_types WHERE name = ?")
+            .bind(name)
+            .fetch_one(&self.pool)
+            .await
+            .context(format!("Worktree type '{}' not found", name))?;
+
+        Ok(WorktreeType {
+            id: row.get("id"),
+            name: row.get("name"),
+            branch_prefix: row.get("branch_prefix"),
+            worktree_prefix: row.get("worktree_prefix"),
+            description: row.get("description"),
+            is_builtin: row.get("is_builtin"),
+            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                .with_timezone(&Utc),
+        })
+    }
+
+    pub async fn list_worktree_types(&self) -> Result<Vec<WorktreeType>> {
+        let rows = sqlx::query("SELECT * FROM worktree_types ORDER BY is_builtin DESC, name ASC")
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to list worktree types")?;
+
+        let mut types = Vec::new();
+        for row in rows {
+            types.push(WorktreeType {
+                id: row.get("id"),
+                name: row.get("name"),
+                branch_prefix: row.get("branch_prefix"),
+                worktree_prefix: row.get("worktree_prefix"),
+                description: row.get("description"),
+                is_builtin: row.get("is_builtin"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+            });
+        }
+
+        Ok(types)
+    }
+
+    pub async fn add_worktree_type(
+        &self,
+        name: &str,
+        branch_prefix: Option<&str>,
+        worktree_prefix: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<WorktreeType> {
+        let branch_prefix = branch_prefix.map(String::from).unwrap_or_else(|| format!("{}/", name));
+        let worktree_prefix = worktree_prefix.map(String::from).unwrap_or_else(|| format!("{}-", name));
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            INSERT INTO worktree_types (name, branch_prefix, worktree_prefix, description, is_builtin, created_at)
+            VALUES (?, ?, ?, ?, 0, ?)
+            "#,
+        )
+        .bind(name)
+        .bind(branch_prefix)
+        .bind(worktree_prefix)
+        .bind(description)
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .context("Failed to add worktree type")?;
+
+        self.get_worktree_type(name).await
+    }
+
+    pub async fn remove_worktree_type(&self, name: &str) -> Result<()> {
+        // Check if it's a builtin type
+        let wt_type = self.get_worktree_type(name).await?;
+        if wt_type.is_builtin {
+            return Err(anyhow::anyhow!("Cannot remove builtin worktree type '{}'", name));
+        }
+
+        // Check if any worktrees are using this type
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM worktrees WHERE worktree_type = ? AND active = 1"
+        )
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to check worktree usage")?;
+
+        if count > 0 {
+            return Err(anyhow::anyhow!(
+                "Cannot remove worktree type '{}' - {} active worktree(s) still using it",
+                name,
+                count
+            ));
+        }
+
+        sqlx::query("DELETE FROM worktree_types WHERE name = ?")
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("Failed to remove worktree type")?;
+
+        Ok(())
     }
 }

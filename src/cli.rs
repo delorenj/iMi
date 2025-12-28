@@ -24,8 +24,31 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Add a new worktree of specified type
+    Add {
+        /// Worktree type (feat, fix, aiops, devops, review, or custom)
+        #[arg(value_name = "TYPE")]
+        worktree_type: String,
+
+        /// Descriptive name for the worktree
+        name: String,
+
+        /// Repository name (optional, uses current if not specified)
+        #[arg(short, long)]
+        repo: Option<String>,
+
+        /// PR number (required only for 'review' type)
+        #[arg(long)]
+        pr: Option<u32>,
+    },
+
+    /// Manage worktree types
+    #[command(subcommand)]
+    Types(TypeCommands),
+
     /// Create a new feature worktree
-    #[command(alias = "feature")]
+    #[command(alias = "feature", hide = true)]
+    #[deprecated(note = "Use 'imi add feat <name>' instead")]
     Feat {
         /// Name of the feature (will create feat-{name} worktree)
         name: String,
@@ -225,5 +248,37 @@ pub enum ProjectCommands {
         /// JSON payload for structured project definition
         #[arg(long = "json")]
         json: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum TypeCommands {
+    /// List all available worktree types
+    #[command(alias = "ls")]
+    List,
+
+    /// Add a new worktree type
+    Add {
+        /// Type name (lowercase, alphanumeric, hyphens)
+        name: String,
+
+        /// Branch prefix (defaults to <type>/)
+        #[arg(long)]
+        branch_prefix: Option<String>,
+
+        /// Worktree prefix (defaults to <type>-)
+        #[arg(long)]
+        worktree_prefix: Option<String>,
+
+        /// Description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+
+    /// Remove a worktree type
+    #[command(alias = "rm")]
+    Remove {
+        /// Type name to remove
+        name: String,
     },
 }

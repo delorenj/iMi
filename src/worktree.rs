@@ -100,6 +100,36 @@ impl WorktreeManager {
         .await
     }
 
+    /// Create a custom worktree using database-defined type metadata
+    pub async fn create_custom_worktree(
+        &self,
+        name: &str,
+        worktree_type: &str,
+        repo: Option<&str>,
+    ) -> Result<PathBuf> {
+        // Get the worktree type metadata from database
+        let wt_type = self.db
+            .get_worktree_type(worktree_type)
+            .await
+            .context(format!(
+                "Unknown worktree type '{}'. Run 'imi types' to see available types.",
+                worktree_type
+            ))?;
+
+        // Build worktree and branch names using type metadata
+        let worktree_name = format!("{}{}", wt_type.worktree_prefix, name);
+        let branch_name = format!("{}{}", wt_type.branch_prefix, name);
+
+        self.create_worktree_internal(
+            repo,
+            &worktree_name,
+            &branch_name,
+            worktree_type,
+            Some(&self.config.git_settings.default_branch),
+        )
+        .await
+    }
+
     /// Get the trunk worktree path
     pub async fn get_trunk_worktree(&self, repo: Option<&str>) -> Result<PathBuf> {
         let repo_name = self.resolve_repo_name(repo).await?;
