@@ -36,14 +36,29 @@
 - ✅ JSON output mode for all type commands
 - ✅ Backwards compatibility with deprecated commands
 
-### Next Steps
-**Phase 1.6: Enhanced Command Features**
-- Implement implicit type detection for `imi merge <name>` command
-- Enhanced `imi project create` with registry-first logic
-- Enhanced `imi project clone` with registry-first logic
+### Phase 1.7: Project Create Implementation ✅ SHIPPED
+**Core Functionality Verified:**
+- ✅ GitHub repository creation via REST API
+- ✅ Stack detection (Generic, PythonFastAPI)
+- ✅ Boilerplate scaffolding (mise.toml, pyproject.toml, src structure)
+- ✅ FastAPI app with health endpoints
+- ✅ Git initialization and remote push
+- ✅ JSON output mode support
+- ✅ Multiple input modes (--concept, --prd, --payload)
 
-### Future: Phase 2 - FastMCP Server
-Ready to begin MCP server implementation per implementation plan.
+**Critical Bugfix:**
+- Fixed runtime panic from `--json` parameter collision (global bool vs project String)
+- Renamed to `--payload` for structured input
+
+**Known Gaps (Deferred):**
+- compose.yml empty (native service configuration for postgres/redis/qdrant pending)
+- Stack section in README not populated
+- React/Vite stack untested (only Generic and PythonFastAPI verified)
+
+**Decision:** Ship current implementation, gaps are polish not blockers.
+
+### Next: Phase 2 - FastMCP Server
+Ready to begin MCP server implementation per plan at ~/.claude/plans/structured-tinkering-stearns.md
 
 ## Usage
 
