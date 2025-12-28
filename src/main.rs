@@ -947,7 +947,7 @@ async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Re
             concept,
             prd,
             name,
-            json,
+            payload,
         } => {
             // Check GitHub authentication first
             if let Err(e) = github::check_auth() {
@@ -961,14 +961,14 @@ async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Re
             }
 
             // Build project config from input
-            let config = if let Some(json_str) = json {
-                ProjectConfig::from_json(&json_str)?
+            let config = if let Some(payload_str) = payload {
+                ProjectConfig::from_json(&payload_str)?
             } else if let Some(prd_path) = prd {
                 ProjectConfig::from_prd(&prd_path, name)?
             } else if let Some(concept_str) = concept {
                 ProjectConfig::from_concept(&concept_str, name)?
             } else {
-                let err_msg = "Must provide one of: --concept, --prd, or --json";
+                let err_msg = "Must provide one of: --concept, --prd, or --payload";
                 if json_mode {
                     JsonResponse::error(err_msg.to_string()).print();
                 }

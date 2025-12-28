@@ -246,8 +246,8 @@ pub enum ProjectCommands {
         name: Option<String>,
 
         /// JSON payload for structured project definition
-        #[arg(long = "json")]
-        json: Option<String>,
+        #[arg(long = "payload")]
+        payload: Option<String>,
     },
 }
 
