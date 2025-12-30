@@ -13,6 +13,7 @@ pub mod fuzzy;
 pub mod git;
 pub mod github;
 pub mod init;
+pub mod local;
 pub mod monitor;
 pub mod worktree;
 

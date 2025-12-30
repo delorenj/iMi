@@ -11,6 +11,7 @@ use crate::database::Database;
 use crate::error::ImiError;
 use crate::fuzzy::FuzzyMatcher;
 use crate::git::{GitManager, WorktreeStatus};
+use crate::local::LocalContext;
 
 #[derive(Debug, Clone)]
 pub struct WorktreeManager {
@@ -234,6 +235,26 @@ impl WorktreeManager {
                 None, // agent_id will be set later if needed
             )
             .await?;
+        // --- DUAL-WRITE: Update Local Context ---
+        // We need the project root. For registered repos, we have it.
+        // For implicit current-directory repos, we calculate it.
+        
+        let project_root = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+             PathBuf::from(&registered_repo.path)
+        } else {
+             // Fallback for implicit repo
+             self.detect_imi_path(&worktree_path)? 
+        };
+
+        let local_ctx = LocalContext::new(&project_root);
+        
+        // 1. Ensure .iMi structure exists (if this is the first worktree)
+        local_ctx.init().context("Failed to initialize local .iMi context")?;
+        
+        // 2. Register metadata for Starship
+        local_ctx.register_worktree(worktree_name, worktree_type, None)?;
+        
+        println!("{} Local context updated for Starship", "✨".bright_magenta());
 
         println!("{} Worktree created successfully", "✅".bright_green());
 
@@ -435,6 +456,20 @@ impl WorktreeManager {
             .deactivate_worktree(&repo_name, &actual_worktree_name)
             .await?;
 
+        // Clean up Local Context (Data Plane)
+        // Determine project root from the worktree path
+        let project_root = self.detect_imi_path(&worktree_path)?;
+        let local_ctx = LocalContext::new(&project_root);
+
+        // Remove the entry from registry.toml and delete any .lock files
+        if let Err(e) = local_ctx.unregister_worktree(&actual_worktree_name) {
+            eprintln!(
+                "{} Warning: Failed to update local context: {}",
+                "⚠️".bright_yellow(),
+                e
+            );
+        }
+
         Ok(())
     }
 
@@ -509,6 +544,20 @@ impl WorktreeManager {
         self.db
             .deactivate_worktree(&repo_name, &actual_worktree_name)
             .await?;
+
+        // Clean up Local Context (Data Plane)
+        // Determine project root from the worktree path
+        let project_root = self.detect_imi_path(&worktree_path)?;
+        let local_ctx = LocalContext::new(&project_root);
+
+        // Remove the entry from registry.toml and delete any .lock files
+        if let Err(e) = local_ctx.unregister_worktree(&actual_worktree_name) {
+            eprintln!(
+                "{} Warning: Failed to update local context: {}",
+                "⚠️".bright_yellow(),
+                e
+            );
+        }
 
         Ok(())
     }

@@ -14,6 +14,7 @@ mod fuzzy;
 mod git;
 mod github;
 mod init;
+mod local;
 mod monitor;
 mod worktree;
 
