@@ -1,0 +1,11 @@
+[worktrees.feat-auto-detect-test]
+type = "feat"
+created_at = "2025-12-30T14:15:09.470006187+00:00"
+
+[worktrees.fix-sandbox-fix-test]
+type = "fix"
+created_at = "2025-12-30T14:15:26.052642267+00:00"
+
+[worktrees.feat-test-sandbox-add]
+type = "feat"
+created_at = "2025-12-30T14:14:53.152316314+00:00"

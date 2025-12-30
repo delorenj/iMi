@@ -196,16 +196,26 @@ impl WorktreeManager {
             }
         }
 
-        // Find the repository - use current directory and register if needed
-        let current_dir = env::current_dir()?;
-        let repo = self.git.find_repository(Some(&current_dir))?;
-        let repo_root = repo
-            .workdir()
-            .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
+        // Find the repository - use registered path if available, otherwise current directory
+        let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+            // Use the registered repository path
+            let registered_path = PathBuf::from(&registered_repo.path);
+            self.git.find_repository(Some(&registered_path))
+                .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+        } else {
+            // Fall back to current directory and register if needed
+            let current_dir = env::current_dir()?;
+            let repo = self.git.find_repository(Some(&current_dir))?;
+            let repo_root = repo
+                .workdir()
+                .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
 
-        // Auto-register repository if not in database
-        self.ensure_repository_registered(&repo_name, repo_root)
-            .await?;
+            // Auto-register repository if not in database
+            self.ensure_repository_registered(&repo_name, repo_root)
+                .await?;
+
+            repo
+        };
 
         // Create the Git worktree
         self.git
@@ -437,9 +447,19 @@ impl WorktreeManager {
         // Find the actual worktree name - it might be prefixed (e.g., feat-iteractive-learning)
         let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
 
+        // Find the repository - use registered path if available, otherwise current directory
+        let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+            // Use the registered repository path
+            let registered_path = PathBuf::from(&registered_repo.path);
+            self.git.find_repository(Some(&registered_path))
+                .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+        } else {
+            // Fall back to current directory
+            let current_dir = env::current_dir()?;
+            self.git.find_repository(Some(&current_dir))?
+        };
+
         // Use IMI_PATH detection for consistent worktree removal
-        let current_dir = env::current_dir()?;
-        let repo = self.git.find_repository(Some(&current_dir))?;
         let repo_root = repo
             .workdir()
             .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
@@ -549,8 +569,18 @@ impl WorktreeManager {
                 let repo_name = self.resolve_repo_name(repo).await?;
                 let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
 
-                let current_dir = env::current_dir()?;
-                let repo = self.git.find_repository(Some(&current_dir))?;
+                // Find the repository - use registered path if available, otherwise current directory
+                let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+                    // Use the registered repository path
+                    let registered_path = PathBuf::from(&registered_repo.path);
+                    self.git.find_repository(Some(&registered_path))
+                        .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+                } else {
+                    // Fall back to current directory
+                    let current_dir = env::current_dir()?;
+                    self.git.find_repository(Some(&current_dir))?
+                };
+
                 let repo_root = repo
                     .workdir()
                     .ok_or_else(|| anyhow::anyhow!("Repository has no working directory"))?;
@@ -1288,6 +1318,7 @@ impl WorktreeManager {
 
     /// Resolve repository name from current directory or provided name
     /// Handles GitHub org/repo format: searches database by remote_url pattern
+    /// Also supports running from sandbox directory (parent of trunk-main containing .iMi/)
     async fn resolve_repo_name(&self, repo: Option<&str>) -> Result<String> {
         if let Some(repo_arg) = repo {
             // Parse the argument to check if it's org/repo format
@@ -1323,6 +1354,36 @@ impl WorktreeManager {
 
         // Try to get repo name from current directory
         let current_dir = env::current_dir()?;
+
+        // NEW: Check if we're in a sandbox directory (contains .iMi/)
+        // This allows commands like 'imi prune' and 'imi add' to work from the sandbox
+        if let Some(sandbox_root) = self.find_sandbox_root(&current_dir)? {
+            // We're in or at a sandbox directory - look for registered repos
+            let repos = self.db.list_repositories().await?;
+
+            // If there's exactly one registered repo, use it
+            if repos.len() == 1 {
+                return Ok(repos[0].name.clone());
+            }
+
+            // If multiple repos, try to find one whose path matches the sandbox
+            for db_repo in &repos {
+                let repo_path = PathBuf::from(&db_repo.path);
+                if let Some(repo_parent) = repo_path.parent() {
+                    if repo_parent == sandbox_root {
+                        return Ok(db_repo.name.clone());
+                    }
+                }
+            }
+
+            // If we have multiple repos and can't determine which one, ask user to specify
+            if repos.len() > 1 {
+                return Err(anyhow::anyhow!(
+                    "Multiple repositories found. Please specify with --repo or run from within a specific worktree.\nAvailable repositories: {}",
+                    repos.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ")
+                ));
+            }
+        }
 
         // Check if we're in a worktree
         if let Ok(repo) = self.git.find_repository(Some(&current_dir)) {
@@ -1365,6 +1426,26 @@ impl WorktreeManager {
         }
 
         Err(anyhow::anyhow!("Could not determine repository name. Please specify with --repo or run from within a registered Git repository."))
+    }
+
+    /// Find the sandbox root directory by looking for .iMi/ directory
+    /// Searches current directory and walks up the tree
+    /// Returns Some(PathBuf) if found, None if not in a sandbox
+    fn find_sandbox_root(&self, start_path: &Path) -> Result<Option<PathBuf>> {
+        let mut current = start_path;
+
+        loop {
+            // Check if current directory contains .iMi/
+            if current.join(".iMi").is_dir() {
+                return Ok(Some(current.to_path_buf()));
+            }
+
+            // Move up to parent directory
+            match current.parent() {
+                Some(parent) => current = parent,
+                None => return Ok(None), // Reached filesystem root without finding .iMi/
+            }
+        }
     }
 
     /// Ensure repository is registered in the database
