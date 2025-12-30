@@ -1,0 +1,7 @@
+[custom.imi]
+command = "bash ~/.config/iMi/starship-module.sh"
+when = "test -f ~/.config/iMi/config.toml"
+format = "[$symbol($output)]($style) "
+# We delegate symbol and style to the JSON output of the script, 
+# but you can set defaults here.
+description = "iMi Project Manager Context"
