@@ -20,7 +20,7 @@ async fn setup_test_env() -> Result<TestContext> {
     let temp_dir = TempDir::new().context("Failed to create temp directory")?;
     env::set_var("HOME", temp_dir.path());
 
-    let config_path = Config::get_config_path()?;
+    let config_path = Config::get_global_config_path()?;
     let db_path = temp_dir.path().join("imi.db");
 
     let mut config = Config::default();
@@ -79,7 +79,7 @@ mod init_rules_tests {
     #[serial]
     async fn test_init_creates_default_config_outside_repo() -> Result<()> {
         let ctx = setup_test_env().await?;
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
         fs::remove_file(&config_path).await.ok();
         assert!(
             !config_path.exists(),
@@ -97,7 +97,7 @@ mod init_rules_tests {
     #[serial]
     async fn test_init_updates_config_with_force_flag() -> Result<()> {
         let ctx = setup_test_env().await?;
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
         let mut config = Config::load_from(&config_path).await?;
 
         config.git_settings.default_branch = "develop".to_string();

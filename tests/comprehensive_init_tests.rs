@@ -60,7 +60,7 @@ impl InitTestHelper {
             config: config.clone(),
             db: db.clone(),
             git: git.clone(),
-            manager: WorktreeManager::new(git, db, config),
+            manager: WorktreeManager::new(git, db, config, None),
         })
     }
 
@@ -99,7 +99,7 @@ impl InitTestHelper {
             config: config.clone(),
             db: db.clone(),
             git: git.clone(),
-            manager: WorktreeManager::new(git, db, config),
+            manager: WorktreeManager::new(git, db, config, None),
         })
     }
 
@@ -208,7 +208,7 @@ mod normal_initialization_tests {
         );
 
         // Verify config was created
-        let config_path = Config::get_config_path().unwrap();
+        let config_path = Config::get_global_config_path().unwrap();
         assert!(config_path.exists(), "Config file should be created");
 
         let config = Config::load().await.unwrap();
@@ -771,7 +771,7 @@ mod configuration_conflict_tests {
         );
 
         // Verify config still exists
-        let config_path = Config::get_config_path().unwrap();
+        let config_path = Config::get_global_config_path().unwrap();
         assert!(config_path.exists(), "Config should still exist");
     }
 
@@ -806,7 +806,7 @@ mod configuration_conflict_tests {
         let helper = InitTestHelper::new().await.unwrap();
 
         // Create corrupted config file
-        let config_path = Config::get_config_path().unwrap();
+        let config_path = Config::get_global_config_path().unwrap();
         fs::create_dir_all(config_path.parent().unwrap())
             .await
             .unwrap();

@@ -92,12 +92,20 @@ mod config_unit_tests {
         // Test sync settings defaults
         assert!(config.sync_settings.enabled);
         assert_eq!(
-            config.sync_settings.global_sync_path,
-            PathBuf::from("sync/global")
+            config.sync_settings.user_sync_path,
+            PathBuf::from(
+                shellexpand::tilde("~/.config/iMi/sync/global")
+                    .to_string()
+                    .as_str()
+            )
         );
         assert_eq!(
-            config.sync_settings.repo_sync_path,
-            PathBuf::from("sync/repo")
+            config.sync_settings.local_sync_path,
+            PathBuf::from(
+                shellexpand::tilde("~/.config/iMi/sync/repo")
+                    .to_string()
+                    .as_str()
+            )
         );
 
         // Test git settings defaults
@@ -124,7 +132,7 @@ mod config_unit_tests {
         let temp_home = utils.temp_dir.path().to_path_buf();
         env::set_var("HOME", &temp_home);
 
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
 
         let expected_path = temp_home.join(".config/iMi/config.toml");
         assert_eq!(config_path, expected_path);
@@ -294,7 +302,7 @@ database_path = "/tmp/test.db"
     async fn test_config_get_sync_path_global() -> Result<()> {
         let mut config = Config::default();
         config.root_path = PathBuf::from("/test/root");
-        config.sync_settings.global_sync_path = PathBuf::from("global-sync");
+        config.sync_settings.user_sync_path = PathBuf::from("global-sync");
 
         let sync_path = config.get_sync_path("my-repo", true);
 
@@ -308,7 +316,7 @@ database_path = "/tmp/test.db"
     async fn test_config_get_sync_path_repo() -> Result<()> {
         let mut config = Config::default();
         config.root_path = PathBuf::from("/test/root");
-        config.sync_settings.repo_sync_path = PathBuf::from("repo-sync");
+        config.sync_settings.local_sync_path = PathBuf::from("repo-sync");
 
         let sync_path = config.get_sync_path("my-repo", false);
 
@@ -385,13 +393,13 @@ database_path = "/tmp/test.db"
     async fn test_sync_settings_defaults() {
         let sync_settings = SyncSettings {
             enabled: true,
-            global_sync_path: PathBuf::from("sync/global"),
-            repo_sync_path: PathBuf::from("sync/repo"),
+            user_sync_path: PathBuf::from("sync/global"),
+            local_sync_path: PathBuf::from("sync/repo"),
         };
 
         assert!(sync_settings.enabled);
-        assert_eq!(sync_settings.global_sync_path, PathBuf::from("sync/global"));
-        assert_eq!(sync_settings.repo_sync_path, PathBuf::from("sync/repo"));
+        assert_eq!(sync_settings.user_sync_path, PathBuf::from("sync/global"));
+        assert_eq!(sync_settings.local_sync_path, PathBuf::from("sync/repo"));
     }
 
     #[tokio::test]
@@ -432,7 +440,7 @@ database_path = "/tmp/test.db"
         let mut config = Config::default();
         config.git_settings.default_branch = "develop".to_string();
         config.monitoring_settings.enabled = false;
-        config.sync_settings.repo_sync_path = PathBuf::from("custom/sync");
+        config.sync_settings.local_sync_path = PathBuf::from("custom/sync");
 
         let toml_string = toml::to_string_pretty(&config)?;
         let deserialized_config: Config = toml::from_str(&toml_string)?;
@@ -446,8 +454,8 @@ database_path = "/tmp/test.db"
             deserialized_config.monitoring_settings.enabled
         );
         assert_eq!(
-            config.sync_settings.repo_sync_path,
-            deserialized_config.sync_settings.repo_sync_path
+            config.sync_settings.local_sync_path,
+            deserialized_config.sync_settings.local_sync_path
         );
         assert_eq!(config.database_path, deserialized_config.database_path);
 

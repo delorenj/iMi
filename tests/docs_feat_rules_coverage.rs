@@ -76,7 +76,7 @@ impl FeatRulesTestHelper {
         let db = Database::new(&config.database_path).await?;
         let git_manager = GitManager::new();
         let worktree_manager =
-            WorktreeManager::new(git_manager.clone(), db.clone(), config.clone());
+            WorktreeManager::new(git_manager.clone(), db.clone(), config.clone(), None);
 
         Ok(Self {
             temp_dir,

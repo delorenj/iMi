@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 /// Manages the "Data Plane" (.iMi directory) for a specific project.
 /// Optimized for speed and shell consumption (Starship).
 pub struct LocalContext {
-    /// The root of the project (where .iMi lives)
-    root: PathBuf,
     /// Path to .iMi/
     imi_dir: PathBuf,
     /// Path to .iMi/presence/ (Lock files)
@@ -39,7 +39,6 @@ impl LocalContext {
     pub fn new(project_root: &Path) -> Self {
         let imi_dir = project_root.join(".iMi");
         Self {
-            root: project_root.to_path_buf(),
             presence_dir: imi_dir.join("presence"),
             links_dir: imi_dir.join("links"),
             registry_file: imi_dir.join("registry.toml"),
@@ -68,6 +67,35 @@ impl LocalContext {
         }
 
         Ok(())
+    }
+
+    /// Try to acquire a lock on the registry file
+    fn lock_registry(&self) -> Result<()> {
+        let lock_path = self.imi_dir.join("registry.lock");
+        let mut retries = 0;
+        
+        while retries < 10 {
+            // Try to create the lock file exclusively
+            // This is atomic on most filesystems
+            if fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock_path)
+                .is_ok() 
+            {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(50));
+            retries += 1;
+        }
+        
+        anyhow::bail!("Failed to acquire registry lock after 500ms")
+    }
+
+    /// Release the registry lock
+    fn unlock_registry(&self) {
+         let lock_path = self.imi_dir.join("registry.lock");
+         let _ = fs::remove_file(lock_path);
     }
 
     /// Lock a worktree to signal active agent work
@@ -99,22 +127,33 @@ impl LocalContext {
     /// This allows Starship to look up types without guessing from folder names
     pub fn register_worktree(&self, name: &str, worktree_type: &str, agent: Option<&str>) -> Result<()> {
         self.init()?;
+        self.lock_registry()?;
 
-        // Read-Modify-Write the TOML registry
-        // We use std::fs because this file is small and high-frequency read/write
-        let content = fs::read_to_string(&self.registry_file).unwrap_or_default();
-        let mut registry: LocalRegistry = toml::from_str(&content).unwrap_or_default();
+        // Use a closure to ensure we always unlock even if errors occur
+        let result = (|| -> Result<()> {
+            // Read-Modify-Write the TOML registry
+            let mut registry = if self.registry_file.exists() {
+                let content = fs::read_to_string(&self.registry_file)
+                    .context("Failed to read registry file")?;
+                toml::from_str(&content)
+                    .context("Failed to parse registry file")?
+            } else {
+                LocalRegistry::default()
+            };
 
-        registry.worktrees.insert(name.to_string(), WorktreeMetadata {
-            worktree_type: worktree_type.to_string(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            agent_owner: agent.map(|s| s.to_string()),
-        });
+            registry.worktrees.insert(name.to_string(), WorktreeMetadata {
+                worktree_type: worktree_type.to_string(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                agent_owner: agent.map(|s| s.to_string()),
+            });
 
-        let new_content = toml::to_string_pretty(&registry)?;
-        fs::write(&self.registry_file, new_content)?;
+            let new_content = toml::to_string_pretty(&registry)?;
+            fs::write(&self.registry_file, new_content)?;
+            Ok(())
+        })();
 
-        Ok(())
+        self.unlock_registry();
+        result
     }
 
     /// Remove a worktree from the local cache
@@ -122,19 +161,29 @@ impl LocalContext {
         if !self.registry_file.exists() {
             return Ok(());
         }
+        
+        self.init()?;
+        self.lock_registry()?;
 
-        let content = fs::read_to_string(&self.registry_file)?;
-        let mut registry: LocalRegistry = toml::from_str(&content)?;
+        let result = (|| -> Result<()> {
+            let content = fs::read_to_string(&self.registry_file)
+                .context("Failed to read registry file")?;
+            let mut registry: LocalRegistry = toml::from_str(&content)
+                .context("Failed to parse registry file")?;
 
-        if registry.worktrees.remove(name).is_some() {
-            let new_content = toml::to_string_pretty(&registry)?;
-            fs::write(&self.registry_file, new_content)?;
-        }
+            if registry.worktrees.remove(name).is_some() {
+                let new_content = toml::to_string_pretty(&registry)?;
+                fs::write(&self.registry_file, new_content)?;
+            }
+            Ok(())
+        })();
 
-        // Also ensure lock is cleaned up
+        self.unlock_registry();
+
+        // Also ensure lock is cleaned up (doesn't need registry lock)
         self.unlock_worktree(name)?;
 
-        Ok(())
+        result
     }
     
     /// Get the path to the 'links' directory for storing shared env files

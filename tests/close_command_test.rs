@@ -46,24 +46,11 @@ async fn test_close_command_basic() -> Result<()> {
     // Setup config and database
     let config = Config {
         database_path: temp_dir.path().join("imi.db"),
-        worktrees_root: temp_dir.path().to_path_buf(),
-        repositories: vec![],
-        symlink_files: vec![],
-        git_settings: imi::config::GitSettings {
-            default_branch: "main".to_string(),
-            remote_name: "origin".to_string(),
-            auto_fetch: false,
-            auto_push: false,
-        },
-        monitoring: imi::config::MonitoringSettings {
-            update_interval_secs: 5,
-            show_commits: true,
-            show_file_changes: true,
-        },
+        ..Default::default()
     };
 
     let db = Database::new(&config.database_path).await?;
-    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone());
+    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
 
     // Register the repository
     db.create_repository("test-repo", test_repo_path.to_str().unwrap(), "", "main")
@@ -146,24 +133,11 @@ async fn test_close_command_with_name_variations() -> Result<()> {
     // Setup config and database
     let config = Config {
         database_path: temp_dir.path().join("imi.db"),
-        worktrees_root: temp_dir.path().to_path_buf(),
-        repositories: vec![],
-        symlink_files: vec![],
-        git_settings: imi::config::GitSettings {
-            default_branch: "main".to_string(),
-            remote_name: "origin".to_string(),
-            auto_fetch: false,
-            auto_push: false,
-        },
-        monitoring: imi::config::MonitoringSettings {
-            update_interval_secs: 5,
-            show_commits: true,
-            show_file_changes: true,
-        },
+        ..Default::default()
     };
 
     let db = Database::new(&config.database_path).await?;
-    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone());
+    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
 
     // Register the repository
     db.create_repository("test-repo", test_repo_path.to_str().unwrap(), "", "main")
@@ -224,24 +198,11 @@ async fn test_close_nonexistent_worktree() -> Result<()> {
     // Setup config and database
     let config = Config {
         database_path: temp_dir.path().join("imi.db"),
-        worktrees_root: temp_dir.path().to_path_buf(),
-        repositories: vec![],
-        symlink_files: vec![],
-        git_settings: imi::config::GitSettings {
-            default_branch: "main".to_string(),
-            remote_name: "origin".to_string(),
-            auto_fetch: false,
-            auto_push: false,
-        },
-        monitoring: imi::config::MonitoringSettings {
-            update_interval_secs: 5,
-            show_commits: true,
-            show_file_changes: true,
-        },
+        ..Default::default()
     };
 
     let db = Database::new(&config.database_path).await?;
-    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone());
+    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
 
     // Register the repository
     db.create_repository("test-repo", test_repo_path.to_str().unwrap(), "", "main")
@@ -284,24 +245,11 @@ async fn test_close_vs_remove_difference() -> Result<()> {
     // Setup config and database
     let config = Config {
         database_path: temp_dir.path().join("imi.db"),
-        worktrees_root: temp_dir.path().to_path_buf(),
-        repositories: vec![],
-        symlink_files: vec![],
-        git_settings: imi::config::GitSettings {
-            default_branch: "main".to_string(),
-            remote_name: "origin".to_string(),
-            auto_fetch: false,
-            auto_push: false,
-        },
-        monitoring: imi::config::MonitoringSettings {
-            update_interval_secs: 5,
-            show_commits: true,
-            show_file_changes: true,
-        },
+        ..Default::default()
     };
 
     let db = Database::new(&config.database_path).await?;
-    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone());
+    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
 
     // Register the repository
     db.create_repository("test-repo", test_repo_path.to_str().unwrap(), "", "main")

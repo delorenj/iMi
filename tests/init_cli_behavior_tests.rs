@@ -43,7 +43,7 @@ impl CliTestHelper {
 
         let db = Database::new(&config.database_path).await?;
         let git = GitManager::new();
-        let manager = WorktreeManager::new(git, db, config);
+        let manager = WorktreeManager::new(git, db, config, None);
 
         Ok(Self {
             _temp_dir: temp_dir,
@@ -88,7 +88,7 @@ impl CliTestHelper {
         };
 
         // Load existing config or create default
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
         let config_exists = config_path.exists();
 
         if config_exists && !force {
@@ -498,7 +498,7 @@ mod configuration_behavior_tests {
         assert!(result.is_ok(), "Init should succeed");
 
         // Verify config file exists
-        let config_path = Config::get_config_path().unwrap();
+        let config_path = Config::get_global_config_path().unwrap();
         assert!(config_path.exists(), "Configuration file should be created");
 
         println!(

@@ -82,8 +82,8 @@ async fn setup_test_repo(
         root_path: temp_dir.path().to_path_buf(),
         sync_settings: SyncSettings {
             enabled: false,
-            global_sync_path: temp_dir.path().join("sync/global"),
-            repo_sync_path: temp_dir.path().join("sync/repo"),
+            user_sync_path: temp_dir.path().join("sync/global"),
+            local_sync_path: temp_dir.path().join("sync/repo"),
         },
         git_settings: GitSettings {
             default_branch: "main".to_string(),
@@ -98,11 +98,12 @@ async fn setup_test_repo(
             track_agent_activity: false,
         },
         symlink_files: vec![],
+        ..Default::default()
     };
 
     let db = Database::new(&config.database_path).await?;
     let git_manager = GitManager::new();
-    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone());
+    let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
 
     Ok((test_repo_path, config, db, worktree_manager))
 }

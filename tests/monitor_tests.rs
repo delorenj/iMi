@@ -29,7 +29,7 @@ async fn create_test_monitor_manager() -> (MonitorManager, TempDir) {
     let git = GitManager::new();
     let config = create_test_config().await;
 
-    let worktree_manager = WorktreeManager::new(git, db, config.clone());
+    let worktree_manager = WorktreeManager::new(git, db, config.clone(), None);
     let monitor = MonitorManager::new(worktree_manager, config);
 
     (monitor, temp_dir)
@@ -124,7 +124,7 @@ mod monitor_manager_creation_tests {
         let db = create_test_database().await;
         let git = GitManager::new();
         let config = create_test_config().await;
-        let worktree_manager = WorktreeManager::new(git, db, config.clone());
+        let worktree_manager = WorktreeManager::new(git, db, config.clone(), None);
 
         let monitor = MonitorManager::new(worktree_manager, config);
 

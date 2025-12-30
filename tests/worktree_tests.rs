@@ -59,7 +59,7 @@ impl WorktreeTestHelper {
             config: config.clone(),
             db: db.clone(),
             git: git.clone(),
-            manager: WorktreeManager::new(git, db, config),
+            manager: WorktreeManager::new(git, db, config, None),
         })
     }
 
@@ -132,7 +132,7 @@ mod worktree_manager_creation_tests {
             .unwrap();
         let config = Config::default();
 
-        let manager = WorktreeManager::new(git, db, config);
+        let manager = WorktreeManager::new(git, db, config, None);
 
         // WorktreeManager should be cloneable
         let _cloned_manager = manager.clone();
@@ -754,7 +754,7 @@ mod worktree_management_tests {
     async fn test_list_worktrees() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
-        let result = helper.manager.list_worktrees(Some("list-test-repo")).await;
+        let result = helper.manager.db.list_worktrees(Some("list-test-repo")).await;
 
         assert!(result.is_ok(), "List worktrees should not fail");
         println!("Worktrees listed successfully");
@@ -764,7 +764,7 @@ mod worktree_management_tests {
     async fn test_list_worktrees_all() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
-        let result = helper.manager.list_worktrees(None).await;
+        let result = helper.manager.db.list_worktrees(None).await;
 
         assert!(result.is_ok(), "List all worktrees should not fail");
         println!("All worktrees listed successfully");

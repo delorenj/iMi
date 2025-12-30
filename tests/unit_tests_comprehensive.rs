@@ -751,7 +751,7 @@ database_path = "/home/user/.config/imi/imi.db"
         result.total += 1;
 
         // Test config path resolution
-        let config_path = Config::get_config_path();
+        let config_path = Config::get_global_config_path();
 
         if config_path.is_err() {
             result

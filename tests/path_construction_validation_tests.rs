@@ -148,7 +148,7 @@ mod path_construction_validation {
         let expected_global = config
             .root_path
             .join(repo_name)
-            .join(&config.sync_settings.global_sync_path);
+            .join(&config.sync_settings.user_sync_path);
 
         assert_eq!(
             global_sync, expected_global,
@@ -161,7 +161,7 @@ mod path_construction_validation {
         let expected_repo_sync = config
             .root_path
             .join(repo_name)
-            .join(&config.sync_settings.repo_sync_path);
+            .join(&config.sync_settings.local_sync_path);
 
         assert_eq!(
             repo_sync, expected_repo_sync,
@@ -317,7 +317,7 @@ mod path_construction_validation {
     #[tokio::test]
     async fn test_config_path_validation() -> Result<()> {
         // Test the global config path construction
-        let config_path = Config::get_config_path()?;
+        let config_path = Config::get_global_config_path()?;
         let config_str = config_path.to_string_lossy();
 
         // Should not have double separators

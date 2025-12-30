@@ -248,11 +248,43 @@ impl WorktreeManager {
 
         let local_ctx = LocalContext::new(&project_root);
         
-        // 1. Ensure .iMi structure exists (if this is the first worktree)
-        local_ctx.init().context("Failed to initialize local .iMi context")?;
-        
-        // 2. Register metadata for Starship
-        local_ctx.register_worktree(worktree_name, worktree_type, None)?;
+        // Transactional update with rollback
+        let update_result = (|| -> Result<()> {
+            // 1. Ensure .iMi structure exists (if this is the first worktree)
+            local_ctx.init().context("Failed to initialize local .iMi context")?;
+            
+            // 2. Register metadata for Starship
+            local_ctx.register_worktree(worktree_name, worktree_type, None)?;
+            Ok(())
+        })();
+
+        if let Err(e) = update_result {
+            eprintln!("{} Failed to update local context: {}. Rolling back...", "❌".bright_red(), e);
+
+            // Rollback: Deactivate DB entry
+            if let Err(db_err) = self.db.deactivate_worktree(&repo_name, worktree_name).await {
+                eprintln!("{} Failed to rollback database entry: {}", "⚠️".bright_yellow(), db_err);
+            }
+
+            // Rollback: Remove git worktree
+            let current_dir = env::current_dir()?;
+            if let Ok(git_repo) = self.git.find_repository(Some(&current_dir)) {
+                if self.git.worktree_exists(&git_repo, worktree_name) {
+                    if let Err(git_err) = self.git.remove_worktree(&git_repo, worktree_name) {
+                         eprintln!("{} Failed to remove git worktree: {}", "⚠️".bright_yellow(), git_err);
+                    }
+                }
+            }
+
+            // Rollback: Remove directory
+            if worktree_path.exists() {
+                 if let Err(io_err) = async_fs::remove_dir_all(&worktree_path).await {
+                      eprintln!("{} Failed to remove worktree directory: {}", "⚠️".bright_yellow(), io_err);
+                 }
+            }
+
+            return Err(e);
+        }
         
         println!("{} Local context updated for Starship", "✨".bright_magenta());
 
@@ -1392,10 +1424,12 @@ impl WorktreeManager {
         let repo_name = self.resolve_repo_name(repo).await?;
         println!("{} Starting prune operation for: {}", "🧹".bright_cyan(), repo_name.bright_yellow());
 
-        // Find the repository - must be in a valid Git repository
-        let current_dir = env::current_dir()?;
-        let git_repo = self.git.find_repository(Some(&current_dir))
-            .context("Failed to find Git repository. Ensure you're in a repository or worktree directory.")?;
+        // FIX: Use the configured trunk path to find the repository
+        // This allows 'imi prune' to run from the parent sandbox directory
+        let trunk_path = self.get_trunk_worktree(Some(&repo_name)).await
+            .context("Failed to find trunk worktree. Has the repository been initialized with 'imi init' or 'imi trunk'?")?;
+        let git_repo = self.git.find_repository(Some(&trunk_path))
+            .context(format!("Failed to find Git repository in trunk path: {}. Ensure your configuration is correct.", trunk_path.display()))?;
 
         // PHASE 1: Git State Cleanup
         // This is the CRITICAL FIX for the TASK.md issue:
