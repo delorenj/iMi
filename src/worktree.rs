@@ -236,17 +236,19 @@ impl WorktreeManager {
             )
             .await?;
         // --- DUAL-WRITE: Update Local Context ---
-        // We need the project root. For registered repos, we have it.
-        // For implicit current-directory repos, we calculate it.
-        
-        let project_root = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
-             PathBuf::from(&registered_repo.path)
+        // Get the IMI_PATH (sandbox directory) where .iMi/ cluster hub lives
+        // This is the parent directory containing all worktrees as siblings
+
+        let imi_path = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+             // Registered repo: trunk path is stored, get its parent
+             let trunk_path = PathBuf::from(&registered_repo.path);
+             self.detect_imi_path(&trunk_path)?
         } else {
-             // Fallback for implicit repo
-             self.detect_imi_path(&worktree_path)? 
+             // Implicit repo: detect from worktree path
+             self.detect_imi_path(&worktree_path)?
         };
 
-        let local_ctx = LocalContext::new(&project_root);
+        let local_ctx = LocalContext::new(&imi_path);
         
         // Transactional update with rollback
         let update_result = (|| -> Result<()> {
