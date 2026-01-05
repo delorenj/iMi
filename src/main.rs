@@ -88,34 +88,65 @@ async fn main() -> Result<()> {
                     WorktreeManager::new(git_manager, db, config.clone(), config.repo_path.clone());
 
                 match command {
-                    Commands::Add { worktree_type, name, repo, pr } => {
-                        handle_add_command(&worktree_manager, &worktree_type, &name, repo.as_deref(), pr, json_mode).await?;
+                    Commands::Add {
+                        worktree_type,
+                        name,
+                        repo,
+                        pr,
+                    } => {
+                        handle_add_command(
+                            &worktree_manager,
+                            &worktree_type,
+                            &name,
+                            repo.as_deref(),
+                            pr,
+                            json_mode,
+                        )
+                        .await?;
                     }
                     Commands::Types(type_cmd) => {
                         handle_types_command(&worktree_manager, type_cmd, json_mode).await?;
                     }
                     Commands::Feat { name, repo } => {
-                        eprintln!("⚠️  Warning: 'imi feat' is deprecated. Use 'imi add feat {}' instead.", name);
-                        handle_feature_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        eprintln!(
+                            "⚠️  Warning: 'imi feat' is deprecated. Use 'imi add feat {}' instead.",
+                            name
+                        );
+                        handle_feature_command(
+                            &worktree_manager,
+                            &name,
+                            repo.as_deref(),
+                            json_mode,
+                        )
+                        .await?;
                     }
                     Commands::Review { pr_number, repo } => {
-                        handle_review_command(&worktree_manager, pr_number, repo.as_deref(), json_mode)
-                            .await?;
+                        handle_review_command(
+                            &worktree_manager,
+                            pr_number,
+                            repo.as_deref(),
+                            json_mode,
+                        )
+                        .await?;
                     }
                     Commands::Fix { name, repo } => {
-                        handle_fix_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        handle_fix_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Aiops { name, repo } => {
-                        handle_aiops_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        handle_aiops_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Devops { name, repo } => {
-                        handle_devops_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        handle_devops_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Trunk { repo } => {
                         handle_trunk_command(&worktree_manager, repo.as_deref(), json_mode).await?;
                     }
                     Commands::Status { repo } => {
-                        handle_status_command(&worktree_manager, repo.as_deref(), json_mode).await?;
+                        handle_status_command(&worktree_manager, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::List {
                         repo,
@@ -148,7 +179,8 @@ async fn main() -> Result<()> {
                         .await?;
                     }
                     Commands::Monitor { repo } => {
-                        handle_monitor_command(&worktree_manager, repo.as_deref(), json_mode).await?;
+                        handle_monitor_command(&worktree_manager, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Sync { repo } => {
                         handle_sync_command(&worktree_manager, repo.as_deref(), json_mode).await?;
@@ -159,14 +191,27 @@ async fn main() -> Result<()> {
                     Commands::Completion { shell } => {
                         handle_completion_command(&shell);
                     }
-                    Commands::Prune { repo, dry_run, force } => {
-                        handle_prune_command(&worktree_manager, repo.as_deref(), dry_run, force, json_mode).await?;
+                    Commands::Prune {
+                        repo,
+                        dry_run,
+                        force,
+                    } => {
+                        handle_prune_command(
+                            &worktree_manager,
+                            repo.as_deref(),
+                            dry_run,
+                            force,
+                            json_mode,
+                        )
+                        .await?;
                     }
                     Commands::Close { name, repo } => {
-                        handle_close_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        handle_close_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Merge { name, repo } => {
-                        handle_merge_command(&worktree_manager, &name, repo.as_deref(), json_mode).await?;
+                        handle_merge_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                            .await?;
                     }
                     Commands::Go {
                         query,
@@ -216,7 +261,8 @@ async fn handle_feature_command(
                     "worktree_path": worktree_path.display().to_string(),
                     "worktree_name": format!("feat-{}", name),
                     "message": "Feature worktree created successfully"
-                })).print();
+                }))
+                .print();
             } else {
                 println!(
                     "{} Feature worktree created at: {}",
@@ -283,7 +329,8 @@ async fn handle_review_command(
             "worktree_path": worktree_path.display().to_string(),
             "pr_number": pr_number,
             "message": "Review worktree created successfully"
-        })).print();
+        }))
+        .print();
     } else {
         println!(
             "{} Review worktree created at: {}",
@@ -323,7 +370,8 @@ async fn handle_fix_command(
             "worktree_path": worktree_path.display().to_string(),
             "worktree_name": format!("fix-{}", name),
             "message": "Fix worktree created successfully"
-        })).print();
+        }))
+        .print();
     } else {
         println!(
             "{} Fix worktree created at: {}",
@@ -363,7 +411,8 @@ async fn handle_aiops_command(
             "worktree_path": worktree_path.display().to_string(),
             "worktree_name": format!("aiops-{}", name),
             "message": "Aiops worktree created successfully"
-        })).print();
+        }))
+        .print();
     } else {
         println!(
             "{} Aiops worktree created at: {}",
@@ -403,7 +452,8 @@ async fn handle_devops_command(
             "worktree_path": worktree_path.display().to_string(),
             "worktree_name": format!("devops-{}", name),
             "message": "Devops worktree created successfully"
-        })).print();
+        }))
+        .print();
     } else {
         println!(
             "{} Devops worktree created at: {}",
@@ -422,7 +472,11 @@ async fn handle_devops_command(
     Ok(())
 }
 
-async fn handle_trunk_command(manager: &WorktreeManager, repo: Option<&str>, json_mode: bool) -> Result<()> {
+async fn handle_trunk_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
     if !json_mode {
         println!("{} Switching to trunk worktree", "🌳".bright_green());
     }
@@ -433,7 +487,8 @@ async fn handle_trunk_command(manager: &WorktreeManager, repo: Option<&str>, jso
         JsonResponse::success(serde_json::json!({
             "worktree_path": worktree_path.display().to_string(),
             "message": "Trunk worktree located"
-        })).print();
+        }))
+        .print();
     } else {
         // Print command to change directory (processes can't change parent shell's directory)
         println!(
@@ -446,7 +501,11 @@ async fn handle_trunk_command(manager: &WorktreeManager, repo: Option<&str>, jso
     Ok(())
 }
 
-async fn handle_status_command(manager: &WorktreeManager, repo: Option<&str>, json_mode: bool) -> Result<()> {
+async fn handle_status_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
     if json_mode {
         // For JSON mode, we need to capture the status data instead of printing
         // This would require modifying WorktreeManager.show_status() to return data
@@ -454,7 +513,8 @@ async fn handle_status_command(manager: &WorktreeManager, repo: Option<&str>, js
         JsonResponse::success(serde_json::json!({
             "message": "Status command in JSON mode not yet fully implemented",
             "note": "Use non-JSON mode for detailed status"
-        })).print();
+        }))
+        .print();
     } else {
         println!("{} Worktree Status", "📊".bright_cyan());
         manager.show_status(repo).await?;
@@ -475,7 +535,8 @@ async fn handle_list_command(
         JsonResponse::success(serde_json::json!({
             "message": "List command in JSON mode not yet fully implemented",
             "note": "Use non-JSON mode for detailed listing"
-        })).print();
+        }))
+        .print();
     } else {
         manager.list_smart(repo, worktrees, projects).await?;
     }
@@ -506,17 +567,27 @@ async fn handle_remove_command(
         JsonResponse::success(serde_json::json!({
             "worktree_name": name,
             "message": "Worktree removed successfully"
-        })).print();
+        }))
+        .print();
     } else {
         println!("{} Worktree removed successfully", "✅".bright_green());
     }
     Ok(())
 }
 
-async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>, json_mode: bool) -> Result<()> {
+async fn handle_monitor_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
     if json_mode {
-        JsonResponse::error("Monitor command does not support JSON mode (interactive mode only)".to_string()).print();
-        return Err(anyhow::anyhow!("Monitor command requires interactive terminal"));
+        JsonResponse::error(
+            "Monitor command does not support JSON mode (interactive mode only)".to_string(),
+        )
+        .print();
+        return Err(anyhow::anyhow!(
+            "Monitor command requires interactive terminal"
+        ));
     }
 
     println!("{} Starting real-time monitoring...", "👁️".bright_purple());
@@ -524,7 +595,11 @@ async fn handle_monitor_command(manager: &WorktreeManager, repo: Option<&str>, j
     Ok(())
 }
 
-async fn handle_sync_command(manager: &WorktreeManager, repo: Option<&str>, json_mode: bool) -> Result<()> {
+async fn handle_sync_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
     if !json_mode {
         println!(
             "{} Syncing database with Git worktrees...",
@@ -537,7 +612,8 @@ async fn handle_sync_command(manager: &WorktreeManager, repo: Option<&str>, json
     if json_mode {
         JsonResponse::success(serde_json::json!({
             "message": "Database synced successfully"
-        })).print();
+        }))
+        .print();
     }
     Ok(())
 }
@@ -558,7 +634,8 @@ async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool)
                     JsonResponse::success(serde_json::json!({
                         "message": result.message,
                         "repo": repo_arg
-                    })).print();
+                    }))
+                    .print();
                 } else {
                     JsonResponse::error(result.message).print();
                 }
@@ -581,7 +658,8 @@ async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool)
                     JsonResponse::success(serde_json::json!({
                         "message": result.message,
                         "path": path.display().to_string()
-                    })).print();
+                    }))
+                    .print();
                 } else {
                     JsonResponse::error(result.message).print();
                 }
@@ -604,7 +682,8 @@ async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool)
         if result.success {
             JsonResponse::success(serde_json::json!({
                 "message": result.message
-            })).print();
+            }))
+            .print();
         } else {
             JsonResponse::error(result.message).print();
         }
@@ -619,7 +698,13 @@ async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool)
     Ok(())
 }
 
-async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>, dry_run: bool, force: bool, json_mode: bool) -> Result<()> {
+async fn handle_prune_command(
+    manager: &WorktreeManager,
+    repo: Option<&str>,
+    dry_run: bool,
+    force: bool,
+    json_mode: bool,
+) -> Result<()> {
     if !json_mode {
         println!(
             "{} Cleaning up stale worktree references",
@@ -633,7 +718,8 @@ async fn handle_prune_command(manager: &WorktreeManager, repo: Option<&str>, dry
         JsonResponse::success(serde_json::json!({
             "message": "Cleanup complete",
             "dry_run": dry_run
-        })).print();
+        }))
+        .print();
     } else {
         println!("{} Cleanup complete", "✅".bright_green());
     }
@@ -663,14 +749,16 @@ async fn handle_close_command(
                     "message": "Worktree closed successfully",
                     "worktree_name": name,
                     "trunk_path": trunk_path.display().to_string()
-                })).print();
+                }))
+                .print();
             }
             Err(_) => {
                 JsonResponse::success(serde_json::json!({
                     "message": "Worktree closed successfully",
                     "worktree_name": name,
                     "warning": "Unable to locate trunk worktree"
-                })).print();
+                }))
+                .print();
             }
         }
     } else {
@@ -718,7 +806,8 @@ async fn handle_go_command(
     if json_mode {
         JsonResponse::success(serde_json::json!({
             "target_path": target_path.display().to_string()
-        })).print();
+        }))
+        .print();
     } else {
         // Output only the path to stdout for shell wrapper to capture
         // All other output must go to stderr to avoid polluting the path
@@ -735,7 +824,11 @@ async fn handle_merge_command(
     json_mode: bool,
 ) -> Result<()> {
     if !json_mode {
-        println!("{} Merging worktree: {}", "🔀".bright_cyan(), name.bright_yellow());
+        println!(
+            "{} Merging worktree: {}",
+            "🔀".bright_cyan(),
+            name.bright_yellow()
+        );
     }
 
     manager.merge_worktree(name, repo).await?;
@@ -744,7 +837,8 @@ async fn handle_merge_command(
         JsonResponse::success(serde_json::json!({
             "message": "Worktree merged successfully",
             "worktree_name": name
-        })).print();
+        }))
+        .print();
     }
 
     Ok(())
@@ -775,11 +869,10 @@ async fn handle_add_command(
     let db = &manager.db;
 
     // Validate worktree type exists
-    let wt_type = db.get_worktree_type(worktree_type).await
-        .context(format!(
-            "Unknown worktree type '{}'. Run 'imi types' to see available types.",
-            worktree_type
-        ))?;
+    let wt_type = db.get_worktree_type(worktree_type).await.context(format!(
+        "Unknown worktree type '{}'. Run 'imi types' to see available types.",
+        worktree_type
+    ))?;
 
     if !json_mode {
         println!(
@@ -792,9 +885,12 @@ async fn handle_add_command(
 
     // Handle review type specially (needs PR number)
     if worktree_type == "review" {
-        let pr_number = pr.context(
-            "PR number required for review worktree. Use: imi add review <name> --pr <number>"
-        )?;
+        let pr_number = match pr {
+            Some(pr_number) => pr_number,
+            None => name.parse::<u32>().context(
+                "PR number required for review worktree. Use: imi add review <pr-number> or --pr <number>"
+            )?,
+        };
         return handle_review_command(manager, pr_number, repo, json_mode).await;
     }
 
@@ -806,7 +902,9 @@ async fn handle_add_command(
         "devops" => handle_devops_command(manager, name, repo, json_mode).await,
         _ => {
             // Custom worktree type - use generic creation
-            let worktree_path = manager.create_custom_worktree(name, worktree_type, repo).await?;
+            let worktree_path = manager
+                .create_custom_worktree(name, worktree_type, repo)
+                .await?;
 
             if json_mode {
                 JsonResponse::success(serde_json::json!({
@@ -814,7 +912,8 @@ async fn handle_add_command(
                     "worktree_name": format!("{}-{}", worktree_type, name),
                     "worktree_type": worktree_type,
                     "message": format!("{} worktree created successfully", worktree_type)
-                })).print();
+                }))
+                .print();
             } else {
                 println!(
                     "{} {} worktree created at: {}",
@@ -847,18 +946,24 @@ async fn handle_types_command(
             let types = db.list_worktree_types().await?;
 
             if json_mode {
-                let types_json: Vec<_> = types.iter().map(|t| serde_json::json!({
-                    "name": t.name,
-                    "branch_prefix": t.branch_prefix,
-                    "worktree_prefix": t.worktree_prefix,
-                    "description": t.description,
-                    "is_builtin": t.is_builtin,
-                })).collect();
+                let types_json: Vec<_> = types
+                    .iter()
+                    .map(|t| {
+                        serde_json::json!({
+                            "name": t.name,
+                            "branch_prefix": t.branch_prefix,
+                            "worktree_prefix": t.worktree_prefix,
+                            "description": t.description,
+                            "is_builtin": t.is_builtin,
+                        })
+                    })
+                    .collect();
 
                 JsonResponse::success(serde_json::json!({
                     "types": types_json,
                     "count": types.len()
-                })).print();
+                }))
+                .print();
             } else {
                 println!("{} Available Worktree Types:\n", "📋".bright_cyan());
 
@@ -892,15 +997,21 @@ async fn handle_types_command(
             description,
         } => {
             if !json_mode {
-                println!("{} Adding new worktree type: {}", "➕".bright_cyan(), name.bright_green());
+                println!(
+                    "{} Adding new worktree type: {}",
+                    "➕".bright_cyan(),
+                    name.bright_green()
+                );
             }
 
-            let wt_type = db.add_worktree_type(
-                &name,
-                branch_prefix.as_deref(),
-                worktree_prefix.as_deref(),
-                description.as_deref(),
-            ).await?;
+            let wt_type = db
+                .add_worktree_type(
+                    &name,
+                    branch_prefix.as_deref(),
+                    worktree_prefix.as_deref(),
+                    description.as_deref(),
+                )
+                .await?;
 
             if json_mode {
                 JsonResponse::success(serde_json::json!({
@@ -911,11 +1022,19 @@ async fn handle_types_command(
                         "worktree_prefix": wt_type.worktree_prefix,
                         "description": wt_type.description,
                     }
-                })).print();
+                }))
+                .print();
             } else {
-                println!("{} Worktree type '{}' added successfully!", "✅".bright_green(), name);
+                println!(
+                    "{} Worktree type '{}' added successfully!",
+                    "✅".bright_green(),
+                    name
+                );
                 println!("  Branch prefix: {}", wt_type.branch_prefix.bright_cyan());
-                println!("  Worktree prefix: {}", wt_type.worktree_prefix.bright_cyan());
+                println!(
+                    "  Worktree prefix: {}",
+                    wt_type.worktree_prefix.bright_cyan()
+                );
                 if let Some(desc) = wt_type.description {
                     println!("  Description: {}", desc);
                 }
@@ -923,7 +1042,11 @@ async fn handle_types_command(
         }
         TypeCommands::Remove { name } => {
             if !json_mode {
-                println!("{} Removing worktree type: {}", "🗑️".bright_red(), name.bright_yellow());
+                println!(
+                    "{} Removing worktree type: {}",
+                    "🗑️".bright_red(),
+                    name.bright_yellow()
+                );
             }
 
             db.remove_worktree_type(&name).await?;
@@ -932,9 +1055,14 @@ async fn handle_types_command(
                 JsonResponse::success(serde_json::json!({
                     "message": "Worktree type removed successfully",
                     "type_name": name
-                })).print();
+                }))
+                .print();
             } else {
-                println!("{} Worktree type '{}' removed successfully", "✅".bright_green(), name);
+                println!(
+                    "{} Worktree type '{}' removed successfully",
+                    "✅".bright_green(),
+                    name
+                );
             }
         }
     }
@@ -989,7 +1117,8 @@ async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Re
                     "github_url": format!("https://github.com/{}/{}",
                         std::env::var("USER").unwrap_or_else(|_| "user".to_string()),
                         config.name)
-                })).print();
+                }))
+                .print();
             }
 
             Ok(())

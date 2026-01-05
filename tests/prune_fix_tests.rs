@@ -9,7 +9,6 @@
 /// 2. Verification of Git reference removal
 /// 3. Verification of database entry cleanup
 /// 4. Edge cases: corrupted gitdir, locked worktrees, orphaned directories
-
 use anyhow::Result;
 use serial_test::serial;
 use std::path::{Path, PathBuf};
@@ -42,7 +41,7 @@ impl PruneTestFixture {
         // Create a proper Git repository structure
         // Use trunk_name as repo_name to match WorktreeManager's resolve_repo_name behavior
         let trunk_name = "trunk-main";
-        let repo_name = trunk_name;  // Must match trunk directory name
+        let repo_name = trunk_name; // Must match trunk directory name
         let trunk_path = imi_path.join(trunk_name);
 
         // Initialize Git repository in trunk directory
@@ -95,9 +94,10 @@ impl PruneTestFixture {
         db.create_repository(
             repo_name,
             trunk_path.to_str().unwrap(),
-            "",  // Empty remote URL for testing
-            "main"
-        ).await?;
+            "", // Empty remote URL for testing
+            "main",
+        )
+        .await?;
 
         // Create WorktreeManager with the trunk_path as repo_path
         // This ensures resolve_repo_name will work correctly
@@ -135,7 +135,7 @@ impl PruneTestFixture {
                 "-b",
                 &format!("feat/{}", name),
                 worktree_path.to_str().unwrap(),
-                "HEAD"
+                "HEAD",
             ])
             .output()?;
 
@@ -145,14 +145,16 @@ impl PruneTestFixture {
         }
 
         // Register in database (use trunk-main to match repo_name from fixture)
-        self.db.create_worktree(
-            "trunk-main",
-            &worktree_name,
-            &format!("feat/{}", name),
-            "feat",
-            worktree_path.to_str().unwrap(),
-            None,
-        ).await?;
+        self.db
+            .create_worktree(
+                "trunk-main",
+                &worktree_name,
+                &format!("feat/{}", name),
+                "feat",
+                worktree_path.to_str().unwrap(),
+                None,
+            )
+            .await?;
 
         Ok(worktree_path)
     }
@@ -195,7 +197,9 @@ impl PruneTestFixture {
     /// Set working directory to trunk and run prune
     async fn run_prune(&self, dry_run: bool, force: bool) -> Result<()> {
         std::env::set_current_dir(&self.trunk_path)?;
-        self.manager.prune_stale_worktrees(None, dry_run, force).await
+        self.manager
+            .prune_stale_worktrees(None, dry_run, force)
+            .await
     }
 }
 
@@ -209,17 +213,35 @@ async fn test_prune_after_manual_deletion() -> Result<()> {
     // Step 1: Create a worktree
     let worktree_path = fixture.create_test_worktree("test-feature").await?;
     assert!(worktree_path.exists(), "Worktree directory should exist");
-    assert!(fixture.worktree_exists_in_git(worktree_name)?, "Worktree should exist in Git");
-    assert!(fixture.worktree_exists_in_db(worktree_name).await?, "Worktree should exist in database");
+    assert!(
+        fixture.worktree_exists_in_git(worktree_name)?,
+        "Worktree should exist in Git"
+    );
+    assert!(
+        fixture.worktree_exists_in_db(worktree_name).await?,
+        "Worktree should exist in database"
+    );
 
     // Step 2: Manually delete the worktree directory (simulating the TASK.md scenario)
-    println!("🗑️  Manually deleting worktree directory: {}", worktree_path.display());
+    println!(
+        "🗑️  Manually deleting worktree directory: {}",
+        worktree_path.display()
+    );
     fs::remove_dir_all(&worktree_path).await?;
-    assert!(!worktree_path.exists(), "Worktree directory should be deleted");
+    assert!(
+        !worktree_path.exists(),
+        "Worktree directory should be deleted"
+    );
 
     // Step 3: Worktree should still be registered in Git and database
-    assert!(fixture.worktree_exists_in_git(worktree_name)?, "Worktree should still be in Git after manual deletion");
-    assert!(fixture.worktree_exists_in_db(worktree_name).await?, "Worktree should still be in database after manual deletion");
+    assert!(
+        fixture.worktree_exists_in_git(worktree_name)?,
+        "Worktree should still be in Git after manual deletion"
+    );
+    assert!(
+        fixture.worktree_exists_in_db(worktree_name).await?,
+        "Worktree should still be in database after manual deletion"
+    );
 
     // Step 4: Run prune command
     println!("🧹 Running prune command...");
@@ -246,7 +268,10 @@ async fn test_prune_after_manual_deletion() -> Result<()> {
     assert!(!db_exists, "Worktree should be deactivated in database");
 
     // Filesystem should be clean (already deleted)
-    assert!(!fixture.worktree_exists_on_fs(worktree_name), "Worktree directory should not exist");
+    assert!(
+        !fixture.worktree_exists_on_fs(worktree_name),
+        "Worktree directory should not exist"
+    );
 
     println!("✅ Test passed: Prune successfully cleaned up manually deleted worktree");
     Ok(())
@@ -275,14 +300,32 @@ async fn test_prune_multiple_stale_worktrees() -> Result<()> {
     fixture.run_prune(false, true).await?;
 
     // Verify: worktrees 1 and 3 should be cleaned up, worktree 2 should remain
-    assert!(!fixture.worktree_exists_in_git(worktree1)?, "Worktree 1 should be pruned");
-    assert!(!fixture.worktree_exists_in_db(worktree1).await?, "Worktree 1 should be deactivated in DB");
+    assert!(
+        !fixture.worktree_exists_in_git(worktree1)?,
+        "Worktree 1 should be pruned"
+    );
+    assert!(
+        !fixture.worktree_exists_in_db(worktree1).await?,
+        "Worktree 1 should be deactivated in DB"
+    );
 
-    assert!(fixture.worktree_exists_in_git(worktree2)?, "Worktree 2 should still exist in Git");
-    assert!(fixture.worktree_exists_in_db(worktree2).await?, "Worktree 2 should still exist in DB");
+    assert!(
+        fixture.worktree_exists_in_git(worktree2)?,
+        "Worktree 2 should still exist in Git"
+    );
+    assert!(
+        fixture.worktree_exists_in_db(worktree2).await?,
+        "Worktree 2 should still exist in DB"
+    );
 
-    assert!(!fixture.worktree_exists_in_git(worktree3)?, "Worktree 3 should be pruned");
-    assert!(!fixture.worktree_exists_in_db(worktree3).await?, "Worktree 3 should be deactivated in DB");
+    assert!(
+        !fixture.worktree_exists_in_git(worktree3)?,
+        "Worktree 3 should be pruned"
+    );
+    assert!(
+        !fixture.worktree_exists_in_db(worktree3).await?,
+        "Worktree 3 should be deactivated in DB"
+    );
 
     println!("✅ Test passed: Multiple stale worktrees pruned correctly");
     Ok(())
@@ -308,7 +351,10 @@ async fn test_prune_dry_run() -> Result<()> {
     let git_exists = fixture.worktree_exists_in_git(worktree_name)?;
     let db_exists = fixture.worktree_exists_in_db(worktree_name).await?;
 
-    println!("After dry-run: Git exists={}, DB exists={}", git_exists, db_exists);
+    println!(
+        "After dry-run: Git exists={}, DB exists={}",
+        git_exists, db_exists
+    );
 
     // Dry-run should at least report what would be done
     println!("✅ Test passed: Dry-run mode executed");
@@ -326,21 +372,30 @@ async fn test_git_admin_directory_cleanup() -> Result<()> {
 
     // Count admin directories before deletion
     let admin_count_before = fixture.count_git_worktree_admin_dirs()?;
-    assert!(admin_count_before > 0, "Should have at least one admin directory");
+    assert!(
+        admin_count_before > 0,
+        "Should have at least one admin directory"
+    );
 
     // Manually delete worktree
     fs::remove_dir_all(&worktree_path).await?;
 
     // Admin directory should still exist before prune
     let admin_count_after_delete = fixture.count_git_worktree_admin_dirs()?;
-    assert_eq!(admin_count_before, admin_count_after_delete, "Admin directory should still exist after manual deletion");
+    assert_eq!(
+        admin_count_before, admin_count_after_delete,
+        "Admin directory should still exist after manual deletion"
+    );
 
     // Run prune
     fixture.run_prune(false, true).await?;
 
     // Admin directory should be cleaned up
     let admin_count_after_prune = fixture.count_git_worktree_admin_dirs()?;
-    assert!(admin_count_after_prune < admin_count_before, "Admin directory should be cleaned up after prune");
+    assert!(
+        admin_count_after_prune < admin_count_before,
+        "Admin directory should be cleaned up after prune"
+    );
 
     println!("✅ Test passed: Git admin directory cleaned up correctly");
     Ok(())
@@ -360,13 +415,19 @@ async fn test_orphaned_directory_cleanup() -> Result<()> {
     assert!(orphaned_dir.exists(), "Orphaned directory should exist");
 
     // This directory is not registered in Git or database
-    assert!(!fixture.worktree_exists_in_git("feat-orphaned")?, "Should not be in Git");
+    assert!(
+        !fixture.worktree_exists_in_git("feat-orphaned")?,
+        "Should not be in Git"
+    );
 
     // Run prune with force flag (to avoid confirmation prompt)
     fixture.run_prune(false, true).await?;
 
     // Orphaned directory should be removed
-    assert!(!orphaned_dir.exists(), "Orphaned directory should be cleaned up");
+    assert!(
+        !orphaned_dir.exists(),
+        "Orphaned directory should be cleaned up"
+    );
 
     println!("✅ Test passed: Orphaned directory cleaned up correctly");
     Ok(())
@@ -386,9 +447,18 @@ async fn test_prune_preserves_valid_worktrees() -> Result<()> {
     fixture.run_prune(false, true).await?;
 
     // Verify: valid worktree should still exist in all places
-    assert!(fixture.worktree_exists_on_fs(worktree_name), "Valid worktree directory should still exist");
-    assert!(fixture.worktree_exists_in_git(worktree_name)?, "Valid worktree should still be in Git");
-    assert!(fixture.worktree_exists_in_db(worktree_name).await?, "Valid worktree should still be in database");
+    assert!(
+        fixture.worktree_exists_on_fs(worktree_name),
+        "Valid worktree directory should still exist"
+    );
+    assert!(
+        fixture.worktree_exists_in_git(worktree_name)?,
+        "Valid worktree should still be in Git"
+    );
+    assert!(
+        fixture.worktree_exists_in_db(worktree_name).await?,
+        "Valid worktree should still be in database"
+    );
 
     println!("✅ Test passed: Valid worktrees preserved correctly");
     Ok(())
@@ -410,15 +480,27 @@ async fn test_database_cleanup_only() -> Result<()> {
     fixture.git.remove_worktree(&repo, worktree_name)?;
 
     // Verify: should not be in Git or filesystem, but still in database
-    assert!(!fixture.worktree_exists_in_git(worktree_name)?, "Should not be in Git");
-    assert!(!fixture.worktree_exists_on_fs(worktree_name), "Should not exist on filesystem");
-    assert!(fixture.worktree_exists_in_db(worktree_name).await?, "Should still be in database");
+    assert!(
+        !fixture.worktree_exists_in_git(worktree_name)?,
+        "Should not be in Git"
+    );
+    assert!(
+        !fixture.worktree_exists_on_fs(worktree_name),
+        "Should not exist on filesystem"
+    );
+    assert!(
+        fixture.worktree_exists_in_db(worktree_name).await?,
+        "Should still be in database"
+    );
 
     // Run prune
     fixture.run_prune(false, true).await?;
 
     // Verify: should be removed from database
-    assert!(!fixture.worktree_exists_in_db(worktree_name).await?, "Should be removed from database");
+    assert!(
+        !fixture.worktree_exists_in_db(worktree_name).await?,
+        "Should be removed from database"
+    );
 
     println!("✅ Test passed: Database-only cleanup works correctly");
     Ok(())
@@ -451,8 +533,11 @@ async fn test_corrupted_gitdir() -> Result<()> {
         Ok(_) => {
             println!("✅ Test passed: Corrupted gitdir handled gracefully");
             // Verify cleanup occurred
-            assert!(!fixture.worktree_exists_in_git(worktree_name)?, "Should be removed from Git");
-        },
+            assert!(
+                !fixture.worktree_exists_in_git(worktree_name)?,
+                "Should be removed from Git"
+            );
+        }
         Err(e) => {
             println!("⚠️  Prune failed with corrupted gitdir (expected): {}", e);
             // This is acceptable - corrupted state may cause issues

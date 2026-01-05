@@ -109,7 +109,8 @@ impl WorktreeManager {
         repo: Option<&str>,
     ) -> Result<PathBuf> {
         // Get the worktree type metadata from database
-        let wt_type = self.db
+        let wt_type = self
+            .db
             .get_worktree_type(worktree_type)
             .await
             .context(format!(
@@ -200,8 +201,12 @@ impl WorktreeManager {
         let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
             // Use the registered repository path
             let registered_path = PathBuf::from(&registered_repo.path);
-            self.git.find_repository(Some(&registered_path))
-                .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+            self.git
+                .find_repository(Some(&registered_path))
+                .context(format!(
+                    "Git repository not found at registered path: {}",
+                    registered_path.display()
+                ))?
         } else {
             // Fall back to current directory and register if needed
             let current_dir = env::current_dir()?;
@@ -250,32 +255,42 @@ impl WorktreeManager {
         // This is the parent directory containing all worktrees as siblings
 
         let imi_path = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
-             // Registered repo: trunk path is stored, get its parent
-             let trunk_path = PathBuf::from(&registered_repo.path);
-             self.detect_imi_path(&trunk_path)?
+            // Registered repo: trunk path is stored, get its parent
+            let trunk_path = PathBuf::from(&registered_repo.path);
+            self.detect_imi_path(&trunk_path)?
         } else {
-             // Implicit repo: detect from worktree path
-             self.detect_imi_path(&worktree_path)?
+            // Implicit repo: detect from worktree path
+            self.detect_imi_path(&worktree_path)?
         };
 
         let local_ctx = LocalContext::new(&imi_path);
-        
+
         // Transactional update with rollback
         let update_result = (|| -> Result<()> {
             // 1. Ensure .iMi structure exists (if this is the first worktree)
-            local_ctx.init().context("Failed to initialize local .iMi context")?;
-            
+            local_ctx
+                .init()
+                .context("Failed to initialize local .iMi context")?;
+
             // 2. Register metadata for Starship
             local_ctx.register_worktree(worktree_name, worktree_type, None)?;
             Ok(())
         })();
 
         if let Err(e) = update_result {
-            eprintln!("{} Failed to update local context: {}. Rolling back...", "❌".bright_red(), e);
+            eprintln!(
+                "{} Failed to update local context: {}. Rolling back...",
+                "❌".bright_red(),
+                e
+            );
 
             // Rollback: Deactivate DB entry
             if let Err(db_err) = self.db.deactivate_worktree(&repo_name, worktree_name).await {
-                eprintln!("{} Failed to rollback database entry: {}", "⚠️".bright_yellow(), db_err);
+                eprintln!(
+                    "{} Failed to rollback database entry: {}",
+                    "⚠️".bright_yellow(),
+                    db_err
+                );
             }
 
             // Rollback: Remove git worktree
@@ -283,22 +298,33 @@ impl WorktreeManager {
             if let Ok(git_repo) = self.git.find_repository(Some(&current_dir)) {
                 if self.git.worktree_exists(&git_repo, worktree_name) {
                     if let Err(git_err) = self.git.remove_worktree(&git_repo, worktree_name) {
-                         eprintln!("{} Failed to remove git worktree: {}", "⚠️".bright_yellow(), git_err);
+                        eprintln!(
+                            "{} Failed to remove git worktree: {}",
+                            "⚠️".bright_yellow(),
+                            git_err
+                        );
                     }
                 }
             }
 
             // Rollback: Remove directory
             if worktree_path.exists() {
-                 if let Err(io_err) = async_fs::remove_dir_all(&worktree_path).await {
-                      eprintln!("{} Failed to remove worktree directory: {}", "⚠️".bright_yellow(), io_err);
-                 }
+                if let Err(io_err) = async_fs::remove_dir_all(&worktree_path).await {
+                    eprintln!(
+                        "{} Failed to remove worktree directory: {}",
+                        "⚠️".bright_yellow(),
+                        io_err
+                    );
+                }
             }
 
             return Err(e);
         }
-        
-        println!("{} Local context updated for Starship", "✨".bright_magenta());
+
+        println!(
+            "{} Local context updated for Starship",
+            "✨".bright_magenta()
+        );
 
         println!("{} Worktree created successfully", "✅".bright_green());
 
@@ -453,8 +479,12 @@ impl WorktreeManager {
         let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
             // Use the registered repository path
             let registered_path = PathBuf::from(&registered_repo.path);
-            self.git.find_repository(Some(&registered_path))
-                .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+            self.git
+                .find_repository(Some(&registered_path))
+                .context(format!(
+                    "Git repository not found at registered path: {}",
+                    registered_path.display()
+                ))?
         } else {
             // Fall back to current directory
             let current_dir = env::current_dir()?;
@@ -572,11 +602,16 @@ impl WorktreeManager {
                 let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
 
                 // Find the repository - use registered path if available, otherwise current directory
-                let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+                let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await?
+                {
                     // Use the registered repository path
                     let registered_path = PathBuf::from(&registered_repo.path);
-                    self.git.find_repository(Some(&registered_path))
-                        .context(format!("Git repository not found at registered path: {}", registered_path.display()))?
+                    self.git
+                        .find_repository(Some(&registered_path))
+                        .context(format!(
+                            "Git repository not found at registered path: {}",
+                            registered_path.display()
+                        ))?
                 } else {
                     // Fall back to current directory
                     let current_dir = env::current_dir()?;
@@ -1332,7 +1367,10 @@ impl WorktreeManager {
 
                 for db_repo in repos {
                     // Match against remote_url pattern: github.com/{org}/{repo}
-                    if db_repo.remote_url.contains(&format!("{}/{}", org, repo_name)) {
+                    if db_repo
+                        .remote_url
+                        .contains(&format!("{}/{}", org, repo_name))
+                    {
                         return Ok(db_repo.name);
                     }
                 }
@@ -1501,11 +1539,20 @@ impl WorktreeManager {
     /// - Identifies orphaned Git references (exist in Git but not on disk)
     /// - Force-removes the .git/worktrees/<name> admin directory to clean up the reference
     /// - Falls back to standard pruning for normally-prunable worktrees
-    pub async fn prune_stale_worktrees(&self, repo: Option<&str>, dry_run: bool, force: bool) -> Result<()> {
+    pub async fn prune_stale_worktrees(
+        &self,
+        repo: Option<&str>,
+        dry_run: bool,
+        force: bool,
+    ) -> Result<()> {
         use colored::Colorize;
 
         let repo_name = self.resolve_repo_name(repo).await?;
-        println!("{} Starting prune operation for: {}", "🧹".bright_cyan(), repo_name.bright_yellow());
+        println!(
+            "{} Starting prune operation for: {}",
+            "🧹".bright_cyan(),
+            repo_name.bright_yellow()
+        );
 
         // FIX: Use the configured trunk path to find the repository
         // This allows 'imi prune' to run from the parent sandbox directory
@@ -1524,8 +1571,12 @@ impl WorktreeManager {
         // - If directory exists and worktree is prunable, uses standard Git prune
         //
         // Error Handling: Gracefully handles permission errors and concurrent access
-        println!("{} Phase 1: Cleaning up Git worktree references...", "🔍".bright_blue());
-        self.git.prune_worktrees(&git_repo)
+        println!(
+            "{} Phase 1: Cleaning up Git worktree references...",
+            "🔍".bright_blue()
+        );
+        self.git
+            .prune_worktrees(&git_repo)
             .context("Failed to prune Git worktree references")?;
 
         // PHASE 2: Database State Cleanup
@@ -1536,8 +1587,14 @@ impl WorktreeManager {
         // - Maintains database consistency with actual worktree state
         //
         // Transaction Safety: Each deactivation is atomic within the database layer
-        println!("{} Phase 2: Synchronizing database with filesystem...", "💾".bright_blue());
-        let db_worktrees = self.db.list_worktrees(Some(&repo_name)).await
+        println!(
+            "{} Phase 2: Synchronizing database with filesystem...",
+            "💾".bright_blue()
+        );
+        let db_worktrees = self
+            .db
+            .list_worktrees(Some(&repo_name))
+            .await
             .context("Failed to list database worktrees")?;
 
         let mut cleaned_count = 0;
@@ -1573,7 +1630,10 @@ impl WorktreeManager {
                 self.db
                     .deactivate_worktree(&repo_name, &worktree.worktree_name)
                     .await
-                    .context(format!("Failed to deactivate worktree: {}", worktree.worktree_name))?;
+                    .context(format!(
+                        "Failed to deactivate worktree: {}",
+                        worktree.worktree_name
+                    ))?;
 
                 println!(
                     "   {} Deactivated database entry: {} ({})",
@@ -1586,7 +1646,11 @@ impl WorktreeManager {
         }
 
         if cleaned_count > 0 {
-            println!("{} Cleaned {} stale database entries", "✅".bright_green(), cleaned_count);
+            println!(
+                "{} Cleaned {} stale database entries",
+                "✅".bright_green(),
+                cleaned_count
+            );
         } else {
             println!("{} No stale database entries found", "ℹ️".bright_blue());
         }
@@ -1602,26 +1666,40 @@ impl WorktreeManager {
         //
         // Safety: Requires confirmation unless --force flag is used
         //         Respects --dry-run to preview without deleting
-        println!("{} Phase 3: Detecting orphaned worktree directories...", "📦".bright_blue());
-        self.prune_orphaned_directories(&git_repo, dry_run, force).await
+        println!(
+            "{} Phase 3: Detecting orphaned worktree directories...",
+            "📦".bright_blue()
+        );
+        self.prune_orphaned_directories(&git_repo, dry_run, force)
+            .await
             .context("Failed to prune orphaned directories")?;
 
-        println!("{} Prune operation completed successfully", "✅".bright_green().bold());
+        println!(
+            "{} Prune operation completed successfully",
+            "✅".bright_green().bold()
+        );
         Ok(())
     }
 
     /// Detect and remove orphaned worktree directories
-    async fn prune_orphaned_directories(&self, git_repo: &git2::Repository, dry_run: bool, force: bool) -> Result<()> {
+    async fn prune_orphaned_directories(
+        &self,
+        git_repo: &git2::Repository,
+        dry_run: bool,
+        force: bool,
+    ) -> Result<()> {
         // Get the parent directory where worktrees live
         // git_repo.path() returns path to .git directory
         // We want the parent of the trunk directory (where worktrees are siblings to trunk)
-        let worktree_root = git_repo.path()
-            .parent()  // trunk-main/
-            .and_then(|p| p.parent())  // parent containing trunk-main and worktrees
+        let worktree_root = git_repo
+            .path()
+            .parent() // trunk-main/
+            .and_then(|p| p.parent()) // parent containing trunk-main and worktrees
             .context("Failed to determine worktree root directory")?;
 
         // Get list of currently registered worktrees from git
-        let registered_worktrees: Vec<String> = git_repo.worktrees()?
+        let registered_worktrees: Vec<String> = git_repo
+            .worktrees()?
             .iter()
             .flatten()
             .map(|s| s.to_string())
@@ -1639,9 +1717,7 @@ impl WorktreeManager {
                 continue;
             }
 
-            let dir_name = path.file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             // Skip hidden directories and trunk
             if dir_name.starts_with('.') || dir_name.starts_with("trunk-") {
@@ -1684,14 +1760,16 @@ impl WorktreeManager {
         }
 
         // Display orphaned directories
-        println!("\n{} Found {} orphaned worktree directories:",
+        println!(
+            "\n{} Found {} orphaned worktree directories:",
             "📦".bright_yellow(),
             orphaned_dirs.len()
         );
 
         let mut total_size = 0u64;
         for (_, name, size) in &orphaned_dirs {
-            println!("  {} {} ({})",
+            println!(
+                "  {} {} ({})",
                 "•".bright_yellow(),
                 name.bright_white(),
                 self.format_size(*size).bright_cyan()
@@ -1699,7 +1777,8 @@ impl WorktreeManager {
             total_size += size;
         }
 
-        println!("\n{} Total size: {}",
+        println!(
+            "\n{} Total size: {}",
             "💾".bright_cyan(),
             self.format_size(total_size).bright_yellow()
         );
@@ -1739,7 +1818,8 @@ impl WorktreeManager {
         }
 
         if removed_count > 0 {
-            println!("\n{} Removed {} orphaned directories",
+            println!(
+                "\n{} Removed {} orphaned directories",
                 "✅".bright_green(),
                 removed_count
             );
@@ -1749,7 +1829,10 @@ impl WorktreeManager {
     }
 
     /// Calculate directory size recursively
-    fn get_directory_size<'a>(&'a self, path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + 'a>> {
+    fn get_directory_size<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + 'a>> {
         Box::pin(async move {
             let mut total_size = 0u64;
             let mut entries = async_fs::read_dir(path).await?;
@@ -1901,15 +1984,26 @@ impl WorktreeManager {
         let repo_name = self.resolve_repo_name(repo).await?;
         let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
 
-        println!("{} Merging worktree: {}", "🔀".bright_cyan(), actual_worktree_name.bright_yellow());
+        println!(
+            "{} Merging worktree: {}",
+            "🔀".bright_cyan(),
+            actual_worktree_name.bright_yellow()
+        );
 
-        let worktree_info = self.db.get_worktree(&repo_name, &actual_worktree_name).await?
+        let worktree_info = self
+            .db
+            .get_worktree(&repo_name, &actual_worktree_name)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Worktree '{}' not found", actual_worktree_name))?;
 
         let branch_name = worktree_info.branch_name.clone();
         let trunk_path = self.get_trunk_worktree(repo).await?;
 
-        println!("{} Switching to trunk: {}", "🌳".bright_green(), trunk_path.display());
+        println!(
+            "{} Switching to trunk: {}",
+            "🌳".bright_green(),
+            trunk_path.display()
+        );
 
         let trunk_repo = self.git.find_repository(Some(&trunk_path))?;
         println!("{} Fetching latest changes", "⬇️".bright_blue());
@@ -1921,7 +2015,9 @@ impl WorktreeManager {
         if current_branch != default_branch {
             return Err(anyhow::anyhow!(
                 "Trunk is on branch '{}' instead of '{}'. Please checkout '{}' first.",
-                current_branch, default_branch, default_branch
+                current_branch,
+                default_branch,
+                default_branch
             ));
         }
 
@@ -1929,24 +2025,35 @@ impl WorktreeManager {
         if worktree_path.exists() {
             let worktree_status = self.git.get_worktree_status(&worktree_path)?;
             if !worktree_status.clean {
-                let mut error_msg = String::from("Worktree has uncommitted changes. Please commit or stash them first.\n");
+                let mut error_msg = String::from(
+                    "Worktree has uncommitted changes. Please commit or stash them first.\n",
+                );
 
                 if !worktree_status.modified_files.is_empty() {
-                    error_msg.push_str(&format!("\nModified files ({}):\n", worktree_status.modified_files.len()));
+                    error_msg.push_str(&format!(
+                        "\nModified files ({}):\n",
+                        worktree_status.modified_files.len()
+                    ));
                     for file in &worktree_status.modified_files {
                         error_msg.push_str(&format!("  - {}\n", file));
                     }
                 }
 
                 if !worktree_status.new_files.is_empty() {
-                    error_msg.push_str(&format!("\nNew files ({}):\n", worktree_status.new_files.len()));
+                    error_msg.push_str(&format!(
+                        "\nNew files ({}):\n",
+                        worktree_status.new_files.len()
+                    ));
                     for file in &worktree_status.new_files {
                         error_msg.push_str(&format!("  - {}\n", file));
                     }
                 }
 
                 if !worktree_status.deleted_files.is_empty() {
-                    error_msg.push_str(&format!("\nDeleted files ({}):\n", worktree_status.deleted_files.len()));
+                    error_msg.push_str(&format!(
+                        "\nDeleted files ({}):\n",
+                        worktree_status.deleted_files.len()
+                    ));
                     for file in &worktree_status.deleted_files {
                         error_msg.push_str(&format!("  - {}\n", file));
                     }
@@ -1956,9 +2063,15 @@ impl WorktreeManager {
             }
         }
 
-        println!("{} Merging branch '{}' into '{}'", "🔀".bright_magenta(), branch_name.bright_yellow(), default_branch.bright_green());
+        println!(
+            "{} Merging branch '{}' into '{}'",
+            "🔀".bright_magenta(),
+            branch_name.bright_yellow(),
+            default_branch.bright_green()
+        );
 
-        self.git.merge_branch(&trunk_repo, &branch_name, &default_branch)
+        self.git
+            .merge_branch(&trunk_repo, &branch_name, &default_branch)
             .context("Failed to merge branch into trunk")?;
 
         println!("{} Pushing merged changes to remote", "⬆️".bright_cyan());
@@ -1966,27 +2079,59 @@ impl WorktreeManager {
         match self.git.push_to_remote(&trunk_repo, &default_branch) {
             Ok(_) => println!("{} Changes pushed to remote", "✅".bright_green()),
             Err(e) => {
-                println!("{} Warning: Failed to push to remote: {}", "⚠️".bright_yellow(), e);
-                println!("   You may need to push manually: cd {} && git push", trunk_path.display());
+                println!(
+                    "{} Warning: Failed to push to remote: {}",
+                    "⚠️".bright_yellow(),
+                    e
+                );
+                println!(
+                    "   You may need to push manually: cd {} && git push",
+                    trunk_path.display()
+                );
             }
         }
 
-        println!("{} Closing worktree: {}", "🧹".bright_cyan(), actual_worktree_name);
+        println!(
+            "{} Closing worktree: {}",
+            "🧹".bright_cyan(),
+            actual_worktree_name
+        );
         self.close_worktree(name, repo).await?;
 
-        println!("{} Deleting merged branch: {}", "🗑️".bright_red(), branch_name);
+        println!(
+            "{} Deleting merged branch: {}",
+            "🗑️".bright_red(),
+            branch_name
+        );
         self.git.delete_local_branch(&trunk_repo, &branch_name)?;
 
-        match self.git.delete_remote_branch(&trunk_repo, &branch_name).await {
+        match self
+            .git
+            .delete_remote_branch(&trunk_repo, &branch_name)
+            .await
+        {
             Ok(_) => println!("{} Remote branch deleted", "✅".bright_green()),
             Err(e) => {
-                println!("{} Warning: Could not delete remote branch '{}': {}", "⚠️".bright_yellow(), branch_name, e);
+                println!(
+                    "{} Warning: Could not delete remote branch '{}': {}",
+                    "⚠️".bright_yellow(),
+                    branch_name,
+                    e
+                );
                 println!("   (This is normal if the branch was already deleted or never pushed)");
             }
         }
 
-        println!("\n{} Merge completed successfully!", "✅".bright_green().bold());
-        println!("{} Branch '{}' has been merged into '{}' and cleaned up", "📝".bright_blue(), branch_name.bright_yellow(), default_branch.bright_green());
+        println!(
+            "\n{} Merge completed successfully!",
+            "✅".bright_green().bold()
+        );
+        println!(
+            "{} Branch '{}' has been merged into '{}' and cleaned up",
+            "📝".bright_blue(),
+            branch_name.bright_yellow(),
+            default_branch.bright_green()
+        );
 
         Ok(())
     }

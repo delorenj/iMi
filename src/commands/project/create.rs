@@ -168,7 +168,10 @@ async def health():
 
         // Generate tailwind.config.js
         let tailwind_config_content = self.template_engine.render_react_tailwind_config(config)?;
-        fs::write(project_path.join("tailwind.config.js"), tailwind_config_content)?;
+        fs::write(
+            project_path.join("tailwind.config.js"),
+            tailwind_config_content,
+        )?;
 
         // Create src directory structure
         let src_dir = project_path.join("src");
@@ -356,9 +359,16 @@ body {
     }
 
     fn print_success_message(&self, config: &ProjectConfig, repo_url: &str, project_path: &Path) {
-        println!("\n{}", "✨ Success! Your project is ready.".bright_green().bold());
+        println!(
+            "\n{}",
+            "✨ Success! Your project is ready.".bright_green().bold()
+        );
         println!();
-        println!("  {} {}", "Repository:".bright_cyan(), repo_url.bright_white());
+        println!(
+            "  {} {}",
+            "Repository:".bright_cyan(),
+            repo_url.bright_white()
+        );
         println!(
             "  {} {}",
             "Local path:".bright_cyan(),
@@ -366,7 +376,11 @@ body {
         );
         println!();
         println!("{}", "Next steps:".bright_yellow().bold());
-        println!("  {} {}", "1.".bright_blue(), format!("cd {}", config.name).bright_white());
+        println!(
+            "  {} {}",
+            "1.".bright_blue(),
+            format!("cd {}", config.name).bright_white()
+        );
         println!("  {} {}", "2.".bright_blue(), "mise install".bright_white());
 
         match &config.stack {

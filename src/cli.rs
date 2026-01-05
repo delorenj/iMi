@@ -30,14 +30,14 @@ pub enum Commands {
         #[arg(value_name = "TYPE")]
         worktree_type: String,
 
-        /// Descriptive name for the worktree
+        /// Descriptive name for the worktree (or PR number for review)
         name: String,
 
         /// Repository name (optional, uses current if not specified)
         #[arg(short, long)]
         repo: Option<String>,
 
-        /// PR number (required only for 'review' type)
+        /// PR number (optional for 'review' type if name is a PR number)
         #[arg(long)]
         pr: Option<u32>,
     },

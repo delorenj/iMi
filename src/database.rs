@@ -618,8 +618,18 @@ impl Database {
         let builtins = vec![
             ("feat", "feat/", "feat-", "Feature development"),
             ("fix", "fix/", "fix-", "Bug fixes"),
-            ("aiops", "aiops/", "aiops-", "AI operations (agents, rules, MCP configs, workflows)"),
-            ("devops", "devops/", "devops-", "DevOps tasks (CI, repo organization, deploys)"),
+            (
+                "aiops",
+                "aiops/",
+                "aiops-",
+                "AI operations (agents, rules, MCP configs, workflows)",
+            ),
+            (
+                "devops",
+                "devops/",
+                "devops-",
+                "DevOps tasks (CI, repo organization, deploys)",
+            ),
             ("review", "pr-review/", "pr-review-", "Pull request reviews"),
         ];
 
@@ -695,8 +705,12 @@ impl Database {
         worktree_prefix: Option<&str>,
         description: Option<&str>,
     ) -> Result<WorktreeType> {
-        let branch_prefix = branch_prefix.map(String::from).unwrap_or_else(|| format!("{}/", name));
-        let worktree_prefix = worktree_prefix.map(String::from).unwrap_or_else(|| format!("{}-", name));
+        let branch_prefix = branch_prefix
+            .map(String::from)
+            .unwrap_or_else(|| format!("{}/", name));
+        let worktree_prefix = worktree_prefix
+            .map(String::from)
+            .unwrap_or_else(|| format!("{}-", name));
         let now = Utc::now();
 
         sqlx::query(
@@ -721,12 +735,15 @@ impl Database {
         // Check if it's a builtin type
         let wt_type = self.get_worktree_type(name).await?;
         if wt_type.is_builtin {
-            return Err(anyhow::anyhow!("Cannot remove builtin worktree type '{}'", name));
+            return Err(anyhow::anyhow!(
+                "Cannot remove builtin worktree type '{}'",
+                name
+            ));
         }
 
         // Check if any worktrees are using this type
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM worktrees WHERE worktree_type = ? AND active = 1"
+            "SELECT COUNT(*) FROM worktrees WHERE worktree_type = ? AND active = 1",
         )
         .bind(name)
         .fetch_one(&self.pool)

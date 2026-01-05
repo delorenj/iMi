@@ -141,12 +141,7 @@ impl TestEnvironment {
 
         let git_manager = GitManager::new();
         let worktree_manager =
-            WorktreeManager::new(
-                git_manager.clone(),
-                database.clone(),
-                config.clone(),
-                None,
-            );
+            WorktreeManager::new(git_manager.clone(), database.clone(), config.clone(), None);
 
         Ok(Self {
             temp_dir,

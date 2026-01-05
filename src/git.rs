@@ -477,16 +477,24 @@ impl GitManager {
 
                 // If directory doesn't exist, force-prune by removing admin directory
                 if !directory_exists {
-                    println!("🔍 Found stale worktree reference: {} (directory missing)", worktree_name);
+                    println!(
+                        "🔍 Found stale worktree reference: {} (directory missing)",
+                        worktree_name
+                    );
 
                     // Force-remove the administrative directory
                     let git_dir = repo.path();
                     let worktree_admin_dir = git_dir.join("worktrees").join(worktree_name);
 
                     if worktree_admin_dir.exists() {
-                        std::fs::remove_dir_all(&worktree_admin_dir)
-                            .context(format!("Failed to remove worktree admin directory for {}", worktree_name))?;
-                        println!("🗑️  Removed Git admin directory for: {}", worktree_name.bright_yellow());
+                        std::fs::remove_dir_all(&worktree_admin_dir).context(format!(
+                            "Failed to remove worktree admin directory for {}",
+                            worktree_name
+                        ))?;
+                        println!(
+                            "🗑️  Removed Git admin directory for: {}",
+                            worktree_name.bright_yellow()
+                        );
                         pruned_count += 1;
                     }
                 } else if worktree.is_prunable(None)? {
@@ -753,9 +761,8 @@ impl GitManager {
         // Calculate clean status: true if no modified, new, or deleted files
         // This must be calculated AFTER iterating through statuses, not from is_empty()
         // which would check the already-consumed iterator
-        let is_clean = modified_files.is_empty()
-            && new_files.is_empty()
-            && deleted_files.is_empty();
+        let is_clean =
+            modified_files.is_empty() && new_files.is_empty() && deleted_files.is_empty();
 
         Ok(WorktreeStatus {
             modified_files,
@@ -833,41 +840,60 @@ impl GitManager {
             ));
         }
 
-        // Use gh pr view to get the PR's head ref without checking it out
+        if let Some(parent) = worktree_path.parent() {
+            std::fs::create_dir_all(parent)
+                .context("Failed to create parent directory for PR worktree")?;
+        }
+
+        // Use gh pr checkout to create a worktree on the underlying PR branch and set tracking.
         let output = Command::new("gh")
             .current_dir(repo_path)
-            .args(&["pr", "view", &pr_number.to_string(), "--json", "headRefName", "-q", ".headRefName"])
+            .args(&[
+                "pr",
+                "checkout",
+                &pr_number.to_string(),
+                "--worktree",
+                worktree_path.to_str().unwrap(),
+            ])
             .output()
-            .context("Failed to get PR head ref")?;
+            .context("Failed to checkout PR with gh CLI")?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to get PR info: {}", stderr));
+            return Err(anyhow::anyhow!("Failed to checkout PR: {}", stderr));
         }
 
-        let remote_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        // Best-effort: ensure upstream is set when the PR branch is on origin.
+        if let Ok(branch_name) = self.get_current_branch(worktree_path) {
+            let has_upstream = self
+                .execute_git_command(
+                    worktree_path,
+                    &[
+                        "rev-parse",
+                        "--abbrev-ref",
+                        "--symbolic-full-name",
+                        "@{upstream}",
+                    ],
+                )
+                .is_ok();
 
-        // Fetch the PR ref from remote without checking it out
-        let branch_name = format!("pr-{}", pr_number);
-        self.execute_git_command(
-            repo_path,
-            &[
-                "fetch",
-                "origin",
-                &format!("{}:{}", remote_branch, branch_name),
-            ],
-        )?;
-
-        // Create worktree from the fetched branch
-        self.execute_git_command(
-            repo_path,
-            &[
-                "worktree",
-                "add",
-                worktree_path.to_str().unwrap(),
-                &branch_name,
-            ],
-        )?;
+            if !has_upstream {
+                let origin_ref = format!("refs/remotes/origin/{}", branch_name);
+                if self
+                    .execute_git_command(repo_path, &["show-ref", "--verify", &origin_ref])
+                    .is_ok()
+                {
+                    let _ = self.execute_git_command(
+                        worktree_path,
+                        &[
+                            "branch",
+                            "--set-upstream-to",
+                            &format!("origin/{}", branch_name),
+                        ],
+                    );
+                }
+            }
+        }
 
         Ok(())
     }

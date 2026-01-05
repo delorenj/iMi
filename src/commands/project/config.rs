@@ -205,8 +205,7 @@ fn detect_databases(content: &str) -> Vec<DatabaseType> {
             host: "192.168.1.12".to_string(),
             port: 5432,
             user: std::env::var("DEFAULT_USERNAME").unwrap_or_else(|_| "postgres".to_string()),
-            password: std::env::var("DEFAULT_PASSWORD")
-                .unwrap_or_else(|_| "password".to_string()),
+            password: std::env::var("DEFAULT_PASSWORD").unwrap_or_else(|_| "password".to_string()),
         });
     }
 

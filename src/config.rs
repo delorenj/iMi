@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use dirs;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -117,7 +117,6 @@ impl Config {
         }
     }
 
-
     pub async fn load_from(path: &std::path::Path) -> Result<Self> {
         if path.exists() {
             let contents = fs::read_to_string(path)
@@ -131,7 +130,7 @@ impl Config {
         } else {
             let config = Self::default();
             if path == Self::get_global_config_path()? {
-                 config.save_to(path).await?;
+                config.save_to(path).await?;
             }
             Ok(config)
         }

@@ -150,10 +150,7 @@ fn test_worktree_status_multiple_changes() -> Result<()> {
     let status = git_manager.get_worktree_status(repo_path)?;
 
     // Verify all changes are detected
-    assert!(
-        !status.clean,
-        "Expected dirty status with multiple changes"
-    );
+    assert!(!status.clean, "Expected dirty status with multiple changes");
     assert_eq!(status.modified_files.len(), 1, "Expected 1 modified file");
     assert_eq!(status.new_files.len(), 1, "Expected 1 new file");
     assert_eq!(status.deleted_files.len(), 1, "Expected 1 deleted file");

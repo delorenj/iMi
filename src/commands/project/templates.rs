@@ -39,10 +39,7 @@ impl TemplateEngine {
                 vec![("python", "3.12"), ("uv", "latest")],
                 vec![("VIRTUAL_ENV", ".venv")],
             ),
-            StackType::ReactVite => (
-                vec![("node", "20"), ("bun", "latest")],
-                vec![],
-            ),
+            StackType::ReactVite => (vec![("node", "20"), ("bun", "latest")], vec![]),
             StackType::Generic { .. } => (vec![], vec![]),
         };
 

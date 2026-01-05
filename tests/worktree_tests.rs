@@ -754,7 +754,11 @@ mod worktree_management_tests {
     async fn test_list_worktrees() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
-        let result = helper.manager.db.list_worktrees(Some("list-test-repo")).await;
+        let result = helper
+            .manager
+            .db
+            .list_worktrees(Some("list-test-repo"))
+            .await;
 
         assert!(result.is_ok(), "List worktrees should not fail");
         println!("Worktrees listed successfully");
