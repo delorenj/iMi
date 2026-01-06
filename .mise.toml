@@ -42,4 +42,15 @@ run = "./bump_version.sh minor"
 description = "Bump major version and create git tag"
 run = "./bump_version.sh major"
 
+[tasks.sync]
+description = "Sync and triage all worktrees against trunk"
+run = "worktree-sync"
+
+[tasks.sync-dry]
+description = "Preview worktree sync actions (dry run)"
+run = "worktree-sync --dry-run"
+
+[tasks.sync-auto]
+description = "Auto-merge ready worktrees (non-interactive)"
+run = "worktree-sync --yes"
 
