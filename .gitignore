@@ -72,3 +72,4 @@ gha-creds-*.json
 
 # Claude Code conversation threads
 docs/threads/
+.claude-flow/metrics/
