@@ -9,8 +9,14 @@ use tokio::fs;
 pub struct Config {
     #[serde(rename = "IMI_DATABASE_PATH")]
     pub database_path: PathBuf,
-    #[serde(rename = "IMI_SYSTEM_PATH")]
-    pub root_path: PathBuf,
+
+    #[serde(rename = "IMI_SYSTEM_PATHS")]
+    pub system_roots: Vec<PathBuf>,
+
+    // Backwards compatibility: still parse old IMI_SYSTEM_PATH
+    #[serde(rename = "IMI_SYSTEM_PATH", skip_serializing_if = "Option::is_none")]
+    legacy_root_path: Option<PathBuf>,
+
     pub sync_settings: SyncSettings,
     pub git_settings: GitSettings,
     pub monitoring_settings: MonitoringSettings,
