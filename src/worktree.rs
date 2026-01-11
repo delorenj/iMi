@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs as async_fs;
 
 use crate::config::Config;
-use crate::database::Database;
+use crate::database::{Database, Repository};
 use crate::error::ImiError;
 use crate::fuzzy::FuzzyMatcher;
 use crate::git::{GitManager, WorktreeStatus};
@@ -162,7 +162,11 @@ impl WorktreeManager {
 
         // Get worktree path - apply IMI_PATH logic to both registered and unregistered repos
         let worktree_path =
-            if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+            if let Some(mut registered_repo) = self.db.get_repository(&repo_name).await? {
+                // Validate and repair path if needed
+                self.validate_and_repair_repository_path(&mut registered_repo)
+                    .await?;
+
                 // Use registered repository path but apply IMI_PATH detection
                 let registered_path = PathBuf::from(&registered_repo.path);
                 let imi_path = self.detect_imi_path(&registered_path)?;
@@ -198,7 +202,11 @@ impl WorktreeManager {
         }
 
         // Find the repository - use registered path if available, otherwise current directory
-        let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+        let repo = if let Some(mut registered_repo) = self.db.get_repository(&repo_name).await? {
+            // Validate and repair path if needed (note: already validated above, but path may have changed)
+            self.validate_and_repair_repository_path(&mut registered_repo)
+                .await?;
+
             // Use the registered repository path
             let registered_path = PathBuf::from(&registered_repo.path);
             self.git
@@ -476,7 +484,11 @@ impl WorktreeManager {
         let actual_worktree_name = self.find_actual_worktree_name(name, &repo_name).await?;
 
         // Find the repository - use registered path if available, otherwise current directory
-        let repo = if let Some(registered_repo) = self.db.get_repository(&repo_name).await? {
+        let repo = if let Some(mut registered_repo) = self.db.get_repository(&repo_name).await? {
+            // Validate and repair path if needed (note: already validated above, but path may have changed)
+            self.validate_and_repair_repository_path(&mut registered_repo)
+                .await?;
+
             // Use the registered repository path
             let registered_path = PathBuf::from(&registered_repo.path);
             self.git
@@ -1977,6 +1989,133 @@ impl WorktreeManager {
         // Fall back to repository root's parent (original behavior)
         let imi_path = repo_root.parent().unwrap_or(repo_root);
         Ok(imi_path.to_path_buf())
+    }
+
+    /// Repair all repository paths in the database
+    /// Scans all registered repositories and fixes stale paths
+    pub async fn repair_all_repository_paths(&self) -> Result<()> {
+        let repositories = self.db.list_repositories().await?;
+
+        if repositories.is_empty() {
+            println!("No repositories registered.");
+            return Ok(());
+        }
+
+        let total_count = repositories.len();
+        println!("Checking {} registered repositories...", total_count);
+        println!();
+
+        let mut repaired_count = 0;
+        let mut error_count = 0;
+
+        for mut repo in repositories {
+            print!("Checking {}: ", repo.name.bright_yellow());
+
+            match self.validate_and_repair_repository_path(&mut repo).await {
+                Ok(true) => {
+                    println!("{}", "✓ Repaired".bright_green());
+                    repaired_count += 1;
+                }
+                Ok(false) => {
+                    println!("{}", "✓ OK".bright_green());
+                }
+                Err(e) => {
+                    println!("{}", format!("✗ Error: {}", e).bright_red());
+                    error_count += 1;
+                }
+            }
+        }
+
+        println!();
+        println!(
+            "Summary: {} repaired, {} errors, {} total",
+            repaired_count, error_count, total_count
+        );
+
+        if error_count > 0 {
+            Err(anyhow::anyhow!(
+                "{} repositories could not be repaired",
+                error_count
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Validate and repair repository path if it's stale
+    /// Searches through IMI_SYSTEM_PATHS to find the actual location
+    async fn validate_and_repair_repository_path(&self, repo: &mut Repository) -> Result<bool> {
+        use std::path::PathBuf;
+
+        let stored_path = PathBuf::from(&repo.path);
+
+        // If path exists, no repair needed
+        if stored_path.exists() {
+            return Ok(false);
+        }
+
+        // Path doesn't exist - search for actual location
+        eprintln!(
+            "⚠️  Repository '{}' path is stale: {}",
+            repo.name,
+            stored_path.display()
+        );
+        eprintln!("   Searching for actual location...");
+
+        // Extract the repository name from the stored path
+        // Path format: /path/to/system-root/repo-name/trunk-main
+        let repo_name_from_path = if stored_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.starts_with("trunk-"))
+            .unwrap_or(false)
+        {
+            // Path ends with trunk-* - repo name is parent
+            stored_path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+        } else {
+            // Use the registered name
+            Some(repo.name.as_str())
+        };
+
+        if let Some(repo_name) = repo_name_from_path {
+            // Search through all system roots
+            for system_root in &self.config.system_roots {
+                // Try: system_root/repo_name/trunk-main
+                let candidate = system_root
+                    .join(repo_name)
+                    .join(format!("trunk-{}", repo.default_branch));
+
+                if candidate.exists() {
+                    eprintln!(
+                        "   ✓ Found repository at: {}",
+                        candidate.display()
+                    );
+
+                    // Update database with correct path
+                    let new_path = candidate.to_string_lossy().to_string();
+                    self.db
+                        .update_repository_path(&repo.name, &new_path)
+                        .await?;
+
+                    // Update the in-memory struct
+                    repo.path = new_path;
+
+                    eprintln!("   ✓ Database updated with corrected path");
+                    return Ok(true);
+                }
+            }
+        }
+
+        // Could not find the repository anywhere
+        Err(anyhow::anyhow!(
+            "Repository '{}' not found at stored path '{}' or any IMI_SYSTEM_PATHS location.\n\
+             Please verify the repository exists or run 'imi init' to re-register it.",
+            repo.name,
+            stored_path.display()
+        ))
     }
 
     /// Merge a worktree into trunk-main and close it

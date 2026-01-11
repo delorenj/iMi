@@ -263,6 +263,25 @@ impl Database {
         }
     }
 
+    /// Update the path of an existing repository
+    pub async fn update_repository_path(&self, name: &str, new_path: &str) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query(
+            "UPDATE repositories
+             SET path = ?, updated_at = ?
+             WHERE name = ? AND active = TRUE"
+        )
+        .bind(new_path)
+        .bind(&now)
+        .bind(name)
+        .execute(&self.pool)
+        .await
+        .context("Failed to update repository path")?;
+
+        Ok(())
+    }
+
     #[allow(dead_code)]
     pub async fn list_repositories(&self) -> Result<Vec<Repository>> {
         let rows = sqlx::query(

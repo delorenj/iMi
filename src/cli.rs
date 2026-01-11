@@ -181,6 +181,9 @@ pub enum Commands {
         repo: Option<String>,
     },
 
+    /// Repair repository paths in database (auto-detects moved repositories)
+    Repair,
+
     /// Initialize iMi in the current directory or clone from GitHub (format: owner/repo)
     Init {
         /// GitHub repository to clone (format: owner/repo), or path to existing repository

@@ -10,12 +10,12 @@ pub struct Config {
     #[serde(rename = "IMI_DATABASE_PATH")]
     pub database_path: PathBuf,
 
-    #[serde(rename = "IMI_SYSTEM_PATHS")]
+    #[serde(rename = "IMI_SYSTEM_PATHS", default)]
     pub system_roots: Vec<PathBuf>,
 
-    // Backwards compatibility: still parse old IMI_SYSTEM_PATH
+    // Backwards compatibility: still parse old IMI_SYSTEM_PATH (supports semicolon-separated paths)
     #[serde(rename = "IMI_SYSTEM_PATH", skip_serializing_if = "Option::is_none")]
-    legacy_root_path: Option<PathBuf>,
+    legacy_root_path: Option<String>,
 
     pub sync_settings: SyncSettings,
     pub git_settings: GitSettings,
@@ -55,7 +55,8 @@ impl Default for Config {
 
         Self {
             database_path: config_dir.join("iMi.db"),
-            root_path: home_dir.join("code"),
+            system_roots: vec![home_dir.join("code")],
+            legacy_root_path: None,
             sync_settings: SyncSettings {
                 enabled: true,
                 user_sync_path: PathBuf::from("sync/user"),
@@ -89,13 +90,36 @@ impl Config {
         let global_config_path = Self::get_global_config_path()?;
         let mut config = Self::load_from(&global_config_path).await?;
 
+        // Handle legacy migration: if legacy_root_path is set, convert to system_roots
+        if let Some(legacy_path_str) = config.legacy_root_path.take() {
+            if config.system_roots.is_empty() {
+                // Split by semicolon for multiple paths (e.g., "/path1;/path2")
+                config.system_roots = legacy_path_str
+                    .split(';')
+                    .map(|s| PathBuf::from(s.trim()))
+                    .collect();
+            }
+        }
+
         if let Some(project_root) = Self::find_project_root()? {
             let project_config_path = project_root.join(".iMi").join("config.toml");
             if project_config_path.exists() {
-                let project_config = Self::load_from(&project_config_path).await?;
+                let mut project_config = Self::load_from(&project_config_path).await?;
+
+                // Handle legacy migration in project config too
+                if let Some(legacy_path_str) = project_config.legacy_root_path.take() {
+                    if project_config.system_roots.is_empty() {
+                        // Split by semicolon for multiple paths (e.g., "/path1;/path2")
+                        project_config.system_roots = legacy_path_str
+                            .split(';')
+                            .map(|s| PathBuf::from(s.trim()))
+                            .collect();
+                    }
+                }
+
                 // Simple merge: project config overrides global
                 config.database_path = project_config.database_path;
-                config.root_path = project_config.root_path;
+                config.system_roots = project_config.system_roots;
                 config.sync_settings = project_config.sync_settings;
                 config.git_settings = project_config.git_settings;
                 config.monitoring_settings = project_config.monitoring_settings;
@@ -172,8 +196,20 @@ impl Config {
         Ok(config_dir.join("config.toml"))
     }
 
+    /// Get the primary system root (first in the list, used for new repos)
+    pub fn get_primary_root(&self) -> PathBuf {
+        self.system_roots
+            .first()
+            .cloned()
+            .unwrap_or_else(|| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join("code")
+            })
+    }
+
     pub fn get_repo_path(&self, repo_name: &str) -> PathBuf {
-        self.root_path.join(repo_name)
+        self.get_primary_root().join(repo_name)
     }
 
     pub fn get_trunk_path(&self, repo_name: &str) -> PathBuf {

@@ -185,6 +185,9 @@ async fn main() -> Result<()> {
                     Commands::Sync { repo } => {
                         handle_sync_command(&worktree_manager, repo.as_deref(), json_mode).await?;
                     }
+                    Commands::Repair => {
+                        handle_repair_command(&worktree_manager).await?;
+                    }
                     Commands::Init { .. } => {
                         // Already handled
                     }
@@ -615,6 +618,20 @@ async fn handle_sync_command(
         }))
         .print();
     }
+    Ok(())
+}
+
+async fn handle_repair_command(manager: &WorktreeManager) -> Result<()> {
+    println!(
+        "{} Repairing repository paths in database...",
+        "🔧".bright_cyan()
+    );
+    println!();
+
+    manager.repair_all_repository_paths().await?;
+
+    println!();
+    println!("{} Repair complete!", "✓".bright_green());
     Ok(())
 }
 
