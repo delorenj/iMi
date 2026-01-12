@@ -218,8 +218,8 @@ pub enum Commands {
 
     /// Merge a worktree into trunk-main and close it
     Merge {
-        /// Name of the worktree to merge
-        name: String,
+        /// Name of the worktree to merge (optional, defaults to current branch)
+        name: Option<String>,
 
         /// Repository name (optional, uses current repo if not specified)
         repo: Option<String>,
