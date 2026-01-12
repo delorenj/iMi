@@ -213,7 +213,7 @@ async fn main() -> Result<()> {
                             .await?;
                     }
                     Commands::Merge { name, repo } => {
-                        handle_merge_command(&worktree_manager, &name, repo.as_deref(), json_mode)
+                        handle_merge_command(&worktree_manager, name.as_deref(), repo.as_deref(), json_mode)
                             .await?;
                     }
                     Commands::Go {
@@ -836,24 +836,38 @@ async fn handle_go_command(
 
 async fn handle_merge_command(
     manager: &WorktreeManager,
-    name: &str,
+    name: Option<&str>,
     repo: Option<&str>,
     json_mode: bool,
 ) -> Result<()> {
+    let worktree_name = match name {
+        Some(n) => n.to_string(),
+        None => {
+            // Auto-detect worktree name from current directory
+            let current_dir = std::env::current_dir()?;
+            let dir_name = current_dir
+                .file_name()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine directory name"))?
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("Invalid directory name"))?;
+            dir_name.to_string()
+        }
+    };
+
     if !json_mode {
         println!(
             "{} Merging worktree: {}",
             "🔀".bright_cyan(),
-            name.bright_yellow()
+            worktree_name.bright_yellow()
         );
     }
 
-    manager.merge_worktree(name, repo).await?;
+    manager.merge_worktree(&worktree_name, repo).await?;
 
     if json_mode {
         JsonResponse::success(serde_json::json!({
             "message": "Worktree merged successfully",
-            "worktree_name": name
+            "worktree_name": worktree_name
         }))
         .print();
     }

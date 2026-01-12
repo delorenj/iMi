@@ -2187,44 +2187,19 @@ impl WorktreeManager {
 
         let worktree_path = PathBuf::from(&worktree_info.path);
         if worktree_path.exists() {
-            let worktree_status = self.git.get_worktree_status(&worktree_path)?;
-            if !worktree_status.clean {
-                let mut error_msg = String::from(
-                    "Worktree has uncommitted changes. Please commit or stash them first.\n",
-                );
+            println!(
+                "{} Discarding any unstaged changes in worktree",
+                "🧹".bright_yellow()
+            );
 
-                if !worktree_status.modified_files.is_empty() {
-                    error_msg.push_str(&format!(
-                        "\nModified files ({}):\n",
-                        worktree_status.modified_files.len()
-                    ));
-                    for file in &worktree_status.modified_files {
-                        error_msg.push_str(&format!("  - {}\n", file));
-                    }
-                }
-
-                if !worktree_status.new_files.is_empty() {
-                    error_msg.push_str(&format!(
-                        "\nNew files ({}):\n",
-                        worktree_status.new_files.len()
-                    ));
-                    for file in &worktree_status.new_files {
-                        error_msg.push_str(&format!("  - {}\n", file));
-                    }
-                }
-
-                if !worktree_status.deleted_files.is_empty() {
-                    error_msg.push_str(&format!(
-                        "\nDeleted files ({}):\n",
-                        worktree_status.deleted_files.len()
-                    ));
-                    for file in &worktree_status.deleted_files {
-                        error_msg.push_str(&format!("  - {}\n", file));
-                    }
-                }
-
-                return Err(anyhow::anyhow!(error_msg));
-            }
+            // Reset worktree to HEAD, discarding all unstaged changes
+            std::process::Command::new("git")
+                .arg("reset")
+                .arg("--hard")
+                .arg("HEAD")
+                .current_dir(&worktree_path)
+                .output()
+                .context("Failed to reset worktree to HEAD")?;
         }
 
         println!(
