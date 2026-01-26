@@ -1,318 +1,260 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePool, Row, Sqlite};
+use sqlx::postgres::PgPool;
+use sqlx::Row;
 use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Database {
-    pool: SqlitePool,
+    pool: PgPool,
 }
 
+// ============================================================================
+// Models matching new PostgreSQL schema
+// ============================================================================
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Worktree {
-    pub id: String,
-    pub repo_name: String,
-    pub worktree_name: String,
-    pub branch_name: String,
-    pub worktree_type: String, // feat, pr, fix, aiops, devops, trunk
-    pub path: String,
+pub struct Project {
+    pub id: Uuid,
+    pub name: String,
+    #[sqlx(rename = "remote_origin")]
+    pub remote_url: String,  // Keep remote_url for API compatibility
+    pub default_branch: String,
+    #[sqlx(rename = "trunk_path")]
+    pub path: String,  // Renamed from trunk_path for backwards compatibility
+    pub description: Option<String>,
+    pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub active: bool,
+}
+
+// Alias for backwards compatibility
+pub type Repository = Project;
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Worktree {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub type_id: i32,
+    pub name: String,
+    pub branch_name: String,
+    pub path: String,
     pub agent_id: Option<String>,
+
+    // In-flight work tracking
+    pub has_uncommitted_changes: Option<bool>,
+    pub uncommitted_files_count: Option<i32>,
+    pub ahead_of_trunk: Option<i32>,
+    pub behind_trunk: Option<i32>,
+    pub last_commit_hash: Option<String>,
+    pub last_commit_message: Option<String>,
+    pub last_sync_at: Option<DateTime<Utc>>,
+
+    // Merge tracking
+    pub merged_at: Option<DateTime<Utc>>,
+    pub merged_by: Option<String>,
+    pub merge_commit_hash: Option<String>,
+
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub active: bool,
+
+    // Backwards compatibility - these are computed/loaded separately
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub repo_name: String,
+
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub worktree_name: String,
+
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub worktree_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AgentActivity {
-    pub id: String,
+    pub id: Uuid,
     pub agent_id: String,
-    pub worktree_id: String,
-    pub activity_type: String, // created, modified, deleted, committed, pushed
+    pub worktree_id: Uuid,
+    pub activity_type: String,
     pub file_path: Option<String>,
     pub description: String,
+    pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Repository {
-    pub id: String,
-    pub name: String,
-    pub path: String,
-    pub remote_url: String,
-    pub default_branch: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub active: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct WorktreeType {
-    pub id: i64,
+    pub id: i32,
     pub name: String,
     pub branch_prefix: String,
     pub worktree_prefix: String,
     pub description: Option<String>,
     pub is_builtin: bool,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
+// ============================================================================
+// Database implementation
+// ============================================================================
+
 impl Database {
-    pub async fn new<P: AsRef<Path>>(database_path: P) -> Result<Self> {
-        let database_url = format!("sqlite:{}", database_path.as_ref().display());
+    /// Connect to PostgreSQL database
+    pub async fn new<P: AsRef<Path>>(_database_path: P) -> Result<Self> {
+        // Get connection string from environment or use default
+        let database_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| {
+                "postgresql://imi:imi_dev_password_2026@192.168.1.12:5432/imi".to_string()
+            });
 
-        // Ensure parent directory exists
-        if let Some(parent) = database_path.as_ref().parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create database directory: {}", parent.display())
-            })?;
-        }
-
-        // Create database if it doesn't exist
-        if !Sqlite::database_exists(&database_url)
+        let pool = PgPool::connect(&database_url)
             .await
-            .unwrap_or(false)
-        {
-            Sqlite::create_database(&database_url)
-                .await
-                .context("Failed to create database")?;
-        }
+            .context("Failed to connect to PostgreSQL database")?;
 
-        let pool = SqlitePool::connect(&database_url)
-            .await
-            .context("Failed to connect to database")?;
-
-        let db = Self { pool };
-        db.run_migrations().await?;
-
-        Ok(db)
+        Ok(Self { pool })
     }
 
-    /// Ensure database tables exist - public method for external use
+    /// Ensure database tables exist - no-op for PostgreSQL (migrations are external)
     pub async fn ensure_tables(&self) -> Result<()> {
-        self.run_migrations().await
-    }
-
-    async fn run_migrations(&self) -> Result<()> {
-        // Create repositories table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS repositories (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL UNIQUE,
-                path TEXT NOT NULL,
-                remote_url TEXT NOT NULL,
-                default_branch TEXT NOT NULL DEFAULT 'main',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                active BOOLEAN NOT NULL DEFAULT TRUE
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .context("Failed to create repositories table")?;
-
-        // Create worktree_types table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS worktree_types (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                branch_prefix TEXT NOT NULL,
-                worktree_prefix TEXT NOT NULL,
-                description TEXT,
-                is_builtin BOOLEAN NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .context("Failed to create worktree_types table")?;
-
-        // Seed built-in worktree types
-        self.seed_builtin_types().await?;
-
-        // Create worktrees table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS worktrees (
-                id TEXT PRIMARY KEY,
-                repo_name TEXT NOT NULL,
-                worktree_name TEXT NOT NULL,
-                branch_name TEXT NOT NULL,
-                worktree_type TEXT NOT NULL,
-                path TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                active BOOLEAN NOT NULL DEFAULT TRUE,
-                agent_id TEXT,
-                FOREIGN KEY (repo_name) REFERENCES repositories (name),
-                UNIQUE(repo_name, worktree_name)
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .context("Failed to create worktrees table")?;
-
-        // Create agent_activities table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS agent_activities (
-                id TEXT PRIMARY KEY,
-                agent_id TEXT NOT NULL,
-                worktree_id TEXT NOT NULL,
-                activity_type TEXT NOT NULL,
-                file_path TEXT,
-                description TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (worktree_id) REFERENCES worktrees (id)
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .context("Failed to create agent_activities table")?;
-
-        // Create indexes for performance
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_worktrees_repo_name ON worktrees (repo_name)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_worktrees_active ON worktrees (active)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_agent_activities_worktree_id ON agent_activities (worktree_id)")
-            .execute(&self.pool)
-            .await?;
-
+        // Migrations are handled externally via SQL files
+        // Just verify connection works
+        sqlx::query("SELECT 1")
+            .fetch_one(&self.pool)
+            .await
+            .context("Failed to verify database connection")?;
         Ok(())
     }
 
-    // Repository operations
-    #[allow(dead_code)]
+    // ========================================================================
+    // Project (Repository) operations
+    // ========================================================================
+
     pub async fn create_repository(
         &self,
         name: &str,
         path: &str,
         remote_url: &str,
         default_branch: &str,
-    ) -> Result<Repository> {
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now();
+    ) -> Result<Project> {
+        // Use register_project() helper function
+        let row = sqlx::query(
+            r#"
+            SELECT register_project($1, $2, $3, $4, '{}'::jsonb) as project_id
+            "#
+        )
+        .bind(name)
+        .bind(remote_url)  // remote_origin in new schema
+        .bind(default_branch)
+        .bind(path)  // This becomes trunk_path
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to register project")?;
 
-        let repo = Repository {
-            id: id.clone(),
-            name: name.to_string(),
-            path: path.to_string(),
-            remote_url: remote_url.to_string(),
-            default_branch: default_branch.to_string(),
-            created_at: now,
-            updated_at: now,
-            active: true,
-        };
+        let project_id: Uuid = row.get("project_id");
 
+        // Fetch the created project
+        self.get_repository_by_id(&project_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Project not found after creation"))
+    }
+
+    pub async fn get_repository(&self, name: &str) -> Result<Option<Project>> {
+        let project = sqlx::query_as::<_, Project>(
+            r#"
+            SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
+                   description, metadata, created_at, updated_at, active
+            FROM projects
+            WHERE name = $1 AND active = TRUE
+            "#
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to fetch project")?;
+
+        Ok(project)
+    }
+
+    pub async fn get_repository_by_id(&self, id: &Uuid) -> Result<Option<Project>> {
+        let project = sqlx::query_as::<_, Project>(
+            r#"
+            SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
+                   description, metadata, created_at, updated_at, active
+            FROM projects
+            WHERE id = $1 AND active = TRUE
+            "#
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to fetch project by ID")?;
+
+        Ok(project)
+    }
+
+    pub async fn update_repository_path(&self, name: &str, new_path: &str) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT OR REPLACE INTO repositories (id, name, path, remote_url, default_branch, created_at, updated_at, active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(&repo.id)
-        .bind(&repo.name)
-        .bind(&repo.path)
-        .bind(&repo.remote_url)
-        .bind(&repo.default_branch)
-        .bind(repo.created_at.to_rfc3339())
-        .bind(repo.updated_at.to_rfc3339())
-        .bind(repo.active)
-        .execute(&self.pool)
-        .await
-        .context("Failed to insert repository")?;
-
-        Ok(repo)
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_repository(&self, name: &str) -> Result<Option<Repository>> {
-        let row = sqlx::query("SELECT * FROM repositories WHERE name = ? AND active = TRUE")
-            .bind(name)
-            .fetch_optional(&self.pool)
-            .await
-            .context("Failed to fetch repository")?;
-
-        if let Some(row) = row {
-            Ok(Some(Repository {
-                id: row.get("id"),
-                name: row.get("name"),
-                path: row.get("path"),
-                remote_url: row.get("remote_url"),
-                default_branch: row.get("default_branch"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Update the path of an existing repository
-    pub async fn update_repository_path(&self, name: &str, new_path: &str) -> Result<()> {
-        let now = Utc::now().to_rfc3339();
-
-        sqlx::query(
-            "UPDATE repositories
-             SET path = ?, updated_at = ?
-             WHERE name = ? AND active = TRUE"
+            UPDATE projects
+            SET trunk_path = $1, updated_at = NOW()
+            WHERE name = $2 AND active = TRUE
+            "#
         )
         .bind(new_path)
-        .bind(&now)
         .bind(name)
         .execute(&self.pool)
         .await
-        .context("Failed to update repository path")?;
+        .context("Failed to update project path")?;
 
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub async fn list_repositories(&self) -> Result<Vec<Repository>> {
-        let rows = sqlx::query(
-            "SELECT * FROM repositories \
-             WHERE active = TRUE \
-             ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
+    pub async fn list_repositories(&self) -> Result<Vec<Project>> {
+        let projects = sqlx::query_as::<_, Project>(
+            r#"
+            SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
+                   description, metadata, created_at, updated_at, active
+            FROM projects
+            WHERE active = TRUE
+            ORDER BY name
+            "#
         )
         .fetch_all(&self.pool)
         .await
-        .context("Failed to fetch repositories")?;
+        .context("Failed to list projects")?;
 
-        let mut repositories = Vec::new();
-        for row in rows {
-            repositories.push(Repository {
-                id: row.get("id"),
-                name: row.get("name"),
-                path: row.get("path"),
-                remote_url: row.get("remote_url"),
-                default_branch: row.get("default_branch"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-            });
-        }
-
-        Ok(repositories)
+        Ok(projects)
     }
 
+    pub async fn touch_repository(&self, name: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE projects
+            SET updated_at = NOW()
+            WHERE name = $1 AND active = TRUE
+            "#
+        )
+        .bind(name)
+        .execute(&self.pool)
+        .await
+        .context("Failed to touch project")?;
+
+        Ok(())
+    }
+
+    // ========================================================================
     // Worktree operations
+    // ========================================================================
+
     pub async fn create_worktree(
         &self,
         repo_name: &str,
@@ -320,46 +262,35 @@ impl Database {
         branch_name: &str,
         worktree_type: &str,
         path: &str,
-        agent_id: Option<&str>,
+        agent_id: Option<String>,
     ) -> Result<Worktree> {
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now();
+        // First get project_id from repo_name
+        let project = self.get_repository(repo_name)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Project not found: {}", repo_name))?;
 
-        let worktree = Worktree {
-            id: id.clone(),
-            repo_name: repo_name.to_string(),
-            worktree_name: worktree_name.to_string(),
-            branch_name: branch_name.to_string(),
-            worktree_type: worktree_type.to_string(),
-            path: path.to_string(),
-            created_at: now,
-            updated_at: now,
-            active: true,
-            agent_id: agent_id.map(|s| s.to_string()),
-        };
-
-        sqlx::query(
+        // Use register_worktree() helper function
+        let row = sqlx::query(
             r#"
-            INSERT OR REPLACE INTO worktrees 
-            (id, repo_name, worktree_name, branch_name, worktree_type, path, created_at, updated_at, active, agent_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
+            SELECT register_worktree($1, $2, $3, $4, $5, $6, '{}'::jsonb) as worktree_id
+            "#
         )
-        .bind(&worktree.id)
-        .bind(&worktree.repo_name)
-        .bind(&worktree.worktree_name)
-        .bind(&worktree.branch_name)
-        .bind(&worktree.worktree_type)
-        .bind(&worktree.path)
-        .bind(worktree.created_at.to_rfc3339())
-        .bind(worktree.updated_at.to_rfc3339())
-        .bind(worktree.active)
-        .bind(&worktree.agent_id)
-        .execute(&self.pool)
+        .bind(project.id)
+        .bind(worktree_type)
+        .bind(worktree_name)
+        .bind(branch_name)
+        .bind(path)
+        .bind(agent_id.as_deref())
+        .fetch_one(&self.pool)
         .await
-        .context("Failed to insert worktree")?;
+        .context("Failed to register worktree")?;
 
-        Ok(worktree)
+        let worktree_id: Uuid = row.get("worktree_id");
+
+        // Fetch the created worktree
+        self.get_worktree_by_id(&worktree_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Worktree not found after creation"))
     }
 
     pub async fn get_worktree(
@@ -367,125 +298,153 @@ impl Database {
         repo_name: &str,
         worktree_name: &str,
     ) -> Result<Option<Worktree>> {
-        let row = sqlx::query(
-            "SELECT * FROM worktrees WHERE repo_name = ? AND worktree_name = ? AND active = TRUE",
+        // Get project first to get project_id
+        let project = self.get_repository(repo_name).await?;
+        let project_id = match project {
+            Some(p) => p.id,
+            None => return Ok(None),
+        };
+
+        let worktree = sqlx::query_as::<_, Worktree>(
+            r#"
+            SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                   has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                   last_commit_hash, last_commit_message, last_sync_at,
+                   merged_at, merged_by, merge_commit_hash,
+                   metadata, created_at, updated_at, active
+            FROM worktrees
+            WHERE project_id = $1 AND name = $2 AND active = TRUE
+            "#
         )
-        .bind(repo_name)
+        .bind(project_id)
         .bind(worktree_name)
         .fetch_optional(&self.pool)
         .await
         .context("Failed to fetch worktree")?;
 
-        if let Some(row) = row {
-            Ok(Some(Worktree {
-                id: row.get("id"),
-                repo_name: row.get("repo_name"),
-                worktree_name: row.get("worktree_name"),
-                branch_name: row.get("branch_name"),
-                worktree_type: row.get("worktree_type"),
-                path: row.get("path"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-                agent_id: row.get("agent_id"),
-            }))
-        } else {
-            Ok(None)
-        }
+        Ok(worktree)
+    }
+
+    pub async fn get_worktree_by_id(&self, id: &Uuid) -> Result<Option<Worktree>> {
+        let worktree = sqlx::query_as::<_, Worktree>(
+            r#"
+            SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                   has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                   last_commit_hash, last_commit_message, last_sync_at,
+                   merged_at, merged_by, merge_commit_hash,
+                   metadata, created_at, updated_at, active
+            FROM worktrees
+            WHERE id = $1 AND active = TRUE
+            "#
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to fetch worktree by ID")?;
+
+        Ok(worktree)
     }
 
     pub async fn list_worktrees(&self, repo_name: Option<&str>) -> Result<Vec<Worktree>> {
-        let query = if let Some(repo) = repo_name {
-            sqlx::query(
-                "SELECT * FROM worktrees \
-                 WHERE repo_name = ? AND active = TRUE \
-                 ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
-            )
-            .bind(repo)
-        } else {
-            sqlx::query(
-                "SELECT * FROM worktrees \
-                 WHERE active = TRUE \
-                 ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC",
-            )
-        };
+        let worktrees = if let Some(name) = repo_name {
+            // Get project_id first
+            let project = self.get_repository(name)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Project not found: {}", name))?;
 
-        let rows = query
+            sqlx::query_as::<_, Worktree>(
+                r#"
+                SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                       has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                       last_commit_hash, last_commit_message, last_sync_at,
+                       merged_at, merged_by, merge_commit_hash,
+                       metadata, created_at, updated_at, active
+                FROM worktrees
+                WHERE project_id = $1 AND active = TRUE
+                ORDER BY created_at DESC
+                "#
+            )
+            .bind(project.id)
             .fetch_all(&self.pool)
             .await
-            .context("Failed to fetch worktrees")?;
-
-        let mut worktrees = Vec::new();
-        for row in rows {
-            worktrees.push(Worktree {
-                id: row.get("id"),
-                repo_name: row.get("repo_name"),
-                worktree_name: row.get("worktree_name"),
-                branch_name: row.get("branch_name"),
-                worktree_type: row.get("worktree_type"),
-                path: row.get("path"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-                agent_id: row.get("agent_id"),
-            });
-        }
+            .context("Failed to list worktrees for project")?
+        } else {
+            sqlx::query_as::<_, Worktree>(
+                r#"
+                SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                       has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                       last_commit_hash, last_commit_message, last_sync_at,
+                       merged_at, merged_by, merge_commit_hash,
+                       metadata, created_at, updated_at, active
+                FROM worktrees
+                WHERE active = TRUE
+                ORDER BY created_at DESC
+                "#
+            )
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to list all worktrees")?
+        };
 
         Ok(worktrees)
     }
 
-    /// List all worktrees including inactive ones (for fuzzy search with --include-inactive)
     pub async fn list_all_worktrees(&self, repo_name: Option<&str>) -> Result<Vec<Worktree>> {
-        let query = if let Some(repo) = repo_name {
-            sqlx::query(
-                "SELECT * FROM worktrees \
-                 WHERE repo_name = ? \
-                 ORDER BY active DESC, datetime(updated_at) DESC, datetime(created_at) DESC",
-            )
-            .bind(repo)
-        } else {
-            sqlx::query(
-                "SELECT * FROM worktrees \
-                 ORDER BY active DESC, datetime(updated_at) DESC, datetime(created_at) DESC",
-            )
-        };
+        // Same as list_worktrees but includes inactive
+        let worktrees = if let Some(name) = repo_name {
+            let project = self.get_repository(name)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Project not found: {}", name))?;
 
-        let rows = query
+            sqlx::query_as::<_, Worktree>(
+                r#"
+                SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                       has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                       last_commit_hash, last_commit_message, last_sync_at,
+                       merged_at, merged_by, merge_commit_hash,
+                       metadata, created_at, updated_at, active
+                FROM worktrees
+                WHERE project_id = $1
+                ORDER BY created_at DESC
+                "#
+            )
+            .bind(project.id)
             .fetch_all(&self.pool)
             .await
-            .context("Failed to fetch all worktrees")?;
-
-        let mut worktrees = Vec::new();
-        for row in rows {
-            worktrees.push(Worktree {
-                id: row.get("id"),
-                repo_name: row.get("repo_name"),
-                worktree_name: row.get("worktree_name"),
-                branch_name: row.get("branch_name"),
-                worktree_type: row.get("worktree_type"),
-                path: row.get("path"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-                agent_id: row.get("agent_id"),
-            });
-        }
+            .context("Failed to list all worktrees for project")?
+        } else {
+            sqlx::query_as::<_, Worktree>(
+                r#"
+                SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                       has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                       last_commit_hash, last_commit_message, last_sync_at,
+                       merged_at, merged_by, merge_commit_hash,
+                       metadata, created_at, updated_at, active
+                FROM worktrees
+                ORDER BY created_at DESC
+                "#
+            )
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to list all worktrees")?
+        };
 
         Ok(worktrees)
     }
 
     pub async fn deactivate_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<()> {
+        let project = self.get_repository(repo_name)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Project not found: {}", repo_name))?;
+
         sqlx::query(
-            "UPDATE worktrees SET active = FALSE, updated_at = ? WHERE repo_name = ? AND worktree_name = ?"
+            r#"
+            UPDATE worktrees
+            SET active = FALSE, updated_at = NOW()
+            WHERE project_id = $1 AND name = $2
+            "#
         )
-        .bind(Utc::now().to_rfc3339())
-        .bind(repo_name)
+        .bind(project.id)
         .bind(worktree_name)
         .execute(&self.pool)
         .await
@@ -494,225 +453,148 @@ impl Database {
         Ok(())
     }
 
-    /// Update a repository's modification timestamp without altering other fields
-    #[allow(dead_code)]
-    pub async fn touch_repository(&self, name: &str) -> Result<()> {
-        sqlx::query("UPDATE repositories SET updated_at = ? WHERE name = ?")
-            .bind(Utc::now().to_rfc3339())
-            .bind(name)
-            .execute(&self.pool)
-            .await
-            .context("Failed to update repository timestamp")?;
-
-        Ok(())
-    }
-
-    /// Update a worktree's modification timestamp without altering other fields
-    #[allow(dead_code)]
     pub async fn touch_worktree(&self, repo_name: &str, worktree_name: &str) -> Result<()> {
+        let project = self.get_repository(repo_name)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Project not found: {}", repo_name))?;
+
         sqlx::query(
-            "UPDATE worktrees SET updated_at = ? WHERE repo_name = ? AND worktree_name = ?",
+            r#"
+            UPDATE worktrees
+            SET updated_at = NOW()
+            WHERE project_id = $1 AND name = $2 AND active = TRUE
+            "#
         )
-        .bind(Utc::now().to_rfc3339())
-        .bind(repo_name)
+        .bind(project.id)
         .bind(worktree_name)
         .execute(&self.pool)
         .await
-        .context("Failed to update worktree timestamp")?;
+        .context("Failed to touch worktree")?;
 
         Ok(())
     }
 
-    /// Find a worktree by name across all repositories
-    /// This is useful when you have a worktree name but don't know which repo it belongs to
     pub async fn find_worktree_by_name(&self, worktree_name: &str) -> Result<Option<Worktree>> {
-        let row = sqlx::query(
-            "SELECT * FROM worktrees WHERE worktree_name = ? AND active = TRUE LIMIT 1",
+        let worktree = sqlx::query_as::<_, Worktree>(
+            r#"
+            SELECT id, project_id, type_id, name, branch_name, path, agent_id,
+                   has_uncommitted_changes, uncommitted_files_count, ahead_of_trunk, behind_trunk,
+                   last_commit_hash, last_commit_message, last_sync_at,
+                   merged_at, merged_by, merge_commit_hash,
+                   metadata, created_at, updated_at, active
+            FROM worktrees
+            WHERE name = $1 AND active = TRUE
+            "#
         )
         .bind(worktree_name)
         .fetch_optional(&self.pool)
         .await
-        .context("Failed to search for worktree by name")?;
+        .context("Failed to find worktree by name")?;
 
-        if let Some(row) = row {
-            Ok(Some(Worktree {
-                id: row.get("id"),
-                repo_name: row.get("repo_name"),
-                worktree_name: row.get("worktree_name"),
-                branch_name: row.get("branch_name"),
-                worktree_type: row.get("worktree_type"),
-                path: row.get("path"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
-                    .with_timezone(&Utc),
-                active: row.get("active"),
-                agent_id: row.get("agent_id"),
-            }))
-        } else {
-            Ok(None)
-        }
+        Ok(worktree)
     }
 
+    // ========================================================================
     // Agent activity operations
+    // ========================================================================
+
     pub async fn log_agent_activity(
         &self,
         agent_id: &str,
-        worktree_id: &str,
+        worktree_id: &Uuid,
         activity_type: &str,
         file_path: Option<&str>,
         description: &str,
-    ) -> Result<AgentActivity> {
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now();
-
-        let activity = AgentActivity {
-            id: id.clone(),
-            agent_id: agent_id.to_string(),
-            worktree_id: worktree_id.to_string(),
-            activity_type: activity_type.to_string(),
-            file_path: file_path.map(|s| s.to_string()),
-            description: description.to_string(),
-            created_at: now,
-        };
-
+    ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO agent_activities (id, agent_id, worktree_id, activity_type, file_path, description, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            "#,
+            INSERT INTO agent_activities (agent_id, worktree_id, activity_type, file_path, description, metadata)
+            VALUES ($1, $2, $3, $4, $5, '{}'::jsonb)
+            "#
         )
-        .bind(&activity.id)
-        .bind(&activity.agent_id)
-        .bind(&activity.worktree_id)
-        .bind(&activity.activity_type)
-        .bind(&activity.file_path)
-        .bind(&activity.description)
-        .bind(activity.created_at.to_rfc3339())
+        .bind(agent_id)
+        .bind(worktree_id)
+        .bind(activity_type)
+        .bind(file_path)
+        .bind(description)
         .execute(&self.pool)
         .await
-        .context("Failed to insert agent activity")?;
-
-        Ok(activity)
-    }
-
-    pub async fn get_recent_activities(
-        &self,
-        worktree_id: Option<&str>,
-        limit: i64,
-    ) -> Result<Vec<AgentActivity>> {
-        let query = if let Some(wt_id) = worktree_id {
-            sqlx::query(
-                "SELECT * FROM agent_activities WHERE worktree_id = ? ORDER BY created_at DESC LIMIT ?"
-            ).bind(wt_id)
-        } else {
-            sqlx::query("SELECT * FROM agent_activities ORDER BY created_at DESC LIMIT ?")
-        };
-
-        let rows = query
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await
-            .context("Failed to fetch agent activities")?;
-
-        let mut activities = Vec::new();
-        for row in rows {
-            activities.push(AgentActivity {
-                id: row.get("id"),
-                agent_id: row.get("agent_id"),
-                worktree_id: row.get("worktree_id"),
-                activity_type: row.get("activity_type"),
-                file_path: row.get("file_path"),
-                description: row.get("description"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-            });
-        }
-
-        Ok(activities)
-    }
-
-    // Worktree Type operations
-    async fn seed_builtin_types(&self) -> Result<()> {
-        let builtins = vec![
-            ("feat", "feat/", "feat-", "Feature development"),
-            ("fix", "fix/", "fix-", "Bug fixes"),
-            (
-                "aiops",
-                "aiops/",
-                "aiops-",
-                "AI operations (agents, rules, MCP configs, workflows)",
-            ),
-            (
-                "devops",
-                "devops/",
-                "devops-",
-                "DevOps tasks (CI, repo organization, deploys)",
-            ),
-            ("review", "pr-review/", "pr-review-", "Pull request reviews"),
-        ];
-
-        let now = Utc::now();
-
-        for (name, branch_prefix, worktree_prefix, description) in builtins {
-            sqlx::query(
-                r#"
-                INSERT OR IGNORE INTO worktree_types
-                (name, branch_prefix, worktree_prefix, description, is_builtin, created_at)
-                VALUES (?, ?, ?, ?, 1, ?)
-                "#,
-            )
-            .bind(name)
-            .bind(branch_prefix)
-            .bind(worktree_prefix)
-            .bind(description)
-            .bind(now.to_rfc3339())
-            .execute(&self.pool)
-            .await
-            .context("Failed to seed builtin worktree types")?;
-        }
+        .context("Failed to log agent activity")?;
 
         Ok(())
     }
 
-    pub async fn get_worktree_type(&self, name: &str) -> Result<WorktreeType> {
-        let row = sqlx::query("SELECT * FROM worktree_types WHERE name = ?")
-            .bind(name)
-            .fetch_one(&self.pool)
+    pub async fn get_recent_activities(
+        &self,
+        worktree_id: Option<&Uuid>,
+        limit: i64,
+    ) -> Result<Vec<AgentActivity>> {
+        let activities = if let Some(wt_id) = worktree_id {
+            sqlx::query_as::<_, AgentActivity>(
+                r#"
+                SELECT id, agent_id, worktree_id, activity_type, file_path, description, metadata, created_at
+                FROM agent_activities
+                WHERE worktree_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2
+                "#
+            )
+            .bind(wt_id)
+            .bind(limit)
+            .fetch_all(&self.pool)
             .await
-            .context(format!("Worktree type '{}' not found", name))?;
+            .context("Failed to fetch recent activities for worktree")?
+        } else {
+            sqlx::query_as::<_, AgentActivity>(
+                r#"
+                SELECT id, agent_id, worktree_id, activity_type, file_path, description, metadata, created_at
+                FROM agent_activities
+                ORDER BY created_at DESC
+                LIMIT $1
+                "#
+            )
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to fetch all recent activities")?
+        };
 
-        Ok(WorktreeType {
-            id: row.get("id"),
-            name: row.get("name"),
-            branch_prefix: row.get("branch_prefix"),
-            worktree_prefix: row.get("worktree_prefix"),
-            description: row.get("description"),
-            is_builtin: row.get("is_builtin"),
-            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                .with_timezone(&Utc),
-        })
+        Ok(activities)
+    }
+
+    // ========================================================================
+    // Worktree type operations
+    // ========================================================================
+
+    pub async fn get_worktree_type(&self, name: &str) -> Result<WorktreeType> {
+        let wt_type = sqlx::query_as::<_, WorktreeType>(
+            r#"
+            SELECT id, name, branch_prefix, worktree_prefix, description, is_builtin,
+                   color, icon, metadata, created_at
+            FROM worktree_types
+            WHERE name = $1
+            "#
+        )
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to fetch worktree type")?;
+
+        Ok(wt_type)
     }
 
     pub async fn list_worktree_types(&self) -> Result<Vec<WorktreeType>> {
-        let rows = sqlx::query("SELECT * FROM worktree_types ORDER BY is_builtin DESC, name ASC")
-            .fetch_all(&self.pool)
-            .await
-            .context("Failed to list worktree types")?;
-
-        let mut types = Vec::new();
-        for row in rows {
-            types.push(WorktreeType {
-                id: row.get("id"),
-                name: row.get("name"),
-                branch_prefix: row.get("branch_prefix"),
-                worktree_prefix: row.get("worktree_prefix"),
-                description: row.get("description"),
-                is_builtin: row.get("is_builtin"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
-                    .with_timezone(&Utc),
-            });
-        }
+        let types = sqlx::query_as::<_, WorktreeType>(
+            r#"
+            SELECT id, name, branch_prefix, worktree_prefix, description, is_builtin,
+                   color, icon, metadata, created_at
+            FROM worktree_types
+            ORDER BY name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to list worktree types")?;
 
         Ok(types)
     }
@@ -724,64 +606,43 @@ impl Database {
         worktree_prefix: Option<&str>,
         description: Option<&str>,
     ) -> Result<WorktreeType> {
+        // Use defaults if not provided
         let branch_prefix = branch_prefix
             .map(String::from)
             .unwrap_or_else(|| format!("{}/", name));
         let worktree_prefix = worktree_prefix
             .map(String::from)
             .unwrap_or_else(|| format!("{}-", name));
-        let now = Utc::now();
 
         sqlx::query(
             r#"
-            INSERT INTO worktree_types (name, branch_prefix, worktree_prefix, description, is_builtin, created_at)
-            VALUES (?, ?, ?, ?, 0, ?)
-            "#,
+            INSERT INTO worktree_types (name, branch_prefix, worktree_prefix, description, is_builtin, metadata)
+            VALUES ($1, $2, $3, $4, FALSE, '{}'::jsonb)
+            "#
         )
         .bind(name)
-        .bind(branch_prefix)
-        .bind(worktree_prefix)
+        .bind(&branch_prefix)
+        .bind(&worktree_prefix)
         .bind(description)
-        .bind(now.to_rfc3339())
         .execute(&self.pool)
         .await
         .context("Failed to add worktree type")?;
 
+        // Fetch the created type
         self.get_worktree_type(name).await
     }
 
     pub async fn remove_worktree_type(&self, name: &str) -> Result<()> {
-        // Check if it's a builtin type
-        let wt_type = self.get_worktree_type(name).await?;
-        if wt_type.is_builtin {
-            return Err(anyhow::anyhow!(
-                "Cannot remove builtin worktree type '{}'",
-                name
-            ));
-        }
-
-        // Check if any worktrees are using this type
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM worktrees WHERE worktree_type = ? AND active = 1",
+        sqlx::query(
+            r#"
+            DELETE FROM worktree_types
+            WHERE name = $1 AND is_builtin = FALSE
+            "#
         )
         .bind(name)
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await
-        .context("Failed to check worktree usage")?;
-
-        if count > 0 {
-            return Err(anyhow::anyhow!(
-                "Cannot remove worktree type '{}' - {} active worktree(s) still using it",
-                name,
-                count
-            ));
-        }
-
-        sqlx::query("DELETE FROM worktree_types WHERE name = ?")
-            .bind(name)
-            .execute(&self.pool)
-            .await
-            .context("Failed to remove worktree type")?;
+        .context("Failed to remove worktree type")?;
 
         Ok(())
     }

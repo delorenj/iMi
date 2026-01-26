@@ -1124,7 +1124,7 @@ impl WorktreeManager {
             println!(
                 "   {} ID: {}",
                 "🔑".bright_black(),
-                worktree.id.bright_black()
+                worktree.id.to_string().bright_black()
             );
 
             // Git status if worktree exists

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::*;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
@@ -188,7 +188,7 @@ impl MonitorManager {
                 let relative_path = file_path.strip_prefix(worktree_path).ok()?;
 
                 return Some(ActivityEvent {
-                    worktree_id: worktree.id.clone(),
+                    worktree_id: worktree.id.to_string(),
                     event_type: event_type.to_string(),
                     file_path: Some(relative_path.to_string_lossy().to_string()),
                     timestamp: Instant::now(),
@@ -229,11 +229,15 @@ impl MonitorManager {
             format!("Worktree {}", activity.event_type)
         };
 
+        // Parse worktree_id from String to Uuid
+        let worktree_uuid = activity.worktree_id.parse::<uuid::Uuid>()
+            .context("Failed to parse worktree_id as UUID")?;
+
         self.worktree_manager
             .db
             .log_agent_activity(
                 "file-monitor", // agent_id
-                &activity.worktree_id,
+                &worktree_uuid,
                 &activity.event_type,
                 activity.file_path.as_deref(),
                 &description,
