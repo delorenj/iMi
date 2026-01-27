@@ -254,6 +254,14 @@ async fn main() -> Result<()> {
                         handle_verify_lock_command(&worktree_manager, &name, &yi_id, repo.as_deref(), json_mode)
                             .await?;
                     }
+                    Commands::Release {
+                        name,
+                        yi_id,
+                        repo,
+                    } => {
+                        handle_release_command(&worktree_manager, &name, &yi_id, repo.as_deref(), json_mode)
+                            .await?;
+                    }
                 }
             }
         }
@@ -1412,4 +1420,147 @@ async fn handle_verify_lock_command(
         }
         std::process::exit(1);
     }
+}
+
+async fn handle_release_command(
+    manager: &WorktreeManager,
+    name: &str,
+    yi_id: &str,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
+    // Resolve worktree by name
+    let worktree = match manager.get_worktree_by_name(name, repo).await? {
+        Some(wt) => wt,
+        None => {
+            let error_msg = format!("Worktree '{}' not found", name);
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.red());
+            }
+            return Err(anyhow::anyhow!(error_msg));
+        }
+    };
+
+    // Check ownership - must be claimed by this agent
+    match &worktree.agent_id {
+        Some(owner) if owner == yi_id => {
+            // Ownership verified
+        }
+        Some(owner) => {
+            let error_msg = format!(
+                "Cannot release: worktree '{}' is owned by agent '{}', not '{}'",
+                name, owner, yi_id
+            );
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.red());
+                eprintln!(
+                    "   Only the owning agent can release this worktree"
+                );
+            }
+            return Err(anyhow::anyhow!(error_msg));
+        }
+        None => {
+            let error_msg = format!(
+                "Cannot release: worktree '{}' is not claimed by any agent",
+                name
+            );
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.yellow());
+                eprintln!(
+                    "   Use 'imi claim {} --yi-id {}' to claim it first",
+                    name, yi_id
+                );
+            }
+            return Err(anyhow::anyhow!(error_msg));
+        }
+    }
+
+    // Check git status - must be clean (no uncommitted changes)
+    let worktree_path = PathBuf::from(&worktree.path);
+    let git_status = manager.git.get_worktree_status(&worktree_path)?;
+
+    if !git_status.clean {
+        let error_msg = format!(
+            "Cannot release: worktree '{}' has uncommitted changes",
+            name
+        );
+
+        if json_mode {
+            JsonResponse::error(error_msg.clone()).print();
+            println!(
+                "{}",
+                serde_json::json!({
+                    "modified_files": git_status.modified_files,
+                    "new_files": git_status.new_files,
+                    "deleted_files": git_status.deleted_files,
+                })
+            );
+        } else {
+            eprintln!("{}", error_msg.red());
+            eprintln!("\n   Modified files:");
+            for file in &git_status.modified_files {
+                eprintln!("      M {}", file.yellow());
+            }
+            for file in &git_status.new_files {
+                eprintln!("      A {}", file.green());
+            }
+            for file in &git_status.deleted_files {
+                eprintln!("      D {}", file.red());
+            }
+            eprintln!("\n   Commit or discard changes before releasing");
+        }
+        return Err(anyhow::anyhow!(error_msg));
+    }
+
+    // Release worktree in database
+    manager.db.release_worktree(&worktree.id, yi_id).await?;
+
+    // Remove lock file
+    let repo_root = worktree_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid worktree path"))?;
+
+    let local_ctx = LocalContext::new(repo_root);
+    let imi_dir = repo_root.join(".iMi");
+    local_ctx.remove_lock_file(&imi_dir, name).await?;
+
+    // Log activity
+    manager
+        .db
+        .log_agent_activity(yi_id, &worktree.id, "released", None, "Agent released worktree")
+        .await?;
+
+    // Output success
+    if json_mode {
+        JsonResponse::success(serde_json::json!({
+            "worktree_id": worktree.id,
+            "worktree_name": name,
+            "yi_id": yi_id,
+            "path": worktree.path,
+            "released_at": chrono::Utc::now().to_rfc3339(),
+        }))
+        .print();
+    } else {
+        println!(
+            "{} Successfully released worktree '{}'",
+            "✅".bright_green(),
+            name
+        );
+        println!("   {} Agent ID: {}", "🔓".bright_black(), yi_id.bright_cyan());
+        println!(
+            "   {} Worktree ID: {}",
+            "🆔".bright_black(),
+            worktree.id.to_string().bright_black()
+        );
+        println!("   {} Path: {}", "📂".bright_black(), worktree.path);
+        println!("\n   Worktree is now available for other agents to claim");
+    }
+
+    Ok(())
 }
