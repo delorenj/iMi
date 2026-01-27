@@ -263,6 +263,20 @@ pub enum Commands {
         #[arg(short, long)]
         repo: Option<String>,
     },
+
+    /// Release a worktree after completing work
+    Release {
+        /// Name of the worktree to release
+        name: String,
+
+        /// Yi agent identifier (must match the agent that claimed it)
+        #[arg(long = "yi-id")]
+        yi_id: String,
+
+        /// Repository name (optional, uses current repo if not specified)
+        #[arg(short, long)]
+        repo: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
