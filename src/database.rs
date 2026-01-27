@@ -170,8 +170,8 @@
         pub async fn get_repository(&self, name: &str) -> Result<Option<Project>> {
             let project = sqlx::query_as::<_, Project>(
                 r#"
-                SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
-                    description, metadata, created_at, updated_at, active
+                SELECT id, name, remote_origin, default_branch, trunk_path,
+                       description, metadata, created_at, updated_at, active
                 FROM projects
                 WHERE name = $1 AND active = TRUE
                 "#
@@ -187,8 +187,8 @@
         pub async fn get_repository_by_id(&self, id: &Uuid) -> Result<Option<Project>> {
             let project = sqlx::query_as::<_, Project>(
                 r#"
-                SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
-                    description, metadata, created_at, updated_at, active
+                SELECT id, name, remote_origin, default_branch, trunk_path,
+                       description, metadata, created_at, updated_at, active
                 FROM projects
                 WHERE id = $1 AND active = TRUE
                 "#
@@ -221,12 +221,20 @@
     pub async fn list_repositories(&self) -> Result<Vec<Project>> {
         let projects = sqlx::query_as::<_, Project>(
             r#"
-            SELECT id, name, remote_origin as "remote_url", default_branch, trunk_path,
+            SELECT id, name, remote_origin, default_branch, trunk_path,
                    description, metadata, created_at, updated_at, active
             FROM projects
             WHERE active = TRUE
             ORDER BY name
             "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to list repositories")?;
+
+        Ok(projects)
+    }
+
     /// Update the path of an existing worktree
     pub async fn update_worktree_path(
         &self,
