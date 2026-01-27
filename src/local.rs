@@ -197,4 +197,59 @@ impl LocalContext {
     pub fn links_path(&self) -> &Path {
         &self.links_dir
     }
+
+    /// Create a lock file with full metadata (for agent claim operations)
+    /// Format: JSON with agent_id, claimed_at, hostname, worktree_id
+    pub async fn create_lock_file(
+        &self,
+        imi_dir: &Path,
+        worktree_name: &str,
+        agent_id: &str,
+    ) -> Result<()> {
+        let presence_dir = imi_dir.join("presence");
+        fs::create_dir_all(&presence_dir).context("Failed to create presence directory")?;
+
+        let lock_file = presence_dir.join(format!("{}.lock", worktree_name));
+
+        let lock_data = serde_json::json!({
+            "agent_id": agent_id,
+            "claimed_at": chrono::Utc::now().to_rfc3339(),
+            "hostname": hostname::get()
+                .ok()
+                .and_then(|h| h.into_string().ok())
+                .unwrap_or_else(|| "unknown".to_string()),
+        });
+
+        let lock_content = serde_json::to_string_pretty(&lock_data)
+            .context("Failed to serialize lock file data")?;
+
+        fs::write(&lock_file, lock_content)
+            .with_context(|| format!("Failed to create lock file for {}", worktree_name))?;
+
+        Ok(())
+    }
+
+    /// Remove a lock file (for agent release operations)
+    pub async fn remove_lock_file(&self, imi_dir: &Path, worktree_name: &str) -> Result<()> {
+        let lock_file = imi_dir.join("presence").join(format!("{}.lock", worktree_name));
+        if lock_file.exists() {
+            fs::remove_file(&lock_file)
+                .with_context(|| format!("Failed to remove lock file for {}", worktree_name))?;
+        }
+        Ok(())
+    }
+
+    /// Read lock file data
+    pub async fn read_lock_file(
+        &self,
+        imi_dir: &Path,
+        worktree_name: &str,
+    ) -> Result<serde_json::Value> {
+        let lock_file = imi_dir.join("presence").join(format!("{}.lock", worktree_name));
+        let content = fs::read_to_string(&lock_file)
+            .with_context(|| format!("Failed to read lock file for {}", worktree_name))?;
+        let data: serde_json::Value = serde_json::from_str(&content)
+            .context("Failed to parse lock file data")?;
+        Ok(data)
+    }
 }

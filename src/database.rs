@@ -580,6 +580,52 @@
     }
 
     // ========================================================================
+    // Worktree claim/release operations
+    // ========================================================================
+
+    pub async fn claim_worktree(&self, worktree_id: &Uuid, agent_id: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE worktrees
+            SET agent_id = $1, updated_at = NOW()
+            WHERE id = $2
+            "#
+        )
+        .bind(agent_id)
+        .bind(worktree_id)
+        .execute(&self.pool)
+        .await
+        .context("Failed to claim worktree")?;
+
+        Ok(())
+    }
+
+    pub async fn release_worktree(&self, worktree_id: &Uuid, agent_id: &str) -> Result<()> {
+        // Verify the agent owns the worktree before releasing
+        let result = sqlx::query(
+            r#"
+            UPDATE worktrees
+            SET agent_id = NULL, updated_at = NOW()
+            WHERE id = $1 AND agent_id = $2
+            "#
+        )
+        .bind(worktree_id)
+        .bind(agent_id)
+        .execute(&self.pool)
+        .await
+        .context("Failed to release worktree")?;
+
+        if result.rows_affected() == 0 {
+            return Err(anyhow::anyhow!(
+                "Cannot release worktree: not owned by agent '{}'",
+                agent_id
+            ));
+        }
+
+        Ok(())
+    }
+
+    // ========================================================================
     // Worktree type operations
     // ========================================================================
 
@@ -662,5 +708,106 @@
         .context("Failed to remove worktree type")?;
 
         Ok(())
+    }
+
+    // ========================================================================
+    // Worktree metadata operations
+    // ========================================================================
+
+    pub async fn set_worktree_metadata(
+        &self,
+        worktree_id: &Uuid,
+        key: &str,
+        value: serde_json::Value,
+    ) -> Result<()> {
+        // Build the JSON object for merging
+        let update_json = {
+            let keys: Vec<&str> = key.split('.').collect();
+            if keys.len() == 1 {
+                // Simple key - direct update
+                let mut obj = serde_json::Map::new();
+                obj.insert(key.to_string(), value);
+                serde_json::Value::Object(obj)
+            } else {
+                // Nested key - build from innermost to outermost
+                let mut result = value;
+                for k in keys.iter().rev() {
+                    let mut obj = serde_json::Map::new();
+                    obj.insert(k.to_string(), result);
+                    result = serde_json::Value::Object(obj);
+                }
+                result
+            }
+        };
+
+        sqlx::query(
+            r#"
+            UPDATE worktrees
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+                updated_at = NOW()
+            WHERE id = $2
+            "#
+        )
+        .bind(&update_json)
+        .bind(worktree_id)
+        .execute(&self.pool)
+        .await
+        .context("Failed to set worktree metadata")?;
+
+        Ok(())
+    }
+
+    pub async fn get_worktree_metadata(
+        &self,
+        worktree_id: &Uuid,
+        key: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        if let Some(k) = key {
+            // Get specific key (supports dot notation for nested keys)
+            let keys: Vec<&str> = k.split('.').collect();
+
+            // Build JSONB path query
+            let path_query = if keys.len() == 1 {
+                format!("metadata->'{}'", keys[0])
+            } else {
+                let path_parts: Vec<String> = keys.iter().map(|k| format!("'{}'", k)).collect();
+                format!("metadata->{}", path_parts.join("->"))
+            };
+
+            let query_str = format!(
+                r#"
+                SELECT {}
+                FROM worktrees
+                WHERE id = $1
+                "#,
+                path_query
+            );
+
+            let result: Option<serde_json::Value> = sqlx::query_scalar(&query_str)
+                .bind(worktree_id)
+                .fetch_optional(&self.pool)
+                .await
+                .context("Failed to get worktree metadata")?;
+
+            match result {
+                Some(val) if !val.is_null() => Ok(val),
+                _ => Err(anyhow::anyhow!("Metadata key '{}' not found", k)),
+            }
+        } else {
+            // Get entire metadata object
+            let result: Option<serde_json::Value> = sqlx::query_scalar(
+                r#"
+                SELECT COALESCE(metadata, '{}'::jsonb)
+                FROM worktrees
+                WHERE id = $1
+                "#
+            )
+            .bind(worktree_id)
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get worktree metadata")?;
+
+            Ok(result.unwrap_or(serde_json::Value::Object(serde_json::Map::new())))
+        }
     }
 }
