@@ -22,13 +22,14 @@ iMi has been formalized as the **Project Registry** - a first-class component in
 1. [Context and Motivation](#context-and-motivation)
 2. [Architectural Drivers](#architectural-drivers)
 3. [Component Role](#component-role)
-4. [Schema Design](#schema-design)
-5. [API Contracts](#api-contracts)
-6. [Migration Strategy](#migration-strategy)
-7. [Design Principles](#design-principles)
-8. [Integration Patterns](#integration-patterns)
-9. [Operational Considerations](#operational-considerations)
-10. [References](#references)
+4. [Project Registration Flow](#project-registration-flow)
+5. [Schema Design](#schema-design)
+6. [API Contracts](#api-contracts)
+7. [Migration Strategy](#migration-strategy)
+8. [Design Principles](#design-principles)
+9. [Integration Patterns](#integration-patterns)
+10. [Operational Considerations](#operational-considerations)
+11. [References](#references)
 
 ## Context and Motivation
 
@@ -208,6 +209,118 @@ CREATE INDEX idx_projects_metadata ON projects USING gin (metadata);
 - **Authentication**: Relies on system git credentials and GitHub CLI
 - **Build systems**: Does not manage mise tasks, package managers, or CI
 - **Code review**: Tracks review worktrees but doesn't analyze code
+
+## Project Registration Flow
+
+### Initialization Workflow
+
+**Design Philosophy**: Project registration should be implicit and transparent. When a developer runs `iMi init` on a repository, they are initializing both the local worktree structure AND registering the project as a first-class 33GOD component.
+
+### iMi init Command
+
+The `iMi init` command performs three critical operations:
+
+1. **Register Project in PostgreSQL**
+   - Calls `register_project()` function with repository metadata
+   - Assigns globally unique project UUID
+   - Enforces 1:1 mapping with GitHub remote origin
+   - Returns idempotent: same UUID returned if project already registered
+
+2. **Create Cluster Hub Structure**
+   - Creates `.iMi/` directory at parent of trunk directory
+   - Structure: `~/code/my-project/.iMi/` (sibling to `trunk-main/`)
+   - Cluster hub becomes filesystem root for all worktrees
+
+3. **Persist Project UUID to Filesystem**
+   - Writes `.iMi/project.json` with project metadata
+   - Enables fast (<10ms) lookups for shell integrations (Starship prompt)
+   - Provides offline access to project identity
+
+### project.json Structure
+
+```json
+{
+  "project_id": "c235afec-6430-4276-9f0d-03f2690407e8",
+  "name": "iMi",
+  "remote_origin": "git@github.com:delorenj/iMi.git",
+  "default_branch": "main",
+  "trunk_path": "/home/delorenj/code/iMi/trunk-main",
+  "description": "Decentralized git worktree management for agentic workflows"
+}
+```
+
+### Dual-Plane Architecture
+
+iMi uses a **dual-plane architecture** for optimal performance:
+
+**Control Plane (PostgreSQL)**:
+- Authoritative source of truth for all project data
+- Handles registration, worktree creation, activity logging
+- Supports complex queries (in-flight work, agent activities, registry stats)
+- Enables concurrent multi-agent access with ACID guarantees
+
+**Data Plane (.iMi/ filesystem)**:
+- Fast filesystem-based metadata access (<10ms)
+- Used by shell integrations (Starship prompt, mise tasks)
+- Provides offline fallback for read-only operations
+- Synced on every `iMi init` and worktree creation
+
+### Integration with 33GOD Components
+
+Once a project is registered, all 33GOD components reference it by UUID:
+
+**Bloodbank (Event Bus)**:
+```json
+{
+  "event": "project.registered",
+  "project_id": "c235afec-6430-4276-9f0d-03f2690407e8",
+  "name": "iMi",
+  "timestamp": "2026-01-27T08:15:00Z"
+}
+```
+
+**Yi (IDE Integration)**:
+```typescript
+// Query project worktrees
+const worktrees = await imiClient.getProjectWorktrees('c235afec-6430-4276-9f0d-03f2690407e8')
+```
+
+**Flume (Agent Orchestration)**:
+```python
+# Resolve working path for agent assignment
+working_path = imi_registry.get_project_working_path(
+    project_id='c235afec-6430-4276-9f0d-03f2690407e8',
+    worktree_name='feat-user-auth'
+)
+```
+
+### Why Implicit Registration Matters
+
+**Developer Experience**: `iMi init` should feel like a single-step setup, not a multi-step ceremony. Developers shouldn't need to understand the distinction between "initialize worktree structure" and "register as 33GOD project" - these are implementation details.
+
+**Consistency**: Every initialized repository is automatically a registered 33GOD project. No orphaned repositories that are initialized but not registered, or registered but not initialized.
+
+**Universal Identity**: The moment a project is initialized, it has a UUID that can be referenced across all 33GOD components. No race conditions where Yi tries to query a project that Flume hasn't registered yet.
+
+### Command Examples
+
+```bash
+# Initialize repository (implicitly registers project)
+$ cd ~/code/my-app/trunk-main
+$ iMi init
+✅ Registered repository 'my-app' in the database.
+   🔑 Project ID: c235afec-6430-4276-9f0d-03f2690407e8
+✅ Created .iMi directory at /home/user/code/my-app/.iMi
+✅ Created project.json with UUID c235afec-6430-4276-9f0d-03f2690407e8
+Successfully initialized iMi for repository 'my-app'.
+
+# Create feature worktree (uses project UUID from .iMi/project.json)
+$ iMi create feat user-auth
+✅ Created worktree: feat-user-auth
+   🔑 Worktree ID: 32f09f2a-4fb9-4cf8-9e90-d2bc6c0de1ce
+   📂 Path: /home/user/code/my-app/feat-user-auth
+   🌿 Branch: feat/user-auth
+```
 
 ## Schema Design
 

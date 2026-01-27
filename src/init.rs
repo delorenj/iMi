@@ -1,9 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use colored::*;
 use dialoguer::{Confirm, Select};
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
 use tokio::fs;
+use uuid::Uuid;
 
 use crate::config::Config;
 use crate::database::Database;
@@ -29,6 +31,18 @@ impl InitResult {
             message,
         }
     }
+}
+
+/// Project metadata written to .iMi/project.json
+/// Provides fast filesystem access for shell integrations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMetadata {
+    pub project_id: Uuid,
+    pub name: String,
+    pub remote_origin: String,
+    pub default_branch: String,
+    pub trunk_path: String,
+    pub description: Option<String>,
 }
 
 #[derive(Clone)]
@@ -413,7 +427,7 @@ impl InitCommand {
             .await
             .unwrap_or_else(|_| "main".to_string());
 
-        self.db
+        let project = self.db
             .create_repository(
                 repo_name,
                 repo_path.to_str().unwrap(),
@@ -426,6 +440,11 @@ impl InitCommand {
             "✅".bright_green(),
             repo_name
         );
+        println!(
+            "   {} Project ID: {}",
+            "🔑".bright_black(),
+            project.id.to_string().bright_cyan()
+        );
 
         let imi_dir = repo_path.parent().unwrap().join(".iMi");
         fs::create_dir_all(&imi_dir)
@@ -435,6 +454,27 @@ impl InitCommand {
             "{} Created .iMi directory at {}",
             "✅".bright_green(),
             imi_dir.display()
+        );
+
+        // Write project metadata to .iMi/project.json for fast filesystem access
+        let project_metadata = ProjectMetadata {
+            project_id: project.id,
+            name: project.name.clone(),
+            remote_origin: project.remote_url.clone(),
+            default_branch: project.default_branch.clone(),
+            trunk_path: project.path.clone(),
+            description: project.description.clone(),
+        };
+        let project_json_path = imi_dir.join("project.json");
+        let json_content = serde_json::to_string_pretty(&project_metadata)
+            .context("Failed to serialize project metadata")?;
+        fs::write(&project_json_path, json_content)
+            .await
+            .context("Failed to write project.json")?;
+        println!(
+            "{} Created project.json with UUID {}",
+            "✅".bright_green(),
+            project.id.to_string().bright_cyan()
         );
 
         Ok(InitResult::success(format!(
