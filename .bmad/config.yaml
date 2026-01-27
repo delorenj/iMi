@@ -1,0 +1,6 @@
+version: "6.0.0"
+project_name: "iMi"
+project_level: 2
+output_folder: "docs/bmad"
+user_name: "Jarad DeLorenzo"
+created_at: "2026-01-27"

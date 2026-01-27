@@ -1,0 +1,50 @@
+version: "6.0.0"
+project_name: "iMi"
+project_level: 2
+current_sprint: 1
+sprint_plan_path: "docs/bmad/sprint-plan-imi-2026-01-27.md"
+
+sprints:
+  - sprint_number: 1
+    start_date: "2026-01-27"
+    end_date: "2026-02-10"
+    capacity_points: 30
+    committed_points: 20
+    completed_points: 0
+    status: "not_started"
+    goal: "Implement agent workflow commands for Yi integration"
+    stories:
+      - story_id: "STORY-001"
+        title: "Implement imi claim command"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-002"
+        title: "Implement imi release command"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-003"
+        title: "Implement imi metadata set command"
+        points: 3
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-004"
+        title: "Implement imi metadata get command"
+        points: 2
+        status: "not_started"
+        assigned_to: null
+      - story_id: "STORY-005"
+        title: "Add integration tests for agent workflows"
+        points: 5
+        status: "not_started"
+        assigned_to: null
+
+velocity:
+  sprint_1: null
+  rolling_average: null
+
+team:
+  size: 1
+  sprint_length_weeks: 2
+  capacity_per_sprint: 30

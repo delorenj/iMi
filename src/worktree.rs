@@ -2274,4 +2274,13 @@ impl WorktreeManager {
 
         Ok(())
     }
+
+    /// Get a worktree by name (public wrapper around find_worktree_in_database)
+    pub async fn get_worktree_by_name(
+        &self,
+        name: &str,
+        repo: Option<&str>,
+    ) -> Result<Option<crate::database::Worktree>> {
+        self.find_worktree_in_database(name, repo).await
+    }
 }

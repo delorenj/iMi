@@ -1,0 +1,11 @@
+version: "6.0.0"
+project_name: "iMi"
+current_phase: "implementation"
+
+workflows:
+  sprint-planning:
+    status: "complete"
+    output: "docs/bmad/sprint-plan-imi-2026-01-27.md"
+    completed_at: "2026-01-27"
+
+next_workflow: "dev-story"

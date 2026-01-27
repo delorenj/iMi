@@ -230,6 +230,24 @@ pub enum Commands {
         #[command(subcommand)]
         command: ProjectCommands,
     },
+
+    /// Claim exclusive access to a worktree for agent work
+    Claim {
+        /// Name of the worktree to claim
+        name: String,
+
+        /// Yi agent identifier
+        #[arg(long = "yi-id")]
+        yi_id: String,
+
+        /// Repository name (optional, uses current repo if not specified)
+        #[arg(short, long)]
+        repo: Option<String>,
+
+        /// Force claim even if already claimed by another agent
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]

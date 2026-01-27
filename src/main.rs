@@ -3,6 +3,7 @@ use clap::Parser;
 use colored::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::path::PathBuf;
 
 mod cli;
 mod commands;
@@ -24,6 +25,7 @@ use config::Config;
 use database::Database;
 use git::GitManager;
 use init::InitCommand;
+use local::LocalContext;
 use worktree::WorktreeManager;
 
 /// JSON response structure for --json output mode
@@ -234,6 +236,15 @@ async fn main() -> Result<()> {
                     }
                     Commands::Project { command } => {
                         handle_project_command(command, json_mode).await?;
+                    }
+                    Commands::Claim {
+                        name,
+                        yi_id,
+                        repo,
+                        force,
+                    } => {
+                        handle_claim_command(&worktree_manager, &name, &yi_id, repo.as_deref(), force, json_mode)
+                            .await?;
                     }
                 }
             }
@@ -1155,4 +1166,100 @@ async fn handle_project_command(command: ProjectCommands, json_mode: bool) -> Re
             Ok(())
         }
     }
+}
+
+async fn handle_claim_command(
+    manager: &WorktreeManager,
+    name: &str,
+    yi_id: &str,
+    repo: Option<&str>,
+    force: bool,
+    json_mode: bool,
+) -> Result<()> {
+    // Resolve worktree by name
+    let worktree = match manager.get_worktree_by_name(name, repo).await? {
+        Some(wt) => wt,
+        None => {
+            let error_msg = format!("Worktree '{}' not found", name);
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.red());
+            }
+            return Err(anyhow::anyhow!(error_msg));
+        }
+    };
+
+    // Check if already claimed
+    if let Some(current_agent) = &worktree.agent_id {
+        if !force {
+            let error_msg = format!(
+                "Worktree '{}' is already claimed by agent '{}'",
+                name, current_agent
+            );
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.red());
+                eprintln!(
+                    "Use --force to override, or release with: imi release {} --yi-id {}",
+                    name, current_agent
+                );
+            }
+            return Err(anyhow::anyhow!(error_msg));
+        } else if json_mode {
+            eprintln!("Warning: Force claiming from agent '{}'", current_agent);
+        } else {
+            println!(
+                "{} Force claiming from agent '{}'",
+                "⚠️".yellow(),
+                current_agent
+            );
+        }
+    }
+
+    // Claim the worktree in database
+    manager.db.claim_worktree(&worktree.id, yi_id).await?;
+
+    // Create lock file in .iMi/presence/
+    let worktree_path = PathBuf::from(&worktree.path);
+    let repo_root = worktree_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid worktree path"))?;
+
+    let local_ctx = LocalContext::new(repo_root);
+    let imi_dir = repo_root.join(".iMi");
+    local_ctx.create_lock_file(&imi_dir, name, yi_id).await?;
+
+    // Log activity
+    manager
+        .db
+        .log_agent_activity(yi_id, &worktree.id, "claimed", None, "Agent claimed worktree")
+        .await?;
+
+    if json_mode {
+        JsonResponse::success(serde_json::json!({
+            "worktree_id": worktree.id,
+            "worktree_name": name,
+            "yi_id": yi_id,
+            "path": worktree.path,
+            "claimed_at": chrono::Utc::now().to_rfc3339(),
+        }))
+        .print();
+    } else {
+        println!(
+            "{} Successfully claimed worktree '{}'",
+            "✅".bright_green(),
+            name
+        );
+        println!("   {} Agent ID: {}", "🔑".bright_black(), yi_id.bright_cyan());
+        println!(
+            "   {} Worktree ID: {}",
+            "🆔".bright_black(),
+            worktree.id.to_string().bright_black()
+        );
+        println!("   {} Path: {}", "📂".bright_black(), worktree.path);
+    }
+
+    Ok(())
 }
