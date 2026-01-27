@@ -248,6 +248,21 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
+
+    /// Verify lock ownership for a worktree
+    #[command(alias = "check-lock")]
+    VerifyLock {
+        /// Name of the worktree to verify
+        name: String,
+
+        /// Yi agent identifier to check ownership
+        #[arg(long = "yi-id")]
+        yi_id: String,
+
+        /// Repository name (optional, uses current repo if not specified)
+        #[arg(short, long)]
+        repo: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
