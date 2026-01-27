@@ -246,6 +246,14 @@ async fn main() -> Result<()> {
                         handle_claim_command(&worktree_manager, &name, &yi_id, repo.as_deref(), force, json_mode)
                             .await?;
                     }
+                    Commands::VerifyLock {
+                        name,
+                        yi_id,
+                        repo,
+                    } => {
+                        handle_verify_lock_command(&worktree_manager, &name, &yi_id, repo.as_deref(), json_mode)
+                            .await?;
+                    }
                 }
             }
         }
@@ -1262,4 +1270,146 @@ async fn handle_claim_command(
     }
 
     Ok(())
+}
+
+async fn handle_verify_lock_command(
+    manager: &WorktreeManager,
+    name: &str,
+    yi_id: &str,
+    repo: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
+    // Resolve worktree by name
+    let worktree = match manager.get_worktree_by_name(name, repo).await? {
+        Some(wt) => wt,
+        None => {
+            let error_msg = format!("Worktree '{}' not found", name);
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{}", error_msg.red());
+            }
+            std::process::exit(2);
+        }
+    };
+
+    // Get repository root to find .iMi directory
+    let worktree_path = PathBuf::from(&worktree.path);
+    let repo_root = worktree_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid worktree path"))?;
+
+    let lock_file = repo_root.join(".iMi/presence").join(format!("{}.lock", name));
+
+    // Check if lock file exists
+    if !lock_file.exists() {
+        // No lock exists - verification succeeds
+        if json_mode {
+            JsonResponse::success(serde_json::json!({
+                "verified": true,
+                "locked": false,
+                "worktree_name": name,
+                "message": "No lock exists - worktree is available"
+            }))
+            .print();
+        } else {
+            println!(
+                "{} Worktree '{}' is not locked",
+                "✅".bright_green(),
+                name
+            );
+        }
+        std::process::exit(0);
+    }
+
+    // Read and parse lock file
+    let lock_content = match std::fs::read_to_string(&lock_file) {
+        Ok(content) => content,
+        Err(e) => {
+            let error_msg = format!("Failed to read lock file: {}", e);
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{} {}", "❌".bright_red(), error_msg);
+            }
+            std::process::exit(2);
+        }
+    };
+
+    let lock_data: serde_json::Value = match serde_json::from_str(&lock_content) {
+        Ok(data) => data,
+        Err(e) => {
+            let error_msg = format!("Failed to parse lock file: {}", e);
+            if json_mode {
+                JsonResponse::error(error_msg.clone()).print();
+            } else {
+                eprintln!("{} {}", "❌".bright_red(), error_msg);
+            }
+            std::process::exit(2);
+        }
+    };
+
+    // Extract agent_id from lock file
+    let lock_owner = lock_data["agent_id"].as_str().unwrap_or("");
+
+    // Verify ownership
+    if lock_owner == yi_id {
+        // Owned by this agent - verification succeeds
+        if json_mode {
+            JsonResponse::success(serde_json::json!({
+                "verified": true,
+                "locked": true,
+                "owner": lock_owner,
+                "worktree_name": name,
+                "message": "Lock verified - owned by this agent"
+            }))
+            .print();
+        } else {
+            println!(
+                "{} Worktree '{}' is locked by you ({})",
+                "✅".bright_green(),
+                name,
+                yi_id.bright_cyan()
+            );
+        }
+        std::process::exit(0);
+    } else {
+        // Locked by different agent - verification fails
+        let claimed_at = lock_data["claimed_at"].as_str().unwrap_or("unknown");
+        let hostname = lock_data["hostname"].as_str().unwrap_or("unknown");
+
+        if json_mode {
+            JsonResponse::error(format!(
+                "Worktree locked by different agent: {}",
+                lock_owner
+            ))
+            .print();
+            // Also output lock details in data field
+            println!(
+                "{}",
+                serde_json::json!({
+                    "verified": false,
+                    "locked": true,
+                    "owner": lock_owner,
+                    "claimed_at": claimed_at,
+                    "hostname": hostname,
+                    "worktree_name": name,
+                })
+            );
+        } else {
+            eprintln!(
+                "{} Worktree '{}' is locked by {}",
+                "❌".bright_red(),
+                name,
+                lock_owner.bright_yellow()
+            );
+            eprintln!("   {} Claimed at: {}", "🕒".bright_black(), claimed_at);
+            eprintln!("   {} Hostname: {}", "🖥️".bright_black(), hostname);
+            eprintln!(
+                "\n   Use 'imi claim {} --yi-id {} --force' to override",
+                name, lock_owner
+            );
+        }
+        std::process::exit(1);
+    }
 }
