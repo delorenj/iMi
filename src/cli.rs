@@ -184,6 +184,17 @@ pub enum Commands {
     /// Repair repository paths in database (auto-detects moved repositories)
     Repair,
 
+    /// Run system health checks
+    Doctor {
+        /// Check network connectivity to git remotes (slower)
+        #[arg(long)]
+        network: bool,
+
+        /// Show detailed information about checks
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
     /// Initialize iMi in the current directory or clone from GitHub (format: owner/repo)
     Init {
         /// GitHub repository to clone (format: owner/repo), or path to existing repository
