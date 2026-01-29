@@ -190,6 +190,9 @@ async fn main() -> Result<()> {
                     Commands::Repair => {
                         handle_repair_command(&worktree_manager).await?;
                     }
+                    Commands::Doctor { network, verbose } => {
+                        handle_doctor_command(&db, network, verbose).await?;
+                    }
                     Commands::Init { .. } => {
                         // Already handled
                     }
