@@ -290,7 +290,7 @@ main() {
                 while IFS='|' read -r wt_name wt_branch wt_type wt_path; do
                     [[ -z "$wt_name" ]] && continue
                     register_worktree "$project_id" "$wt_name" "$wt_branch" "$wt_type" "$wt_path"
-                    ((worktrees_registered++))
+                    : $((worktrees_registered++))
                 done < <(discover_worktrees "$project_dir" "$project_id")
             else
                 log_warn "Unexpected project ID format: $project_id"
