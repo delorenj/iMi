@@ -665,6 +665,16 @@ async fn handle_repair_command(manager: &WorktreeManager) -> Result<()> {
     Ok(())
 }
 
+async fn handle_doctor_command(db: &Database, network: bool, verbose: bool) -> Result<()> {
+    use commands::doctor::{run_doctor, print_report, DoctorOpts};
+
+    let opts = DoctorOpts { network, verbose };
+    let checks = run_doctor(db.pool(), opts).await?;
+    print_report(&checks);
+
+    Ok(())
+}
+
 async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool) -> Result<()> {
     let config = Config::load().await?;
     let db = Database::new(&config.database_path).await?;
