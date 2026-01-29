@@ -294,12 +294,12 @@ main() {
                 done < <(discover_worktrees "$project_dir" "$project_id")
             else
                 log_warn "Unexpected project ID format: $project_id"
-                ((projects_skipped++))
+                : $((projects_skipped++))
             fi
         elif [[ "$project_id" == "DRY_RUN_UUID" ]]; then
             : $((projects_registered++))
         else
-            ((projects_skipped++))
+            : $((projects_skipped++))
         fi
 
         echo ""
