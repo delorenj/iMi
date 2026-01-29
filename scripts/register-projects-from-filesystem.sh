@@ -61,13 +61,13 @@ for arg in "$@"; do
 done
 
 # -----------------------------------------------------------------------------
-# Logging
+# Logging (all go to stderr to not interfere with data piping)
 # -----------------------------------------------------------------------------
-log_info() { echo -e "\033[0;34m[INFO]\033[0m $1"; }
-log_success() { echo -e "\033[0;32m[OK]\033[0m $1"; }
-log_warn() { echo -e "\033[0;33m[WARN]\033[0m $1"; }
+log_info() { echo -e "\033[0;34m[INFO]\033[0m $1" >&2; }
+log_success() { echo -e "\033[0;32m[OK]\033[0m $1" >&2; }
+log_warn() { echo -e "\033[0;33m[WARN]\033[0m $1" >&2; }
 log_error() { echo -e "\033[0;31m[ERROR]\033[0m $1" >&2; }
-log_dry() { echo -e "\033[0;35m[DRY-RUN]\033[0m $1"; }
+log_dry() { echo -e "\033[0;35m[DRY-RUN]\033[0m $1" >&2; }
 
 # -----------------------------------------------------------------------------
 # Database helpers
