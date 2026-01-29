@@ -108,6 +108,11 @@
     // ============================================================================
 
     impl Database {
+        /// Get reference to the connection pool
+        pub fn pool(&self) -> &PgPool {
+            &self.pool
+        }
+
         /// Connect to PostgreSQL database
         pub async fn new<P: AsRef<Path>>(_database_path: P) -> Result<Self> {
             // Get connection string from environment or use default
