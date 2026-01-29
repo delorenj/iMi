@@ -1,0 +1,27 @@
+# BMAD Method v6 - Project Configuration
+# iMi Project Registry - PostgreSQL Migration & API Implementation
+
+project_name: "iMi Project Registry"
+project_type: "api"  # Rust CLI + PostgreSQL backend service
+project_level: 2  # Medium complexity (5-15 stories)
+
+# Output folder (relative to project root)
+output_folder: "docs"
+
+# Module-specific settings
+bmm:
+  workflow_status_file: "docs/bmm-workflow-status.yaml"
+  sprint_status_file: "docs/sprint-status.yaml"
+
+# Path configuration
+paths:
+  docs: "docs"
+  stories: "docs/stories"
+  tests: "tests"
+
+# Project-specific context
+context:
+  database: "postgresql://imi:imi_dev_password_2026@192.168.1.12:5432/imi"
+  previous_database: "sqlite"
+  migration_phases: 7
+  current_phase: 2  # Ready to start Phase 2: Data Extraction

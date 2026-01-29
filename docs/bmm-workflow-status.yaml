@@ -1,0 +1,149 @@
+# BMAD Method Workflow Status
+# Generated: 2026-01-29T10:15:00Z
+# Project: iMi Project Registry
+
+project_name: "iMi Project Registry"
+project_type: "api"
+project_level: 2
+communication_language: "English"
+output_language: "English"
+last_updated: "2026-01-29T10:15:00Z"
+
+# Workflow Status Tracking
+# Status values:
+#   - "required" - Must be completed
+#   - "optional" - Can be skipped
+#   - "recommended" - Strongly suggested
+#   - "{file-path}" - Completed (path to output file)
+#   - "skipped" - Explicitly skipped
+#   - "in-progress" - Currently being worked on
+
+workflow_status:
+  # Phase 1: Analysis - COMPLETED (existing docs)
+  - name: product-brief
+    phase: 1
+    status: "skipped"
+    description: "Create comprehensive product brief"
+    notes: "Project vision established in architecture doc"
+
+  - name: brainstorm-project
+    phase: 1
+    status: "skipped"
+    description: "Structured brainstorming session"
+
+  - name: research
+    phase: 1
+    status: "skipped"
+    description: "Market and competitive research"
+
+  # Phase 2: Planning - COMPLETED (existing docs)
+  - name: prd
+    phase: 2
+    status: "docs/architecture-imi-project-registry.md"
+    description: "Product Requirements Document"
+    notes: "Architecture doc serves as PRD - comprehensive requirements defined"
+
+  - name: tech-spec
+    phase: 2
+    status: "docs/api-contracts.md"
+    description: "Technical Specification"
+    notes: "API contracts fully specified (REST, Bloodbank, MCP, PostgreSQL)"
+
+  - name: create-ux-design
+    phase: 2
+    status: "skipped"
+    description: "UX/UI design workflow"
+    notes: "CLI tool - no UX design needed"
+
+  # Phase 3: Solutioning - COMPLETED
+  - name: architecture
+    phase: 3
+    status: "docs/architecture-imi-project-registry.md"
+    description: "System architecture design"
+    notes: "Full architecture with schema design, migration strategy, integration patterns"
+
+  - name: solutioning-gate-check
+    phase: 3
+    status: "docs/phase1-postgres-setup-complete.md"
+    description: "Validate architecture against requirements"
+    notes: "Phase 1 validation complete - schema deployed and tested"
+
+  # Phase 4: Implementation - IN PROGRESS
+  # Migration Phases (tracked as implementation stories)
+
+# Current Implementation Status
+implementation:
+  current_sprint: "PostgreSQL Migration"
+  sprint_goal: "Complete SQLite to PostgreSQL migration"
+
+  migration_phases:
+    - phase: 1
+      name: "PostgreSQL Setup"
+      status: "completed"
+      completed_at: "2026-01-25"
+      doc: "docs/phase1-postgres-setup-complete.md"
+      notes: "Database, schema, functions, indexes all deployed"
+
+    - phase: 2
+      name: "Data Extraction"
+      status: "pending"
+      effort: "XS"
+      description: "Extract SQLite repositories and worktrees to CSV"
+      script: "scripts/extract-sqlite-data.sh"
+
+    - phase: 3
+      name: "Data Import"
+      status: "pending"
+      effort: "XS"
+      description: "Import CSV data to PostgreSQL with UUID mapping"
+      script: "scripts/import-postgres-data.sh"
+
+    - phase: 4
+      name: "Git State Sync"
+      status: "pending"
+      effort: "S"
+      description: "Populate in-flight work tracking from git status"
+      script: "scripts/sync-git-state.sh"
+
+    - phase: 5
+      name: "Application Cutover"
+      status: "pending"
+      effort: "S"
+      description: "Update Rust config to use PostgreSQL"
+      files:
+        - "src/database.rs"
+        - "~/.config/imi/config.toml"
+
+    - phase: 6
+      name: "Dual-Write Period"
+      status: "optional"
+      effort: "variable"
+      description: "Optional parallel write monitoring"
+
+    - phase: 7
+      name: "SQLite Archival"
+      status: "pending"
+      effort: "XS"
+      description: "Backup and archive SQLite database"
+
+# Post-Migration Work (future sprints)
+backlog:
+  - name: "REST API Implementation"
+    priority: "high"
+    stories: 8
+    description: "22 REST endpoints per api-contracts.md"
+
+  - name: "Bloodbank Integration"
+    priority: "medium"
+    stories: 4
+    description: "Event publishing and consumption"
+
+  - name: "MCP Tools"
+    priority: "medium"
+    stories: 3
+    description: "5 Claude Desktop tools"
+
+  - name: "iMi init Refactor"
+    priority: "high"
+    stories: 2
+    description: "Implicit project registration on init"
