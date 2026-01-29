@@ -2069,14 +2069,18 @@ impl WorktreeManager {
 
     /// Validate and repair repository path if it's stale
     /// Searches through IMI_SYSTEM_PATHS to find the actual location
+    /// Also repairs all worktree paths when the repository is moved
     async fn validate_and_repair_repository_path(&self, repo: &mut Repository) -> Result<bool> {
         use std::path::PathBuf;
 
         let stored_path = PathBuf::from(&repo.path);
 
-        // If path exists, no repair needed
+        // If path exists, no repair needed for repository
+        // But we still need to check if worktrees need repair
         if stored_path.exists() {
-            return Ok(false);
+            // Check and repair worktree paths even if repository path is ok
+            let worktrees_repaired = self.repair_worktree_paths(&repo.name).await?;
+            return Ok(worktrees_repaired > 0);
         }
 
         // Path doesn't exist - search for actual location
@@ -2129,6 +2133,13 @@ impl WorktreeManager {
                     repo.path = new_path;
 
                     eprintln!("   ✓ Database updated with corrected path");
+
+                    // Repair all worktree paths for this repository
+                    let worktrees_repaired = self.repair_worktree_paths(&repo.name).await?;
+                    if worktrees_repaired > 0 {
+                        eprintln!("   ✓ Repaired {} worktree path(s)", worktrees_repaired);
+                    }
+
                     return Ok(true);
                 }
             }
@@ -2141,6 +2152,56 @@ impl WorktreeManager {
             repo.name,
             stored_path.display()
         ))
+    }
+
+    /// Repair all worktree paths for a repository
+    /// Returns the number of worktrees that were repaired
+    async fn repair_worktree_paths(&self, repo_name: &str) -> Result<usize> {
+        use std::path::PathBuf;
+
+        let worktrees = self.db.list_worktrees(Some(repo_name)).await?;
+        let mut repaired_count = 0;
+
+        for worktree in worktrees {
+            let stored_path = PathBuf::from(&worktree.path);
+
+            // If worktree path exists, skip
+            if stored_path.exists() {
+                continue;
+            }
+
+            // Worktree path doesn't exist - try to find it
+            // First, get the current (repaired) repository path
+            let repo = self.db.get_repository(repo_name).await?;
+            if let Some(repo) = repo {
+                let repo_path = PathBuf::from(&repo.path);
+                // Get the parent directory (IMI_PATH) which contains all worktrees
+                if let Some(imi_path) = repo_path.parent() {
+                    // Try to find the worktree at the expected location
+                    let candidate = imi_path.join(&worktree.worktree_name);
+
+                    if candidate.exists() {
+                        // Found the worktree, update its path
+                        let new_path = candidate.to_string_lossy().to_string();
+                        self.db
+                            .update_worktree_path(
+                                repo_name,
+                                &worktree.worktree_name,
+                                &new_path,
+                            )
+                            .await?;
+                        repaired_count += 1;
+                        eprintln!(
+                            "   ✓ Repaired worktree '{}' path: {}",
+                            worktree.worktree_name,
+                            new_path
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(repaired_count)
     }
 
     /// Merge a worktree into trunk-main and close it
