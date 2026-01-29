@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
 
                 // Initialize worktree manager
                 let worktree_manager =
-                    WorktreeManager::new(git_manager, db, config.clone(), config.repo_path.clone());
+                    WorktreeManager::new(git_manager, db.clone(), config.clone(), config.repo_path.clone());
 
                 match command {
                     Commands::Add {
