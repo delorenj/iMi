@@ -281,7 +281,7 @@ main() {
         if [[ -n "$project_id" ]] && [[ "$project_id" != "DRY_RUN_UUID" ]]; then
             if [[ "$project_id" =~ ^[0-9a-f-]{36}$ ]]; then
                 log_success "Registered project: $name ($project_id)"
-                ((projects_registered++))
+                : $((projects_registered++))
 
                 # Discover and register worktrees
                 local project_dir
@@ -297,7 +297,7 @@ main() {
                 ((projects_skipped++))
             fi
         elif [[ "$project_id" == "DRY_RUN_UUID" ]]; then
-            ((projects_registered++))
+            : $((projects_registered++))
         else
             ((projects_skipped++))
         fi
