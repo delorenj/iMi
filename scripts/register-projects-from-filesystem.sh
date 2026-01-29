@@ -32,16 +32,15 @@ export PGUSER="${PGUSER:-imi}"
 export PGPASSWORD="${PGPASSWORD:-imi_dev_password_2026}"
 
 # Scan settings
-SCAN_ROOT="${1:-${HOME}/code}"
 MAX_DEPTH="${MAX_DEPTH:-4}"
 DRY_RUN=false
+SCAN_ROOT="${HOME}/code"
 
-# Parse args
+# Parse args first
 for arg in "$@"; do
     case $arg in
         --dry-run)
             DRY_RUN=true
-            shift
             ;;
         --help|-h)
             echo "Usage: $0 [scan_root] [--dry-run]"
