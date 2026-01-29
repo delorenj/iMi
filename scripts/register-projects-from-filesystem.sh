@@ -110,7 +110,8 @@ discover_projects() {
         # Skip if this is a worktree subdirectory (has .iMi but no trunk-*)
         # We only want cluster hubs (parent directories of trunk-*)
         local trunk_path
-        trunk_path=$(find "$project_dir" -maxdepth 1 -type d -name "trunk-*" 2>/dev/null | head -1)
+        # Use -mindepth 1 to exclude the directory itself from matching
+        trunk_path=$(find "$project_dir" -mindepth 1 -maxdepth 1 -type d -name "trunk-*" 2>/dev/null | head -1)
 
         if [[ -z "$trunk_path" ]]; then
             # This .iMi is inside a worktree, not a cluster hub
