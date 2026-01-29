@@ -232,8 +232,9 @@ register_worktree() {
     fi
 
     # Use register_worktree() function - idempotent via ON CONFLICT
+    # Suppress errors to prevent set -e from exiting on invalid worktree types
     local worktree_id
-    worktree_id=$(psql -t -A -c "SELECT register_worktree('$project_id', '$worktree_type', '$worktree_name', '$branch_name', '$worktree_path', NULL, '{}'::jsonb);" 2>&1)
+    worktree_id=$(psql -t -A -c "SELECT register_worktree('$project_id', '$worktree_type', '$worktree_name', '$branch_name', '$worktree_path', NULL, '{}'::jsonb);" 2>&1) || true
 
     if [[ "$worktree_id" =~ ^[0-9a-f-]{36}$ ]]; then
         log_success "  Registered worktree: $worktree_name ($worktree_id)"
