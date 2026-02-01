@@ -19,7 +19,7 @@ mod local;
 mod monitor;
 mod worktree;
 
-use cli::{Cli, Commands, ProjectCommands, TypeCommands};
+use cli::{Cli, Commands, ProjectCommands, RegistryCommands, TypeCommands};
 use commands::project::{ProjectConfig, ProjectCreator};
 use config::Config;
 use database::Database;
