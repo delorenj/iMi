@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-iMi has been formalized as the **Project Registry** - a first-class component in the 33GOD agentic pipeline serving as the single source of truth for all projects. This document describes the architectural evolution from a local worktree management tool with SQLite storage to a distributed project registry with PostgreSQL, proper normalization, and ecosystem-wide integration.
+iMi has been formalized as the **Project Registry** - a first-class component in the 33GOD agentic pipeline serving as the single source of truth for all projects. This document describes the architectural evolution from a local worktree management tool to a distributed project registry with PostgreSQL, proper normalization, ecosystem-wide integration, and **entity-based workspace isolation**.
 
 **Key Changes:**
 - Migrated from SQLite to PostgreSQL for ACID guarantees and concurrent access
