@@ -195,6 +195,10 @@ pub enum Commands {
         verbose: bool,
     },
 
+    /// Manage the project registry
+    #[command(subcommand)]
+    Registry(RegistryCommands),
+
     /// Initialize iMi in the current directory or clone from GitHub (format: owner/repo)
     Init {
         /// GitHub repository to clone (format: owner/repo), or path to existing repository
