@@ -678,6 +678,44 @@ async fn handle_doctor_command(db: &Database, network: bool, verbose: bool) -> R
     Ok(())
 }
 
+async fn handle_registry_command(db: &Database, cmd: &RegistryCommands) -> Result<()> {
+    use commands::registry;
+
+    match cmd {
+        RegistryCommands::Sync { scan_root } => {
+            let path = scan_root
+                .as_ref()
+                .map(|s| std::path::Path::new(s));
+
+            registry::sync_filesystem(db.pool(), path).await?;
+        }
+        RegistryCommands::Stats => {
+            // Query registry stats
+            let stats = sqlx::query!(
+                r#"
+                SELECT * FROM get_registry_stats()
+                "#
+            )
+            .fetch_one(db.pool())
+            .await?;
+
+            println!("\n{}", "━".repeat(60).bright_black());
+            println!("{}", "iMi Registry Statistics".bold().bright_white());
+            println!("{}\n", "━".repeat(60).bright_black());
+            println!("Total projects: {}", stats.total_projects.unwrap_or(0).to_string().green());
+            println!("Active projects: {}", stats.active_projects.unwrap_or(0).to_string().green());
+            println!("Total worktrees: {}", stats.total_worktrees.unwrap_or(0).to_string().cyan());
+            println!("Active worktrees: {}", stats.active_worktrees.unwrap_or(0).to_string().cyan());
+            println!("In-flight worktrees: {}", stats.in_flight_worktrees.unwrap_or(0).to_string().yellow());
+            println!("Total activities: {}", stats.total_activities.unwrap_or(0).to_string().bright_black());
+            println!("Activities (24h): {}", stats.activities_last_24h.unwrap_or(0).to_string().bright_black());
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
 async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool) -> Result<()> {
     let config = Config::load().await?;
     let db = Database::new(&config.database_path).await?;
