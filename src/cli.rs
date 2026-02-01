@@ -317,6 +317,18 @@ pub enum ProjectCommands {
 }
 
 #[derive(Subcommand)]
+pub enum RegistryCommands {
+    /// Sync filesystem with database - discover and register all projects
+    Sync {
+        /// Root directory to scan (defaults to ~/code)
+        scan_root: Option<String>,
+    },
+
+    /// Show registry statistics
+    Stats,
+}
+
+#[derive(Subcommand)]
 pub enum TypeCommands {
     /// List all available worktree types
     #[command(alias = "ls")]
