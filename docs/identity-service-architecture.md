@@ -94,20 +94,18 @@ CREATE TABLE entities (
 **Workspace Structure**:
 ```
 /home/delorenj/33GOD/workspaces/
-├── humans/
-│   └── delorenj/
-│       ├── iMi/
-│       │   ├── trunk-main/      # Full clone
-│       │   ├── feat-auth/       # Worktree
-│       │   └── fix-sync/        # Worktree
-│       └── other-project/
-└── yi-agents/
-    ├── yi-backend-001/
-    │   └── iMi/
-    │       └── feat-api/
-    └── yi-frontend-002/
-        └── iMi/
-            └── feat-ui/
+├── delorenj/              # No humans/ subdirectory
+│   ├── iMi/
+│   │   ├── trunk-main/    # Full clone
+│   │   ├── feat-auth/     # Worktree
+│   │   └── fix-sync/      # Worktree
+│   └── other-project/
+├── yi-backend-001/        # Yi agents are peers, not segregated
+│   └── iMi/
+│       └── feat-api/
+└── yi-frontend-002/
+    └── iMi/
+        └── feat-ui/
 ```
 
 **Workspace Schema**:
