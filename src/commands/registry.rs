@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 /// Sync filesystem with database - discover and register all iMi cluster hubs
 pub async fn sync_filesystem(pool: &PgPool, scan_root: Option<&Path>) -> Result<SyncStats> {
-    let scan_path = scan_root.unwrap_or_else(|| Path::new(&std::env::var("HOME").unwrap()).join("code"));
+    let default_scan = PathBuf::from(std::env::var("HOME").unwrap()).join("code");
+    let scan_path = scan_root.unwrap_or(&default_scan);
 
     println!("{}", "━".repeat(60).bright_black());
     println!("{}", "iMi Registry Sync - Filesystem Discovery".bold().bright_white());
