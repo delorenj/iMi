@@ -201,10 +201,12 @@ ls -la ~/.config/iMi/
 rm ~/.config/iMi/config.toml
 ```
 
-**Database corruption**
+**Database connection issues**
 ```bash
-# Reset the database
-rm ~/.config/iMi/iMi.db
+# Verify PostgreSQL connection
+psql $DATABASE_URL -c '\dt'
+# Or check iMi database health
+iMi doctor
 ```
 
 ## 🤝 Contributing
