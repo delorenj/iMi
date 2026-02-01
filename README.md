@@ -76,25 +76,24 @@ iMi list
 | `iMi remove <name>` | Remove a worktree | `iMi remove feat-old` |
 | `iMi monitor` | Start real-time monitoring | `iMi monitor` |
 
-## 🏗️ Directory Structure
+## 🏗️ Workspace Structure
 
-iMi follows a standardized directory convention:
+iMi uses entity-based workspace isolation for true multi-agent collaboration:
 
 ```
-~/code/my-project/
-├── trunk-main/              # Main branch worktree
-├── feat-user-auth/          # Feature worktree
-├── pr-123/                  # Pull request review worktree  
-├── fix-security-bug/        # Bug fix worktree
-├── aiops-new-agent/         # AI operations worktree
-├── devops-ci-update/        # DevOps worktree
-└── sync/                    # Shared configuration
-    ├── global/              # Global sync files
-    │   ├── coding-rules.md
-    │   └── stack-specific.md
-    └── repo/                # Repository-specific sync
-        ├── .env
-        └── .vscode/
+~/33GOD/workspaces/
+├── delorenj/                # Your workspace
+│   ├── my-project/          # Full clone of project
+│   │   ├── trunk-main/      # Main branch worktree
+│   │   ├── feat-auth/       # Feature worktree
+│   │   └── fix-bug/         # Bug fix worktree
+│   └── other-project/
+└── yi-backend-001/          # Yi agent workspace (when implemented)
+    └── my-project/
+        └── feat-api/
+
+# Each entity has complete isolation
+# Cross-entity access requires explicit ticket reference
 ```
 
 ## ⚙️ Configuration
