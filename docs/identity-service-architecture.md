@@ -430,111 +430,19 @@ When Yi is designed, the identity system will:
 
 ## Appendix: SQL Schema
 
-```sql
--- Core entity model
-CREATE TYPE entity_type AS ENUM ('human', 'yi-agent', 'service-account');
+See `/migrations/003_identity_system.sql` for the complete PostgreSQL schema including:
 
-CREATE TABLE entities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_type entity_type NOT NULL,
-    name TEXT NOT NULL UNIQUE,
-    display_name TEXT,
-    workspace_root TEXT NOT NULL UNIQUE,
-    auth_token_hash TEXT NOT NULL UNIQUE,
-    token_created_at TIMESTAMPTZ DEFAULT NOW(),
-    token_expires_at TIMESTAMPTZ,
-    flume_id UUID UNIQUE,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+- `entities` table (unified identity, no type distinction)
+- `workspaces` table (entity-owned project clones)
+- `workspace_access_log` table (accountability)
+- Helper functions: `register_entity()`, `claim_workspace()`, `log_workspace_access()`
+- Views: `v_entities_summary`, `v_workspaces_detail`
 
-CREATE INDEX idx_entities_active ON entities(active);
-CREATE INDEX idx_entities_flume_id ON entities(flume_id) WHERE flume_id IS NOT NULL;
-CREATE INDEX idx_entities_metadata ON entities USING gin(metadata);
-
--- Workspace ownership
-CREATE TABLE workspaces (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    clone_path TEXT NOT NULL UNIQUE,
-    clone_created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_accessed_at TIMESTAMPTZ,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    UNIQUE(entity_id, project_id)
-);
-
-CREATE INDEX idx_workspaces_entity ON workspaces(entity_id);
-CREATE INDEX idx_workspaces_project ON workspaces(project_id);
-
--- Access audit log
-CREATE TABLE workspace_access_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    accessor_entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-    access_type TEXT NOT NULL CHECK (access_type IN ('clone', 'modify', 'view', 'delete')),
-    file_path TEXT,
-    plane_ticket_id TEXT,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}'::jsonb
-);
-
-CREATE INDEX idx_workspace_access_log_workspace ON workspace_access_log(workspace_id);
-CREATE INDEX idx_workspace_access_log_accessor ON workspace_access_log(accessor_entity_id);
-CREATE INDEX idx_workspace_access_log_timestamp ON workspace_access_log(timestamp DESC);
-
--- Helper functions
-CREATE OR REPLACE FUNCTION register_entity(
-    p_entity_type entity_type,
-    p_name TEXT,
-    p_workspace_root TEXT,
-    p_token_hash TEXT,
-    p_flume_id UUID DEFAULT NULL,
-    p_metadata JSONB DEFAULT '{}'::jsonb
-) RETURNS UUID AS $$
-DECLARE
-    v_entity_id UUID;
-BEGIN
-    INSERT INTO entities (
-        entity_type, name, workspace_root, auth_token_hash, flume_id, metadata
-    ) VALUES (
-        p_entity_type, p_name, p_workspace_root, p_token_hash, p_flume_id, p_metadata
-    )
-    ON CONFLICT (name) DO UPDATE SET
-        auth_token_hash = EXCLUDED.auth_token_hash,
-        token_created_at = NOW(),
-        updated_at = NOW()
-    RETURNING id INTO v_entity_id;
-
-    RETURN v_entity_id;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION claim_workspace(
-    p_entity_id UUID,
-    p_project_id UUID,
-    p_clone_path TEXT,
-    p_metadata JSONB DEFAULT '{}'::jsonb
-) RETURNS UUID AS $$
-DECLARE
-    v_workspace_id UUID;
-BEGIN
-    INSERT INTO workspaces (
-        entity_id, project_id, clone_path, metadata
-    ) VALUES (
-        p_entity_id, p_project_id, p_clone_path, p_metadata
-    )
-    ON CONFLICT (entity_id, project_id) DO UPDATE SET
-        last_accessed_at = NOW(),
-        metadata = workspaces.metadata || EXCLUDED.metadata
-    RETURNING id INTO v_workspace_id;
-
-    RETURN v_workspace_id;
-END;
-$$ LANGUAGE plpgsql;
-```
+Key schema highlights:
+- No `entity_type` enum exposed to users
+- `flume_id` column for Yi agent integration (internal use only)
+- JSONB metadata for extensibility
+- Token-based authentication via bcrypt-hashed `auth_token_hash`
 
 ## Conclusion
 
