@@ -12,7 +12,7 @@ This document provides a comprehensive overview of the `iMi` project, designed t
 *   **Tokio:** Used for asynchronous operations.
 *   **Clap:** For parsing command-line arguments.
 *   **Git2:** For Git operations.
-*   **SQLx:** For database interactions (SQLite).
+*   **SQLx: For database interactions (PostgreSQL).
 *   **Serde:** For serialization and deserialization.
 *   **Toml:** For configuration file parsing.
 

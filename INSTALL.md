@@ -30,10 +30,7 @@ Before installing iMi, ensure you have:
    brew install git
    ```
 
-3. **SQLite** (usually pre-installed)
    ```bash
-   # Verify SQLite
-   sqlite3 --version
    ```
 
 ## Installation Methods

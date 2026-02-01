@@ -16,4 +16,4 @@ Integration suites depend on fixtures under `tests/common/`; extend them instead
 Adopt the conventional prefixes observed in history (`feat:`, `fix:`, `test:`, `chore:`) and keep each commit focused. Expand the body when context is non-obvious. Pull requests should summarize affected modules, link issues, and include terminal output or screenshots for UX changes. Confirm that `cargo fmt`, `cargo clippy`, and relevant `cargo test` targets (or scripts like `./test_close_command.sh`) have been executed, and list those commands in the PR description.
 
 ## Environment & Tooling Notes
-Install supporting tools (`cargo watch`, `cargo-tarpaulin`, `sqlite3`) before running the heavier suites. `.mise.toml` loads `.env` and `.env.local`; keep secrets out of version control and document required variables in `docs/` when introducing new configuration knobs.
+Install supporting tools (`cargo watch`, `cargo-tarpaulin`) before running the heavier suites. `.mise.toml` loads `.env` and `.env.local`; keep secrets out of version control and document required variables in `docs/` when introducing new configuration knobs.

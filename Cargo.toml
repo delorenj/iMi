@@ -58,6 +58,8 @@ toml = "0.8"
 # Utilities
 uuid = { version = "1.8", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2"
+regex = "1"
 anyhow = "1.0"
 thiserror = "1.0"
 
@@ -80,7 +82,6 @@ hostname = "0.3"
 pathdiff = "0.2"
 
 # Regular expressions
-regex = "1.10"
 csv = "1.1"
 
 # Project creation dependencies
