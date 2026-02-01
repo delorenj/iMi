@@ -194,7 +194,7 @@ async fn main() -> Result<()> {
                         handle_doctor_command(&db, network, verbose).await?;
                     }
                     Commands::Registry(cmd) => {
-                        handle_registry_command(&db, cmd).await?;
+                        handle_registry_command(&db, &cmd).await?;
                     }
                     Commands::Init { .. } => {
                         // Already handled
