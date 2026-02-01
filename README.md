@@ -128,31 +128,31 @@ symlink_files = [
 
 ## 🤖 Agent Integration
 
-iMi is designed for multi-agent workflows:
+iMi treats all actors (humans and Yi agents) as equal **entities** with token-based authentication:
 
-- **Activity Tracking**: All file changes are logged with timestamps
-- **Agent Identification**: Track which agents are working in which worktrees
-- **Conflict Prevention**: Separate worktrees prevent merge conflicts
-- **Real-time Visibility**: Monitor all agent activities in real-time
+- **Entity-based Authentication**: All iMi commands require `$IMI_IDENTITY_TOKEN`
+- **Workspace Isolation**: Each entity has a completely isolated workspace
+- **Cross-entity Accountability**: All workspace access is logged with optional ticket reference
+- **Yi Integration Ready**: Flume will provision Yi agents with tokens (not yet implemented)
 
-### Agent Coordination Example
+### Entity-Based Workflow
 
 ```bash
-# Agent 1: Feature development
-iMi feat payment-integration
-# -> Creates feat-payment-integration/ worktree
+# Set your identity token
+export IMI_IDENTITY_TOKEN="imi_tok_abc123..."
 
-# Agent 2: Code review
-iMi review 456  
-# -> Creates pr-456/ worktree
+# Claim workspace for a project
+iMi workspace claim my-project
+# -> Creates /home/you/33GOD/workspaces/delorenj/my-project
 
-# Agent 3: Bug fix
-iMi fix payment-bug
-# -> Creates fix-payment-bug/ worktree
+# List YOUR workspaces (scoped to token)
+iMi workspace list
 
-# Monitor all activities
-iMi monitor
-# -> Real-time view of all agents
+# List ALL workspaces (global view)
+iMi workspace list -g
+
+# Audit who accessed your workspace
+iMi workspace audit my-project
 ```
 
 ## 📊 Monitoring & Analytics
