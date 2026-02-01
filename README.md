@@ -6,7 +6,7 @@ iMi is a sophisticated Rust-based Git worktree management tool designed for asyn
 
 - **Intelligent Worktree Management**: Create and manage Git worktrees with opinionated conventions
 - **Real-time Monitoring**: Track file changes and agent activities across all worktrees
-- **Database Tracking**: SQLite-based persistence for worktree history and agent coordination
+- **Database Tracking**: PostgreSQL-based registry for project and worktree tracking across the 33GOD ecosystem
 - **Symlink Management**: Automatic dotfile synchronization across worktrees
 - **33GOD Integration**: Built-in support for multi-agent coordination
 - **Convention over Configuration**: Minimal setup, maximum productivity
