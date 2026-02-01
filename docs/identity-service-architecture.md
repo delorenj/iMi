@@ -261,19 +261,25 @@ Token saved to ~/.iMi/token
 # Claim workspace for project (creates full clone)
 $ imi workspace claim iMi
 Cloning git@github.com:delorenj/iMi.git...
-Workspace created: /home/delorenj/33GOD/workspaces/humans/delorenj/iMi
+Workspace created: /home/delorenj/33GOD/workspaces/delorenj/iMi
 Registered trunk-main worktree.
 
 # Within workspace, create worktrees (standard iMi commands)
-$ cd /home/delorenj/33GOD/workspaces/humans/delorenj/iMi
+$ cd /home/delorenj/33GOD/workspaces/delorenj/iMi
 $ imi add feat auth-refactor
 Created feat-auth-refactor worktree.
 
-# List my workspaces
+# List my workspaces (scoped to authenticated entity)
 $ imi workspace list
-PROJECT    CLONE PATH                                    WORKTREES  LAST ACCESSED
-iMi        .../humans/delorenj/iMi                      3          2 hours ago
-cli-tool   .../humans/delorenj/cli-tool                 1          1 day ago
+PROJECT    CLONE PATH                        WORKTREES  LAST ACCESSED
+iMi        .../delorenj/iMi                 3          2 hours ago
+cli-tool   .../delorenj/cli-tool            1          1 day ago
+
+# List ALL workspaces (global view, requires -g flag)
+$ imi workspace list -g
+ENTITY           PROJECT    CLONE PATH                        WORKTREES  LAST ACCESSED
+delorenj         iMi        .../delorenj/iMi                 3          2 hours ago
+yi-backend-001   iMi        .../yi-backend-001/iMi           1          1 hour ago
 
 # Audit workspace access (who touched my stuff?)
 $ imi workspace audit iMi
@@ -283,9 +289,9 @@ TIMESTAMP            ACCESSOR        ACTION    FILE PATH                    TICK
 
 # Cross-entity access (requires ticket)
 $ imi workspace access yi-backend-001/iMi --ticket PLN-456
-Accessing workspace: /home/.../yi-agents/yi-backend-001/iMi
+Accessing workspace: /home/.../yi-backend-001/iMi
 Ticket PLN-456 logged. Agent will be notified.
-Current directory: /home/.../yi-agents/yi-backend-001/iMi/trunk-main
+Current directory: /home/.../yi-backend-001/iMi/trunk-main
 ```
 
 ### Authentication Flow
