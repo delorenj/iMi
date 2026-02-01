@@ -1,0 +1,1 @@
+{"checkpoint": "task-20260201-154426", "task": "1. You included SQL schemas despite our recent migration to postgres. Please FINISH MIGRATION AND BU", "timestamp": "2026-02-01T20:44:27Z", "commit": "6cdb7b8fc238e0bd6dc951c13d5cc29b9e310e8b", "github_release": "true"}
