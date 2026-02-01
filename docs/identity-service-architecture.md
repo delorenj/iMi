@@ -17,19 +17,19 @@ This document outlines the Identity Service Architecture for iMi, designed to tr
 
 **Implementation**:
 ```sql
-CREATE TYPE entity_type AS ENUM ('human', 'yi-agent', 'service-account');
+-- No entity_type enum - all entities are equal
+-- Internal metadata can track integration details (e.g., flume_id for Yi agents)
 
 CREATE TABLE entities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_type entity_type NOT NULL,
-    name TEXT NOT NULL UNIQUE,  -- Human-readable identifier
+    name TEXT NOT NULL UNIQUE,  -- Unique identifier (e.g., 'delorenj', 'yi-backend-001')
     display_name TEXT,           -- Optional friendly name
     workspace_root TEXT NOT NULL UNIQUE,
     auth_token_hash TEXT NOT NULL UNIQUE,
     token_created_at TIMESTAMPTZ DEFAULT NOW(),
     token_expires_at TIMESTAMPTZ,  -- NULL = never expires
-    flume_id UUID UNIQUE,        -- Yi agent reference (NULL for humans)
-    metadata JSONB DEFAULT '{}'::jsonb,
+    flume_id UUID UNIQUE,        -- Yi agent reference (NULL for humans, internal use only)
+    metadata JSONB DEFAULT '{}'::jsonb,  -- Extensible attributes
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
