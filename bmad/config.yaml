@@ -22,6 +22,6 @@ paths:
 # Project-specific context
 context:
   database: "postgresql://imi:imi_dev_password_2026@192.168.1.12:5432/imi"
-  previous_database: "sqlite"
+  previous_database: "sqlite (archived)"
   migration_phases: 7
   current_phase: 2  # Ready to start Phase 2: Data Extraction
