@@ -1,0 +1,1 @@
+{"checkpoint": "task-20260129-101438", "task": "Let's create the script, and make it idempotent so we can run it on all iMi dirs in ../../ ", "timestamp": "2026-01-29T15:14:38Z", "commit": "89fa9ba617ab60fef11296784baeaa02da45ee26", "github_release": "true"}
