@@ -230,25 +230,22 @@ WHERE entity_type = 'yi-agent'
 ### Entity Management Commands
 
 ```bash
-# Human registration (interactive)
-$ imi entity register --human
+# Entity registration (unified - no type distinction)
+$ imi entity register
 Enter your name: delorenj
 Generated token: imi_tok_abc123...
 Token saved to ~/.iMi/token
-Workspace created at: /home/delorenj/33GOD/workspaces/humans/delorenj
+Workspace created at: /home/delorenj/33GOD/workspaces/delorenj
 
-# Yi agent registration (programmatic, future)
-$ imi entity register --yi-agent \
-    --name yi-backend-001 \
-    --flume-id 550e8400-e29b-41d4-a716-446655440000
-Generated token: imi_tok_xyz789...
-(Token stored in Flume vault)
+# Yi agent registration (programmatic, via Flume integration - future)
+# Flume calls: imi entity register --name yi-backend-001 --flume-id <uuid>
+# Token automatically stored in Flume vault
 
 # List entities
 $ imi entity list
-ID                                     TYPE       NAME              ACTIVE  WORKSPACE
-a1b2c3d4-...                          human      delorenj          ✓       /home/.../humans/delorenj
-e5f6g7h8-...                          yi-agent   yi-backend-001    ✓       /home/.../yi-agents/yi-backend-001
+ID                                     NAME              ACTIVE  WORKSPACE
+a1b2c3d4-...                          delorenj          ✓       /home/.../delorenj
+e5f6g7h8-...                          yi-backend-001    ✓       /home/.../yi-backend-001
 
 # Deactivate entity
 $ imi entity deactivate yi-backend-001
