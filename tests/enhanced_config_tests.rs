@@ -45,13 +45,12 @@ impl ConfigTestUtils {
     pub async fn create_valid_config_file(&self) -> Result<PathBuf> {
         let config_content = r#"
 database_path = "/tmp/test-imi.db"
-root_path = "/tmp/test-code"
 symlink_files = [".env", ".vscode/settings.json"]
 
 [sync_settings]
 enabled = true
-global_sync_path = "sync/global"
-repo_sync_path = "sync/repo"
+user_sync_path = "sync/user"
+local_sync_path = "sync/local"
 
 [git_settings]
 default_branch = "main"
@@ -64,6 +63,10 @@ enabled = true
 refresh_interval_ms = 1000
 watch_file_changes = true
 track_agent_activity = true
+
+[workspace_settings]
+root_path = "/tmp/test-code"
+entity_id = "test-entity"
 "#;
         self.create_invalid_config_file(config_content).await
     }
@@ -87,25 +90,18 @@ mod config_unit_tests {
             .to_str()
             .unwrap()
             .contains("iMi.db"));
-        assert!(config.root_path.file_name().unwrap() == std::ffi::OsStr::new("code"));
+        assert!(config.workspace_settings.root_path.file_name().unwrap() == std::ffi::OsStr::new("workspaces") || 
+                config.workspace_settings.root_path.file_name().unwrap() == std::ffi::OsStr::new("code"));
 
         // Test sync settings defaults
         assert!(config.sync_settings.enabled);
         assert_eq!(
             config.sync_settings.user_sync_path,
-            PathBuf::from(
-                shellexpand::tilde("~/.config/iMi/sync/global")
-                    .to_string()
-                    .as_str()
-            )
+            PathBuf::from("sync/user")
         );
         assert_eq!(
             config.sync_settings.local_sync_path,
-            PathBuf::from(
-                shellexpand::tilde("~/.config/iMi/sync/repo")
-                    .to_string()
-                    .as_str()
-            )
+            PathBuf::from("sync/local")
         );
 
         // Test git settings defaults
@@ -209,7 +205,7 @@ mod config_unit_tests {
         let config = Config::load_from(&config_path).await?;
 
         assert_eq!(config.database_path, PathBuf::from("/tmp/test-imi.db"));
-        assert_eq!(config.root_path, PathBuf::from("/tmp/test-code"));
+        assert_eq!(config.workspace_settings.root_path, PathBuf::from("/tmp/test-code"));
         assert_eq!(config.git_settings.default_branch, "main");
 
         Ok(())
@@ -255,7 +251,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_get_repo_path() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root");
+        config.workspace_settings.root_path = PathBuf::from("/test/root");
 
         let repo_path = config.get_repo_path("my-repo");
 
@@ -268,7 +264,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_get_trunk_path() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root");
+        config.workspace_settings.root_path = PathBuf::from("/test/root");
         config.git_settings.default_branch = "develop".to_string();
 
         let trunk_path = config.get_trunk_path("my-repo");
@@ -285,7 +281,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_get_worktree_path() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root");
+        config.workspace_settings.root_path = PathBuf::from("/test/root");
 
         let worktree_path = config.get_worktree_path("my-repo", "feature-branch");
 
@@ -301,7 +297,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_get_sync_path_global() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root");
+        config.workspace_settings.root_path = PathBuf::from("/test/root");
         config.sync_settings.user_sync_path = PathBuf::from("global-sync");
 
         let sync_path = config.get_sync_path("my-repo", true);
@@ -315,7 +311,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_get_sync_path_repo() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root");
+        config.workspace_settings.root_path = PathBuf::from("/test/root");
         config.sync_settings.local_sync_path = PathBuf::from("repo-sync");
 
         let sync_path = config.get_sync_path("my-repo", false);
@@ -369,7 +365,7 @@ database_path = "/tmp/test.db"
     #[serial]
     async fn test_config_handles_special_characters_in_paths() -> Result<()> {
         let mut config = Config::default();
-        config.root_path = PathBuf::from("/test/root with spaces");
+        config.workspace_settings.root_path = PathBuf::from("/test/root with spaces");
 
         let repo_path = config.get_repo_path("repo-with-dashes");
         let trunk_path = config.get_trunk_path("repo_with_underscores");
@@ -650,7 +646,7 @@ mod config_property_tests {
         let mut config = Config::default();
 
         // Test with paths that need normalization
-        config.root_path = PathBuf::from("/test/root/../normalized");
+        config.workspace_settings.root_path = PathBuf::from("/test/root/../normalized");
 
         let repo_path = config.get_repo_path("repo");
 

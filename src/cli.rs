@@ -292,6 +292,25 @@ pub enum Commands {
         #[arg(short, long)]
         repo: Option<String>,
     },
+
+    /// Manage worktree metadata for task/source linkage
+    #[command(subcommand)]
+    Metadata(MetadataCommands),
+
+    /// Migrate registered repositories into office layout
+    MigrateOffice {
+        /// Repository name (optional, migrates all registered repositories if omitted)
+        #[arg(short, long)]
+        repo: Option<String>,
+
+        /// Show planned migration actions without moving files
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Continue migration when safe fallbacks are available
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -313,6 +332,43 @@ pub enum ProjectCommands {
         /// JSON payload for structured project definition
         #[arg(long = "payload")]
         payload: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum MetadataCommands {
+    /// Set a metadata key/value on a worktree
+    Set {
+        /// Worktree name
+        #[arg(long)]
+        worktree: String,
+
+        /// Metadata key (supports dot notation, e.g. plane.ticket_id)
+        #[arg(long)]
+        key: String,
+
+        /// Metadata value (parsed as JSON if valid, otherwise stored as string)
+        #[arg(long)]
+        value: String,
+
+        /// Repository name (optional, searches across repos if omitted)
+        #[arg(short, long)]
+        repo: Option<String>,
+    },
+
+    /// Get metadata from a worktree
+    Get {
+        /// Worktree name
+        #[arg(long)]
+        worktree: String,
+
+        /// Metadata key (optional, returns full object if omitted)
+        #[arg(long)]
+        key: Option<String>,
+
+        /// Repository name (optional, searches across repos if omitted)
+        #[arg(short, long)]
+        repo: Option<String>,
     },
 }
 
@@ -358,4 +414,69 @@ pub enum TypeCommands {
         /// Type name to remove
         name: String,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parses_metadata_set_command() {
+        let cli = Cli::try_parse_from([
+            "imi",
+            "metadata",
+            "set",
+            "--worktree",
+            "feat-auth",
+            "--key",
+            "plane.ticket_id",
+            "--value",
+            "PROJ-123",
+            "--repo",
+            "iMi",
+        ])
+        .expect("metadata set should parse");
+
+        match cli.command {
+            Some(Commands::Metadata(MetadataCommands::Set {
+                worktree,
+                key,
+                value,
+                repo,
+            })) => {
+                assert_eq!(worktree, "feat-auth");
+                assert_eq!(key, "plane.ticket_id");
+                assert_eq!(value, "PROJ-123");
+                assert_eq!(repo.as_deref(), Some("iMi"));
+            }
+            _ => panic!("expected metadata set command"),
+        }
+    }
+
+    #[test]
+    fn parses_migrate_office_command() {
+        let cli = Cli::try_parse_from([
+            "imi",
+            "migrate-office",
+            "--repo",
+            "iMi",
+            "--dry-run",
+            "--force",
+        ])
+        .expect("migrate-office should parse");
+
+        match cli.command {
+            Some(Commands::MigrateOffice {
+                repo,
+                dry_run,
+                force,
+            }) => {
+                assert_eq!(repo.as_deref(), Some("iMi"));
+                assert!(dry_run);
+                assert!(force);
+            }
+            _ => panic!("expected migrate-office command"),
+        }
+    }
 }

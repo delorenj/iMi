@@ -230,7 +230,9 @@ impl MonitorManager {
         };
 
         // Parse worktree_id from String to Uuid
-        let worktree_uuid = activity.worktree_id.parse::<uuid::Uuid>()
+        let worktree_uuid = activity
+            .worktree_id
+            .parse::<uuid::Uuid>()
             .context("Failed to parse worktree_id as UUID")?;
 
         self.worktree_manager

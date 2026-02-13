@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use colored::*;
 use sqlx::PgPool;
 use std::path::PathBuf;
-use tokio::fs;
 
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
@@ -93,38 +92,38 @@ async fn check_database(pool: &PgPool) -> Result<HealthCheck> {
     }
 
     // Get registry stats
-    let stats = sqlx::query!(
-        r#"
-        SELECT * FROM get_registry_stats()
-        "#
-    )
-    .fetch_one(pool)
-    .await
-    .context("Failed to query registry stats")?;
+    let (total_projects, total_worktrees, active_worktrees) =
+        sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(
+            r#"
+            SELECT total_projects, total_worktrees, active_worktrees
+            FROM get_registry_stats()
+            "#,
+        )
+        .fetch_one(pool)
+        .await
+        .context("Failed to query registry stats")?;
 
     check.info(format!(
         "{} projects, {} worktrees ({} active)",
-        stats.total_projects.unwrap_or(0),
-        stats.total_worktrees.unwrap_or(0),
-        stats.active_worktrees.unwrap_or(0)
+        total_projects.unwrap_or(0),
+        total_worktrees.unwrap_or(0),
+        active_worktrees.unwrap_or(0)
     ));
 
     // Check for orphaned worktrees (worktrees referencing deleted projects)
-    let orphaned = sqlx::query!(
+    let orphaned_count: i64 = sqlx::query_scalar(
         r#"
-        SELECT COUNT(*) as count
+        SELECT COUNT(*)
         FROM worktrees w
         LEFT JOIN projects p ON w.project_id = p.id
         WHERE p.id IS NULL
-        "#
+        "#,
     )
     .fetch_one(pool)
     .await?;
 
-    if let Some(count) = orphaned.count {
-        if count > 0 {
-            check.warn(format!("{} orphaned worktrees found", count));
-        }
+    if orphaned_count > 0 {
+        check.warn(format!("{} orphaned worktrees found", orphaned_count));
     }
 
     Ok(check)
@@ -135,12 +134,12 @@ async fn check_filesystem(pool: &PgPool) -> Result<HealthCheck> {
     let mut check = HealthCheck::new("Filesystem State");
 
     // Get all projects from database
-    let projects = sqlx::query!(
+    let projects = sqlx::query_as::<_, (String, String)>(
         r#"
-        SELECT id, name, trunk_path, remote_origin
+        SELECT name, trunk_path
         FROM projects
         WHERE active = true
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -148,15 +147,15 @@ async fn check_filesystem(pool: &PgPool) -> Result<HealthCheck> {
     let mut missing_trunks = 0;
     let mut invalid_paths = 0;
 
-    for project in projects {
-        let trunk_path = PathBuf::from(&project.trunk_path);
+    for (project_name, project_trunk_path) in projects {
+        let trunk_path = PathBuf::from(&project_trunk_path);
 
         // Check if trunk directory exists
         if !trunk_path.exists() {
             missing_trunks += 1;
             check.warn(format!(
                 "Project '{}' trunk not found: {}",
-                project.name, project.trunk_path
+                project_name, project_trunk_path
             ));
             continue;
         }
@@ -166,7 +165,7 @@ async fn check_filesystem(pool: &PgPool) -> Result<HealthCheck> {
             invalid_paths += 1;
             check.error(format!(
                 "Project '{}' trunk is not a directory: {}",
-                project.name, project.trunk_path
+                project_name, project_trunk_path
             ));
             continue;
         }
@@ -176,7 +175,7 @@ async fn check_filesystem(pool: &PgPool) -> Result<HealthCheck> {
         if !git_dir.exists() {
             check.warn(format!(
                 "Project '{}' trunk missing .git: {}",
-                project.name, project.trunk_path
+                project_name, project_trunk_path
             ));
         }
     }
@@ -193,24 +192,23 @@ async fn check_data_integrity(pool: &PgPool) -> Result<HealthCheck> {
     let mut check = HealthCheck::new("Data Integrity");
 
     // Check for duplicate remote_origin (should be prevented by unique constraint)
-    let duplicates = sqlx::query!(
+    let duplicates = sqlx::query_as::<_, (String, i64)>(
         r#"
         SELECT remote_origin, COUNT(*) as count
         FROM projects
         WHERE active = true
         GROUP BY remote_origin
         HAVING COUNT(*) > 1
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
 
     if !duplicates.is_empty() {
-        for dup in duplicates {
+        for (remote_origin, count) in duplicates {
             check.error(format!(
                 "Duplicate remote_origin: {} ({} occurrences)",
-                dup.remote_origin,
-                dup.count.unwrap_or(0)
+                remote_origin, count
             ));
         }
     } else {
@@ -218,42 +216,42 @@ async fn check_data_integrity(pool: &PgPool) -> Result<HealthCheck> {
     }
 
     // Check for worktrees with invalid project references
-    let invalid_worktrees = sqlx::query!(
+    let invalid_worktrees = sqlx::query_as::<_, (String, String)>(
         r#"
-        SELECT w.id, w.name
+        SELECT w.id::text as id, w.name
         FROM worktrees w
         LEFT JOIN projects p ON w.project_id = p.id
         WHERE p.id IS NULL AND w.active = true
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
 
     if !invalid_worktrees.is_empty() {
-        for wt in invalid_worktrees {
+        for (worktree_id, worktree_name) in invalid_worktrees {
             check.error(format!(
                 "Worktree '{}' references deleted project (id: {})",
-                wt.name, wt.id
+                worktree_name, worktree_id
             ));
         }
     }
 
     // Check for invalid trunk_path values (should be absolute)
-    let relative_paths = sqlx::query!(
+    let relative_paths = sqlx::query_as::<_, (String, String)>(
         r#"
-        SELECT id, name, trunk_path
+        SELECT name, trunk_path
         FROM projects
         WHERE active = true AND trunk_path NOT LIKE '/%'
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
 
     if !relative_paths.is_empty() {
-        for proj in relative_paths {
+        for (project_name, trunk_path) in relative_paths {
             check.warn(format!(
                 "Project '{}' has relative trunk_path: {}",
-                proj.name, proj.trunk_path
+                project_name, trunk_path
             ));
         }
     }
@@ -265,18 +263,18 @@ async fn check_data_integrity(pool: &PgPool) -> Result<HealthCheck> {
 async fn check_git_remotes(pool: &PgPool) -> Result<HealthCheck> {
     let mut check = HealthCheck::new("Git Remote Access");
 
-    let projects = sqlx::query!(
+    let projects = sqlx::query_as::<_, (String, String, String)>(
         r#"
-        SELECT id, name, trunk_path, remote_origin
+        SELECT name, trunk_path, remote_origin
         FROM projects
         WHERE active = true
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
 
-    for project in projects {
-        let trunk_path = PathBuf::from(&project.trunk_path);
+    for (project_name, project_trunk_path, project_remote_origin) in projects {
+        let trunk_path = PathBuf::from(&project_trunk_path);
         if !trunk_path.exists() {
             continue;
         }
@@ -293,11 +291,11 @@ async fn check_git_remotes(pool: &PgPool) -> Result<HealthCheck> {
             Ok(out) if out.status.success() => {
                 // Git remote command succeeded
                 let stdout = String::from_utf8_lossy(&out.stdout);
-                if !stdout.contains(&project.remote_origin) {
+                if !stdout.contains(&project_remote_origin) {
                     check.warn(format!(
                         "Project '{}' remote mismatch - DB: {}, Git: {}",
-                        project.name,
-                        project.remote_origin,
+                        project_name,
+                        project_remote_origin,
                         stdout.trim()
                     ));
                 }
@@ -305,12 +303,15 @@ async fn check_git_remotes(pool: &PgPool) -> Result<HealthCheck> {
             Ok(out) => {
                 check.error(format!(
                     "Project '{}' git remote failed: {}",
-                    project.name,
+                    project_name,
                     String::from_utf8_lossy(&out.stderr)
                 ));
             }
             Err(e) => {
-                check.error(format!("Project '{}' git command error: {}", project.name, e));
+                check.error(format!(
+                    "Project '{}' git command error: {}",
+                    project_name, e
+                ));
             }
         }
     }
@@ -372,7 +373,10 @@ pub fn print_report(checks: &[HealthCheck]) {
             println!("  1. Review and fix {} critical errors", total_errors);
         }
         if total_warnings > 0 {
-            println!("  2. Address {} warnings for optimal health", total_warnings);
+            println!(
+                "  2. Address {} warnings for optimal health",
+                total_warnings
+            );
         }
         println!("  3. Run `imi registry sync` to register new projects");
         println!("  4. Run `imi worktree prune` to clean up stale entries");

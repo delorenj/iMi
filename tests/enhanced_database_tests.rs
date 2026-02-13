@@ -40,7 +40,7 @@ impl DatabaseTestUtils {
             .create_repository(
                 name,
                 &format!("/tmp/{}", name),
-                &format!("https://github.com/test/{}", name),
+                &format!("git@github.com:test/{}", name),
                 "main",
             )
             .await
@@ -67,7 +67,7 @@ impl DatabaseTestUtils {
     /// Create a test agent activity
     pub async fn create_test_activity(
         &self,
-        worktree_id: &str,
+        worktree_id: &Uuid,
         activity_type: &str,
     ) -> Result<AgentActivity> {
         self.database
@@ -78,7 +78,11 @@ impl DatabaseTestUtils {
                 Some("/tmp/test.rs"),
                 "Test activity",
             )
-            .await
+            .await?;
+
+        // Fetch the activity we just created
+        let activities = self.database.get_recent_activities(Some(worktree_id), 1).await?;
+        Ok(activities[0].clone())
     }
 
     /// Verify database constraints and relationships
@@ -126,7 +130,6 @@ async fn test_repository_crud_operations() -> Result<()> {
     assert_eq!(repo.name, "test-repo");
     assert_eq!(repo.default_branch, "main");
     assert!(repo.active);
-    assert!(!repo.id.is_empty());
 
     // Test Read
     let retrieved_repo = utils.database.get_repository("test-repo").await?;
@@ -157,7 +160,7 @@ async fn test_repository_duplicate_names() -> Result<()> {
         .create_repository(
             "duplicate-repo",
             "/different/path",
-            "https://github.com/different/repo",
+            "git@github.com:different/repo",
             "develop",
         )
         .await?;
@@ -315,7 +318,7 @@ async fn test_worktree_with_agent() -> Result<()> {
             "feature/agent-branch",
             "feat",
             "/tmp/agent-path",
-            Some(&agent_id),
+            Some(agent_id),
         )
         .await?;
 
@@ -467,7 +470,7 @@ async fn test_database_error_scenarios() -> Result<()> {
     // Test retrieving from non-existent worktree
     let result = utils
         .database
-        .get_recent_activities(Some("non-existent-id"), 10)
+        .get_recent_activities(Some(&Uuid::new_v4()), 10)
         .await?;
     assert_eq!(
         result.len(),
@@ -544,10 +547,6 @@ async fn test_data_integrity() -> Result<()> {
         time_diff.num_seconds() >= 0,
         "Created timestamp should not be in future"
     );
-
-    // Test that IDs are valid UUIDs
-    let parsed_uuid = Uuid::parse_str(&repo.id);
-    assert!(parsed_uuid.is_ok(), "Repository ID should be valid UUID");
 
     Ok(())
 }

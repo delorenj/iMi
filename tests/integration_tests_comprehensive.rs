@@ -596,7 +596,7 @@ impl ComponentInteractionTests {
             .create_repository(
                 "git-test-repo",
                 "/path/to/repo",
-                "https://github.com/user/repo.git",
+                "git@github.com:user/repo.git",
                 "main",
             )
             .await?;

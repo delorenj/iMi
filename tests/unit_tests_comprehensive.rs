@@ -735,7 +735,7 @@ database_path = "/home/user/.config/imi/imi.db"
         let config = Config::default();
 
         // Test default values
-        if config.root_path != PathBuf::from(defaults::DEFAULT_ROOT) {
+        if config.workspace_settings.root_path != PathBuf::from(defaults::DEFAULT_ROOT) {
             result
                 .failures
                 .push("Default root path incorrect".to_string());
@@ -857,7 +857,7 @@ impl DatabaseOperationTests {
             .create_repository(
                 "test-repo",
                 "/path/to/repo",
-                "https://github.com/user/repo.git",
+                "git@github.com:user/repo.git",
                 "main",
             )
             .await;
@@ -981,7 +981,7 @@ impl ValidationTests {
         let temp_dir = TempDir::new()?;
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().to_path_buf();
+        config.workspace_settings.root_path = temp_dir.path().to_path_buf();
         let database = Database::new(&config.database_path).await?;
 
         let _init_cmd = InitCommand::new(false, config, database);

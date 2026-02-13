@@ -24,7 +24,7 @@ async fn setup_test_env() -> Result<TestContext> {
     let db_path = temp_dir.path().join("imi.db");
 
     let mut config = Config::default();
-    config.root_path = temp_dir.path().join("code");
+    config.workspace_settings.root_path = temp_dir.path().join("code");
     config.database_path = db_path.clone();
     config.save_to(&config_path).await?;
 
@@ -40,7 +40,7 @@ async fn setup_test_env() -> Result<TestContext> {
 
 async fn setup_repo_env() -> Result<(TestContext, PathBuf)> {
     let ctx = setup_test_env().await?;
-    let repo_path = ctx.config.root_path.join("my-repo");
+    let repo_path = ctx.config.workspace_settings.root_path.join("my-repo");
     let trunk_path = repo_path.join("trunk-main");
     fs::create_dir_all(&trunk_path).await?;
 
@@ -62,7 +62,7 @@ async fn setup_repo_env() -> Result<(TestContext, PathBuf)> {
             "remote",
             "add",
             "origin",
-            "https://github.com/test/my-repo.git",
+            "git@github.com:test/my-repo.git",
         ])
         .current_dir(&repo_path)
         .output()
@@ -175,7 +175,7 @@ mod init_rules_tests {
                 "remote",
                 "add",
                 "origin",
-                "https://github.com/test/my-repo.git",
+                "git@github.com:test/my-repo.git",
             ])
             .current_dir(&repo_path)
             .output()

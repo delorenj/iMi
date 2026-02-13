@@ -20,7 +20,7 @@ use anyhow::{Context, Result};
 use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tokio::fs;
+use std::fs;
 
 use imi::config::Config;
 use imi::database::Database;
@@ -49,7 +49,7 @@ impl WorktreeTestHelper {
         config.root_path = temp_dir.path().join("code");
 
         // Create directories
-        fs::create_dir_all(&config.root_path).await?;
+        fs::create_dir_all(&config.root_path)?;
 
         let db = Database::new(&config.database_path).await?;
         let git = GitManager::new();
@@ -70,15 +70,15 @@ impl WorktreeTestHelper {
     /// Create a trunk worktree structure for testing
     async fn create_trunk_structure(&self, repo_name: &str) -> Result<PathBuf> {
         let trunk_path = self.config.get_trunk_path(repo_name);
-        fs::create_dir_all(&trunk_path).await?;
+        fs::create_dir_all(&trunk_path)?;
 
         // Create basic repo structure
         let git_dir = trunk_path.join(".git");
-        fs::create_dir_all(&git_dir).await?;
-        fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").await?;
+        fs::create_dir_all(&git_dir)?;
+        fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n")?;
 
         // Create initial file
-        fs::write(trunk_path.join("README.md"), "# Test Repository\n").await?;
+        fs::write(trunk_path.join("README.md"), "# Test Repository\n")?;
 
         // Create repository record in database to satisfy foreign key constraint
         self.db
@@ -112,6 +112,7 @@ mod worktree_manager_creation_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_manager_new() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -124,6 +125,7 @@ mod worktree_manager_creation_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_manager_clone() {
         let git = GitManager::new();
         let temp_dir = TempDir::new().unwrap();
@@ -146,6 +148,7 @@ mod feature_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_feature_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-feature-repo";
@@ -190,6 +193,7 @@ mod feature_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_feature_worktree_without_repo_arg() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "current-dir-repo";
@@ -229,6 +233,7 @@ mod feature_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_feature_worktree_with_complex_name() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "complex-feature-repo";
@@ -266,6 +271,7 @@ mod review_pr_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_review_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-pr-repo";
@@ -298,6 +304,7 @@ mod review_pr_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_review_worktree_large_pr_number() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "large-pr-repo";
@@ -321,6 +328,7 @@ mod review_pr_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_pr_worktree_with_gh_fallback() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "gh-fallback-repo";
@@ -350,6 +358,7 @@ mod fix_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_fix_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-fix-repo";
@@ -385,6 +394,7 @@ mod fix_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_fix_worktree_various_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "fix-names-repo";
@@ -422,6 +432,7 @@ mod aiops_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_aiops_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-aiops-repo";
@@ -457,6 +468,7 @@ mod aiops_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_aiops_worktree_ml_scenarios() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "ml-aiops-repo";
@@ -493,6 +505,7 @@ mod devops_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_devops_worktree_success() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "test-devops-repo";
@@ -528,6 +541,7 @@ mod devops_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_devops_worktree_infrastructure_scenarios() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "infra-devops-repo";
@@ -564,6 +578,7 @@ mod trunk_worktree_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_get_trunk_worktree_existing() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "trunk-existing-repo";
@@ -586,6 +601,7 @@ mod trunk_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_trunk_worktree_nonexistent() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -602,6 +618,7 @@ mod trunk_worktree_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_trunk_worktree_from_current_dir() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "current-trunk-repo";
@@ -632,6 +649,7 @@ mod worktree_management_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_remove_worktree_existing() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "remove-test-repo";
@@ -676,6 +694,7 @@ mod worktree_management_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_remove_worktree_nonexistent() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "remove-nonexistent-repo";
@@ -695,6 +714,7 @@ mod worktree_management_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_show_status_empty() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -705,6 +725,7 @@ mod worktree_management_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_show_status_with_worktrees() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "status-test-repo";
@@ -751,6 +772,7 @@ mod worktree_management_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_list_worktrees() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -765,6 +787,7 @@ mod worktree_management_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_list_worktrees_all() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -780,6 +803,7 @@ mod sync_and_symlink_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_create_sync_directories() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "sync-test-repo";
@@ -818,6 +842,7 @@ mod sync_and_symlink_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_symlink_creation() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "symlink-test-repo";
@@ -826,16 +851,15 @@ mod sync_and_symlink_tests {
 
         // Create sync directory with test files
         let repo_sync = helper.config.get_sync_path(repo_name, false);
-        fs::create_dir_all(&repo_sync).await.unwrap();
+        fs::create_dir_all(&repo_sync).unwrap();
 
         // Create test files that should be symlinked
         for file in &helper.config.symlink_files {
             let source_file = repo_sync.join(file);
             if let Some(parent) = source_file.parent() {
-                fs::create_dir_all(parent).await.unwrap();
+                fs::create_dir_all(parent).unwrap();
             }
             fs::write(&source_file, format!("test content for {}", file))
-                .await
                 .unwrap();
         }
 
@@ -868,6 +892,7 @@ mod repository_resolution_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_resolve_repo_name_with_explicit_repo() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -898,12 +923,13 @@ mod repository_resolution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_resolve_repo_name_from_directory_name() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
         // Create a directory structure that simulates being in a repo
         let repo_dir = helper.get_temp_path().join("inferred-repo-name");
-        fs::create_dir_all(&repo_dir).await.unwrap();
+        fs::create_dir_all(&repo_dir).unwrap();
 
         let original_dir = env::current_dir().unwrap();
         helper.set_current_dir(&repo_dir).unwrap();
@@ -927,13 +953,14 @@ mod repository_resolution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_resolve_repo_name_from_worktree_directory() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
         // Create a worktree-like directory structure
         let repo_dir = helper.get_temp_path().join("parent-repo");
         let worktree_dir = repo_dir.join("feat-something");
-        tokio::fs::create_dir_all(&worktree_dir).await.unwrap();
+        tokio::fs::create_dir_all(&worktree_dir).unwrap();
 
         // Create repository record for parent-repo to satisfy foreign key constraint
         helper
@@ -975,12 +1002,13 @@ mod repository_resolution_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_resolve_repo_name_failure() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
         // Try to resolve from a location where it can't be determined
         let weird_dir = helper.get_temp_path().join("nonrepo-dir");
-        fs::create_dir_all(&weird_dir).await.unwrap();
+        fs::create_dir_all(&weird_dir).unwrap();
 
         // Create repository record for the weird dir name to satisfy foreign key constraint
         helper
@@ -1026,6 +1054,7 @@ mod monitoring_integration_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_start_monitoring() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -1054,6 +1083,7 @@ mod error_handling_edge_cases_tests {
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_creation_with_unicode_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "unicode-test-repo";
@@ -1080,6 +1110,7 @@ mod error_handling_edge_cases_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_creation_with_very_long_names() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "long-name-repo";
@@ -1103,6 +1134,7 @@ mod error_handling_edge_cases_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_creation_with_special_characters() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "special-chars-repo";
@@ -1135,6 +1167,7 @@ mod error_handling_edge_cases_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_worktree_operations() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "concurrent-repo";
@@ -1168,6 +1201,7 @@ mod error_handling_edge_cases_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_worktree_operations_with_insufficient_permissions() {
         let helper = WorktreeTestHelper::new().await.unwrap();
 
@@ -1189,6 +1223,7 @@ mod error_handling_edge_cases_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_database_consistency_during_worktree_operations() {
         let helper = WorktreeTestHelper::new().await.unwrap();
         let repo_name = "consistency-repo";

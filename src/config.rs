@@ -21,6 +21,8 @@ pub struct Config {
     pub git_settings: GitSettings,
     pub monitoring_settings: MonitoringSettings,
     pub symlink_files: Vec<String>,
+    #[serde(default)]
+    pub workspace_settings: WorkspaceSettings,
     #[serde(skip)]
     pub repo_path: Option<PathBuf>,
 }
@@ -46,6 +48,35 @@ pub struct MonitoringSettings {
     pub refresh_interval_ms: u64,
     pub watch_file_changes: bool,
     pub track_agent_activity: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceSettings {
+    pub root_path: PathBuf,
+    pub entity_id: String,
+}
+
+impl Default for WorkspaceSettings {
+    fn default() -> Self {
+        let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        let root_path = env::var("IMI_WORKSPACE_ROOT")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home_dir.join("33GOD").join("workspaces"));
+
+        let entity_id = env::var("IMI_ENTITY_ID")
+            .ok()
+            .or_else(|| env::var("USER").ok())
+            .or_else(|| env::var("USERNAME").ok())
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "default-entity".to_string());
+
+        Self {
+            root_path,
+            entity_id,
+        }
+    }
 }
 
 impl Default for Config {
@@ -80,6 +111,7 @@ impl Default for Config {
                 ".vscode/settings.json".to_string(),
                 ".gitignore.local".to_string(),
             ],
+            workspace_settings: WorkspaceSettings::default(),
             repo_path: None,
         }
     }
@@ -198,18 +230,27 @@ impl Config {
 
     /// Get the primary system root (first in the list, used for new repos)
     pub fn get_primary_root(&self) -> PathBuf {
-        self.system_roots
-            .first()
-            .cloned()
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join("code")
-            })
+        self.system_roots.first().cloned().unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join("code")
+        })
+    }
+
+    pub fn get_entity_id(&self) -> &str {
+        &self.workspace_settings.entity_id
+    }
+
+    pub fn get_workspace_root(&self) -> PathBuf {
+        self.workspace_settings.root_path.clone()
+    }
+
+    pub fn get_entity_workspace_path(&self) -> PathBuf {
+        self.get_workspace_root().join(self.get_entity_id())
     }
 
     pub fn get_repo_path(&self, repo_name: &str) -> PathBuf {
-        self.get_primary_root().join(repo_name)
+        self.get_entity_workspace_path().join(repo_name)
     }
 
     pub fn get_trunk_path(&self, repo_name: &str) -> PathBuf {

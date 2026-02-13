@@ -50,7 +50,7 @@ impl InitTestHelper {
         // Create a test config that uses the temp directory
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().join("code");
+        config.workspace_settings.root_path = temp_dir.path().join("code");
 
         let db = Database::new(&config.database_path).await?;
         let git = GitManager::new();
@@ -89,7 +89,7 @@ impl InitTestHelper {
         // Create a test config that uses the temp directory
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = test_imi_root;
+        config.workspace_settings.root_path = test_imi_root;
 
         let db = Database::new(&config.database_path).await?;
         let git = GitManager::new();
@@ -159,7 +159,7 @@ impl InitTestHelper {
             git2::Repository::init(&repo_dir).context("Failed to initialize git repository")?;
         repo.remote(
             "origin",
-            &format!("https://github.com/test/{}.git", repo_name),
+            &format!("git@github.com:test/{}.git", repo_name),
         )?;
 
         Ok(trunk_dir)
@@ -214,7 +214,7 @@ mod normal_initialization_tests {
         let config = Config::load().await.unwrap();
         // The config should have the IMI_ROOT value set by the test helper
         assert!(
-            config.root_path.to_string_lossy().contains("code"),
+            config.workspace_settings.root_path.to_string_lossy().contains("code"),
             "Root path should contain 'code' directory"
         );
     }
@@ -275,7 +275,7 @@ mod normal_initialization_tests {
 
         // Initialize git repository at repo level
         let repo = git2::Repository::init(&repo_dir).unwrap();
-        repo.remote("origin", "https://github.com/test/repo-at-root.git")
+        repo.remote("origin", "git@github.com:test/repo-at-root.git")
             .unwrap();
 
         // This should now succeed
@@ -385,7 +385,7 @@ mod force_flag_tests {
             .await
             .unwrap();
         let config1 = Config::load().await.unwrap();
-        let original_root = config1.root_path.clone();
+        let original_root = config1.workspace_settings.root_path.clone();
 
         // Second initialization with force
         helper
@@ -401,7 +401,7 @@ mod force_flag_tests {
         let config2 = Config::load().await.unwrap();
 
         assert_eq!(
-            config2.root_path, original_root,
+            config2.workspace_settings.root_path, original_root,
             "Force flag should preserve existing root path"
         );
     }
@@ -471,7 +471,7 @@ mod trunk_directory_detection_tests {
 
             // Initialize git repository at repo level
             let repo = git2::Repository::init(&repo_dir).unwrap();
-            repo.remote("origin", "https://github.com/test/test.git")
+            repo.remote("origin", "git@github.com:test/test.git")
                 .unwrap();
 
             let result = helper
@@ -579,7 +579,7 @@ mod repository_root_detection_tests {
 
         // Initialize git repository at the deeply nested project level
         let repo = git2::Repository::init(&deep_path).unwrap();
-        repo.remote("origin", "https://github.com/test/awesome-project.git")
+        repo.remote("origin", "git@github.com:test/awesome-project.git")
             .unwrap();
 
         let result = helper
@@ -795,7 +795,7 @@ mod configuration_conflict_tests {
         // Verify config exists and can be loaded
         let config = Config::load().await.unwrap();
         assert!(
-            !config.root_path.to_string_lossy().is_empty(),
+            !config.workspace_settings.root_path.to_string_lossy().is_empty(),
             "Config should have a root path set"
         );
     }
@@ -1094,7 +1094,7 @@ mod integration_tests {
         // Verify config exists
         let final_config = Config::load().await.unwrap();
         assert!(
-            !final_config.root_path.to_string_lossy().is_empty(),
+            !final_config.workspace_settings.root_path.to_string_lossy().is_empty(),
             "Final config should have a root path"
         );
     }

@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use tempfile::TempDir;
 use tokio::fs;
+use uuid::Uuid;
 
 use imi::config::Config;
 use imi::database::{Database, Worktree};
@@ -27,7 +28,7 @@ impl DatabaseInitHelper {
 
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test_init.db");
-        config.root_path = temp_dir.path().join("projects");
+        config.workspace_settings.root_path = temp_dir.path().join("projects");
 
         let db = Database::new(&config.database_path).await?;
 
@@ -67,7 +68,7 @@ impl DatabaseInitHelper {
             .create_repository(
                 repo_name,
                 repo_path.to_str().context("Invalid repo path")?,
-                &format!("https://github.com/test/{}.git", repo_name),
+                &format!("git@github.com:test/{}.git", repo_name),
                 &self.config.git_settings.default_branch,
             )
             .await?;
@@ -167,7 +168,6 @@ mod database_table_tests {
             .unwrap();
 
         // Verify all expected fields are present and accessible
-        assert!(!worktree.id.is_empty(), "id field should be populated");
         assert_eq!(worktree.repo_name, repo_name, "repo_name field should work");
         assert!(
             !worktree.worktree_name.is_empty(),
@@ -295,7 +295,7 @@ mod worktree_registration_tests {
                 .create_repository(
                     repo_name,
                     repo_path.to_str().unwrap(),
-                    &format!("https://github.com/test/{}.git", repo_name),
+                    &format!("git@github.com:test/{}.git", repo_name),
                     branch_name,
                 )
                 .await
@@ -517,7 +517,7 @@ mod database_consistency_tests {
             .create_repository(
                 repo_name,
                 repo_path.to_str().unwrap(),
-                "https://github.com/test/unique-constraint-test.git",
+                "git@github.com:test/unique-constraint-test.git",
                 "main",
             )
             .await
@@ -595,7 +595,7 @@ mod database_consistency_tests {
             .db
             .log_agent_activity(
                 "test-agent",
-                "non-existent-worktree-id",
+                &Uuid::new_v4(),
                 "created",
                 Some("test.txt"),
                 "Created test file",
@@ -632,7 +632,7 @@ mod database_performance_tests {
         db.create_repository(
             "perf-test-repo",
             "/test/repo",
-            "https://github.com/test/perf-test-repo.git",
+            "git@github.com:test/perf-test-repo.git",
             "main",
         )
         .await

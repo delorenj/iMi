@@ -243,7 +243,7 @@ async fn test_authentication_error_scenarios() -> Result<()> {
     // );
     //
     // let result = git_manager.authenticate_with_remote(
-    //     "https://github.com/private/repo.git",
+    //     "git@github.com:private/repo.git",
     //     &invalid_creds
     // ).await;
     //

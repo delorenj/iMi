@@ -57,7 +57,7 @@ async fn setup_git_repo(repo_path: &std::path::Path) -> Result<()> {
             "remote",
             "add",
             "origin",
-            "https://github.com/test/test-repo.git",
+            "git@github.com:test/test-repo.git",
         ])
         .current_dir(repo_path)
         .output()

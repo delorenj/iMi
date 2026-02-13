@@ -5,6 +5,7 @@ use tempfile::TempDir;
 use tokio::fs;
 use tokio::sync::mpsc;
 use tokio_test::{assert_err, assert_ok};
+use uuid::Uuid;
 
 use imi::config::Config;
 use imi::database::{Database, Worktree};
@@ -37,14 +38,15 @@ async fn create_test_monitor_manager() -> (MonitorManager, TempDir) {
 
 async fn create_test_worktree(db: &Database, name: &str, wt_type: &str, path: &Path) -> Worktree {
     // Ensure the repository exists first to satisfy foreign key constraint
-    let _ = db
+    let repo = db
         .create_repository(
             "test-repo",
             path.to_string_lossy().as_ref(),
-            "https://github.com/test/test-repo.git",
+            "git@github.com:test/test-repo.git",
             "main",
         )
-        .await;
+        .await
+        .unwrap();
 
     // Try to fetch existing worktree first
     if let Ok(existing_worktrees) = db.list_worktrees(Some("test-repo")).await {
@@ -56,16 +58,33 @@ async fn create_test_worktree(db: &Database, name: &str, wt_type: &str, path: &P
     }
 
     let worktree = Worktree {
-        id: format!("test-{}", name),
-        repo_name: "test-repo".to_string(),
-        worktree_name: name.to_string(),
+        id: Uuid::new_v4(),
+        project_id: repo.id,
+        type_id: 1, // Dummy type ID
+        name: name.to_string(),
         branch_name: "main".to_string(),
-        worktree_type: wt_type.to_string(),
         path: path.to_string_lossy().to_string(),
+        agent_id: None,
+
+        has_uncommitted_changes: None,
+        uncommitted_files_count: None,
+        ahead_of_trunk: None,
+        behind_trunk: None,
+        last_commit_hash: None,
+        last_commit_message: None,
+        last_sync_at: None,
+        merged_at: None,
+        merged_by: None,
+        merge_commit_hash: None,
+
+        metadata: serde_json::Value::Object(serde_json::Map::new()),
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
         active: true,
-        agent_id: None,
+
+        repo_name: "test-repo".to_string(),
+        worktree_name: name.to_string(),
+        worktree_type: wt_type.to_string(),
     };
 
     db.create_worktree(
@@ -74,7 +93,7 @@ async fn create_test_worktree(db: &Database, name: &str, wt_type: &str, path: &P
         &worktree.branch_name,
         &worktree.worktree_type,
         &worktree.path,
-        worktree.agent_id.as_deref(),
+        worktree.agent_id.clone(),
     )
     .await
     .unwrap();
@@ -204,7 +223,7 @@ mod file_system_monitoring_tests {
 
         // Test various worktree type icons
         let feat_icon = monitor.get_type_icon("feat");
-        let pr_icon = monitor.get_type_icon("pr");
+        let pr_icon = monitor.get_type_icon("review");
         let fix_icon = monitor.get_type_icon("fix");
         let aiops_icon = monitor.get_type_icon("aiops");
         let devops_icon = monitor.get_type_icon("devops");
@@ -249,7 +268,7 @@ mod event_processing_tests {
 
         assert!(result.is_some());
         let activity = result.unwrap();
-        assert_eq!(activity.worktree_id, worktree.id);
+        assert_eq!(activity.worktree_id, worktree.id.to_string());
         assert_eq!(activity.event_type, "created");
         assert!(activity.file_path.is_some());
     }
@@ -279,7 +298,7 @@ mod event_processing_tests {
 
         assert!(result.is_some());
         let activity = result.unwrap();
-        assert_eq!(activity.worktree_id, worktree.id);
+        assert_eq!(activity.worktree_id, worktree.id.to_string());
         assert_eq!(activity.event_type, "modified");
         assert!(activity.file_path.is_some());
     }
@@ -307,7 +326,7 @@ mod event_processing_tests {
 
         assert!(result.is_some());
         let activity = result.unwrap();
-        assert_eq!(activity.worktree_id, worktree.id);
+        assert_eq!(activity.worktree_id, worktree.id.to_string());
         assert_eq!(activity.event_type, "deleted");
         assert!(activity.file_path.is_some());
     }
@@ -640,16 +659,33 @@ mod status_reporting_tests {
         let (monitor, _temp_dir) = create_test_monitor_manager().await;
 
         let worktree = Worktree {
-            id: "test-nonexistent".to_string(),
-            repo_name: "test-repo".to_string(),
-            worktree_name: "nonexistent".to_string(),
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            type_id: 1,
+            name: "nonexistent".to_string(),
             branch_name: "nonexistent".to_string(),
-            worktree_type: "feat".to_string(),
             path: "/nonexistent/path".to_string(),
+            agent_id: None,
+
+            has_uncommitted_changes: None,
+            uncommitted_files_count: None,
+            ahead_of_trunk: None,
+            behind_trunk: None,
+            last_commit_hash: None,
+            last_commit_message: None,
+            last_sync_at: None,
+            merged_at: None,
+            merged_by: None,
+            merge_commit_hash: None,
+
+            metadata: serde_json::Value::Object(serde_json::Map::new()),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             active: true,
-            agent_id: None,
+
+            repo_name: "test-repo".to_string(),
+            worktree_name: "nonexistent".to_string(),
+            worktree_type: "feat".to_string(),
         };
 
         let worktrees = vec![worktree];
@@ -730,16 +766,33 @@ mod error_handling_tests {
 
         // Don't create the worktree directory to simulate error conditions
         let worktree = Worktree {
-            id: "error-test".to_string(),
-            repo_name: "test-repo".to_string(),
-            worktree_name: "error-test".to_string(),
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            type_id: 1,
+            name: "error-test".to_string(),
             branch_name: "main".to_string(),
-            worktree_type: "feat".to_string(),
             path: worktree_path.to_string_lossy().to_string(),
+            agent_id: None,
+
+            has_uncommitted_changes: None,
+            uncommitted_files_count: None,
+            ahead_of_trunk: None,
+            behind_trunk: None,
+            last_commit_hash: None,
+            last_commit_message: None,
+            last_sync_at: None,
+            merged_at: None,
+            merged_by: None,
+            merge_commit_hash: None,
+
+            metadata: serde_json::Value::Object(serde_json::Map::new()),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             active: true,
-            agent_id: None,
+
+            repo_name: "test-repo".to_string(),
+            worktree_name: "error-test".to_string(),
+            worktree_type: "feat".to_string(),
         };
 
         let mut path_to_worktree = HashMap::new();
@@ -830,7 +883,7 @@ mod integration_tests {
         assert!(activity_result.is_some());
 
         let activity = activity_result.unwrap();
-        assert_eq!(activity.worktree_id, worktree.id);
+        assert_eq!(activity.worktree_id, worktree.id.to_string());
         assert_eq!(activity.event_type, "created");
 
         // Log activity to database
@@ -849,7 +902,7 @@ mod integration_tests {
     async fn test_multiple_worktree_types_monitoring() {
         let (monitor, temp_dir) = create_test_monitor_manager().await;
 
-        let worktree_types = vec!["feat", "pr", "fix", "aiops", "devops", "trunk"];
+        let worktree_types = vec!["feat", "review", "fix", "aiops", "devops", "trunk"];
         let mut worktrees = Vec::new();
 
         // Create multiple worktree types
@@ -893,19 +946,19 @@ mod integration_tests {
         // Create multiple activities
         let activities = vec![
             ActivityEvent {
-                worktree_id: worktree.id.clone(),
+                worktree_id: worktree.id.to_string(),
                 event_type: "created".to_string(),
                 file_path: Some("file1.txt".to_string()),
                 timestamp: Instant::now(),
             },
             ActivityEvent {
-                worktree_id: worktree.id.clone(),
+                worktree_id: worktree.id.to_string(),
                 event_type: "modified".to_string(),
                 file_path: Some("file2.txt".to_string()),
                 timestamp: Instant::now(),
             },
             ActivityEvent {
-                worktree_id: worktree.id.clone(),
+                worktree_id: worktree.id.to_string(),
                 event_type: "deleted".to_string(),
                 file_path: Some("file3.txt".to_string()),
                 timestamp: Instant::now(),
@@ -929,15 +982,16 @@ mod edge_case_tests {
 
     #[tokio::test]
     async fn test_activity_event_debug_format() {
+        let worktree_id = Uuid::new_v4().to_string();
         let activity = ActivityEvent {
-            worktree_id: "test-debug".to_string(),
+            worktree_id: worktree_id.clone(),
             event_type: "debug_test".to_string(),
             file_path: Some("debug.rs".to_string()),
             timestamp: Instant::now(),
         };
 
         let debug_str = format!("{:?}", activity);
-        assert!(debug_str.contains("test-debug"));
+        assert!(debug_str.contains(&worktree_id));
         assert!(debug_str.contains("debug_test"));
         assert!(debug_str.contains("debug.rs"));
     }
@@ -945,7 +999,7 @@ mod edge_case_tests {
     #[tokio::test]
     async fn test_activity_event_clone() {
         let activity = ActivityEvent {
-            worktree_id: "test-clone".to_string(),
+            worktree_id: Uuid::new_v4().to_string(),
             event_type: "clone_test".to_string(),
             file_path: Some("clone.rs".to_string()),
             timestamp: Instant::now(),

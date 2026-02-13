@@ -10,10 +10,10 @@
 
 ## Product Overview
 
-**iMi** (pronounced "eye-me") is a decentralized git worktree manager that provides **entity-based workspace isolation** for multi-agent development. Each entity (human or AI agent) gets a completely isolated workspace directory with full project clones, enabling true parallel development without worktree conflicts.
+**iMi** (pronounced "I am I") is a decentralized git worktree manager that provides **agent-based workspace isolation** for multi-agent development. Each entity (human or AI agent) gets a completely isolated workspace directory with full project clones, enabling true parallel development without worktree conflicts.
 
 **Key Capabilities:**
-- Entity-based workspace isolation (`~/.imi/workspaces/{entity_id}/`)
+- agent-based workspace isolation (`~/.imi/workspaces/{entity_id}/`)
 - Token-based authentication (`$IMI_IDENTITY_TOKEN`) for humans and agents
 - Worktree lifecycle management (add, claim, release, merge)
 - Project registry with UUIDs for cross-component reference
@@ -140,7 +140,7 @@ _No API interface (CLI-only tool)_
 
 ### Architecture Pattern
 
-**Entity-Based Workspace Isolation:**
+**Agent-based Workspace Isolation:**
 
 ```
 /home/delorenj/.imi/
