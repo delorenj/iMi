@@ -86,7 +86,7 @@ impl TestEnvironment {
         // Create test config with temporary paths
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().to_path_buf();
+        config.workspace_settings.root_path = temp_dir.path().to_path_buf();
 
         // Initialize database
         let database = Database::new(&config.database_path).await?;
@@ -280,13 +280,15 @@ impl<'a> RepositoryBuilder<'a> {
     pub fn build(self) -> Repository {
         let now = Utc::now();
         let repository = Repository {
-            id: Uuid::new_v4().to_string(),
+            id: Uuid::new_v4(),
             name: self.name.clone(),
             path: self.path.unwrap_or_else(|| format!("/tmp/{}", self.name)),
             remote_url: self
                 .remote_url
-                .unwrap_or_else(|| format!("https://github.com/test/{}.git", self.name)),
+                .unwrap_or_else(|| format!("git@github.com:test/{}.git", self.name)),
             default_branch: self.default_branch,
+            description: None,
+            metadata: serde_json::Value::Object(serde_json::Map::new()),
             created_at: now,
             updated_at: now,
             active: self.active,
@@ -353,20 +355,37 @@ impl<'a> WorktreeBuilder<'a> {
     pub fn build(self) -> Worktree {
         let now = Utc::now();
         let worktree = Worktree {
-            id: Uuid::new_v4().to_string(),
-            repo_name: self.repo_name.clone(),
-            worktree_name: self.worktree_name.clone(),
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(), // Dummy project ID
+            type_id: 1,                 // Dummy type ID
+            name: self.worktree_name.clone(),
             branch_name: self
                 .branch_name
                 .unwrap_or_else(|| format!("feature/{}", self.worktree_name)),
-            worktree_type: self.worktree_type,
             path: self
                 .path
                 .unwrap_or_else(|| format!("/tmp/{}/{}", self.repo_name, self.worktree_name)),
+            agent_id: self.agent_id,
+
+            has_uncommitted_changes: None,
+            uncommitted_files_count: None,
+            ahead_of_trunk: None,
+            behind_trunk: None,
+            last_commit_hash: None,
+            last_commit_message: None,
+            last_sync_at: None,
+            merged_at: None,
+            merged_by: None,
+            merge_commit_hash: None,
+
+            metadata: serde_json::Value::Object(serde_json::Map::new()),
             created_at: now,
             updated_at: now,
             active: self.active,
-            agent_id: self.agent_id,
+
+            repo_name: self.repo_name.clone(),
+            worktree_name: self.worktree_name.clone(),
+            worktree_type: self.worktree_type,
         };
 
         let key = format!("{}:{}", self.repo_name, self.worktree_name);
@@ -419,12 +438,13 @@ impl<'a> ActivityBuilder<'a> {
 
     pub fn build(self) -> AgentActivity {
         let activity = AgentActivity {
-            id: Uuid::new_v4().to_string(),
+            id: Uuid::new_v4(),
             agent_id: self.agent_id,
-            worktree_id: self.worktree_id.clone(),
+            worktree_id: self.worktree_id.parse().unwrap_or_else(|_| Uuid::new_v4()),
             activity_type: self.activity_type,
             file_path: self.file_path,
             description: self.description,
+            metadata: serde_json::Value::Object(serde_json::Map::new()),
             created_at: Utc::now(),
         };
 

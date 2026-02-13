@@ -39,7 +39,7 @@ impl CliTestHelper {
 
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("cli_test.db");
-        config.root_path = temp_dir.path().join("projects");
+        config.workspace_settings.root_path = temp_dir.path().join("projects");
 
         let db = Database::new(&config.database_path).await?;
         let git = GitManager::new();
@@ -110,8 +110,8 @@ impl CliTestHelper {
         };
 
         // Update the root path
-        let old_root = config.root_path.clone();
-        config.root_path = root_path.clone();
+        let old_root = config.workspace_settings.root_path.clone();
+        config.workspace_settings.root_path = root_path.clone();
 
         // Save the updated configuration
         config
@@ -528,12 +528,12 @@ mod configuration_behavior_tests {
         // Verify root path was set correctly
         let config = Config::load().await.unwrap();
         assert_eq!(
-            config.root_path, expected_root,
+            config.workspace_settings.root_path, expected_root,
             "Root path should be set correctly"
         );
 
         println!("✅ Test passed: Root path updated in configuration");
-        println!("Root path: {}", config.root_path.display());
+        println!("Root path: {}", config.workspace_settings.root_path.display());
     }
 
     #[tokio::test]
@@ -659,7 +659,7 @@ mod integration_validation_tests {
 
         // Final configuration should reflect the last initialized repository's root
         let final_config = Config::load().await.unwrap();
-        println!("Final root path: {}", final_config.root_path.display());
+        println!("Final root path: {}", final_config.workspace_settings.root_path.display());
 
         println!("✅ Test passed: Multiple repository initialization");
     }

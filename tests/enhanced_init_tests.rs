@@ -30,7 +30,7 @@ impl InitTestUtils {
         // Create test config with temp paths
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().to_path_buf();
+        config.workspace_settings.root_path = temp_dir.path().to_path_buf();
 
         let database = Database::new(&config.database_path).await?;
         let git_manager = GitManager::new();

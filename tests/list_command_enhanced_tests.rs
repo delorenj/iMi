@@ -77,29 +77,21 @@ async fn setup_test_repo(
     env::set_current_dir(&original_dir)?;
 
     // Setup config and database
-    let config = Config {
-        database_path: temp_dir.path().join("imi.db"),
-        root_path: temp_dir.path().to_path_buf(),
-        sync_settings: SyncSettings {
-            enabled: false,
-            user_sync_path: temp_dir.path().join("sync/global"),
-            local_sync_path: temp_dir.path().join("sync/repo"),
-        },
-        git_settings: GitSettings {
-            default_branch: "main".to_string(),
-            remote_name: "origin".to_string(),
-            auto_fetch: false,
-            prune_on_fetch: false,
-        },
-        monitoring_settings: MonitoringSettings {
-            enabled: false,
-            refresh_interval_ms: 5000,
-            watch_file_changes: false,
-            track_agent_activity: false,
-        },
-        symlink_files: vec![],
-        ..Default::default()
-    };
+    let mut config = Config::default();
+    config.database_path = temp_dir.path().join("imi.db");
+    config.workspace_settings.root_path = temp_dir.path().to_path_buf();
+    config.sync_settings.enabled = false;
+    config.sync_settings.user_sync_path = temp_dir.path().join("sync/global");
+    config.sync_settings.local_sync_path = temp_dir.path().join("sync/repo");
+    config.git_settings.default_branch = "main".to_string();
+    config.git_settings.remote_name = "origin".to_string();
+    config.git_settings.auto_fetch = false;
+    config.git_settings.prune_on_fetch = false;
+    config.monitoring_settings.enabled = false;
+    config.monitoring_settings.refresh_interval_ms = 5000;
+    config.monitoring_settings.watch_file_changes = false;
+    config.monitoring_settings.track_agent_activity = false;
+    config.symlink_files = vec![];
 
     let db = Database::new(&config.database_path).await?;
     let git_manager = GitManager::new();

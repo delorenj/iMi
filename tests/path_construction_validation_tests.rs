@@ -26,7 +26,7 @@ mod path_construction_validation {
 
             // Set up test paths
             config.database_path = temp_dir.path().join("test.db");
-            config.root_path = temp_dir.path().join("code");
+            config.workspace_settings.root_path = temp_dir.path().join("code");
 
             Ok(Self { temp_dir, config })
         }
@@ -45,9 +45,13 @@ mod path_construction_validation {
         let repo_name = "test-repo";
         let _worktree_name = "feat-test";
 
-        // Test get_repo_path - should be root_path/repo_name
+        // Test get_repo_path - should be root_path/entity_id/repo_name
         let repo_path = config.get_repo_path(repo_name);
-        let expected_repo = config.root_path.join(repo_name);
+        let expected_repo = config
+            .workspace_settings
+            .root_path
+            .join(&config.workspace_settings.entity_id)
+            .join(repo_name);
 
         assert_eq!(
             repo_path, expected_repo,
@@ -75,7 +79,9 @@ mod path_construction_validation {
         // Test get_trunk_path construction
         let trunk_path = config.get_trunk_path(repo_name);
         let expected_trunk = config
+            .workspace_settings
             .root_path
+            .join(&config.workspace_settings.entity_id)
             .join(repo_name)
             .join(format!("trunk-{}", config.git_settings.default_branch));
 
@@ -113,7 +119,12 @@ mod path_construction_validation {
 
         // Test get_worktree_path construction
         let worktree_path = config.get_worktree_path(repo_name, worktree_name);
-        let expected_worktree = config.root_path.join(repo_name).join(worktree_name);
+        let expected_worktree = config
+            .workspace_settings
+            .root_path
+            .join(&config.workspace_settings.entity_id)
+            .join(repo_name)
+            .join(worktree_name);
 
         assert_eq!(
             worktree_path, expected_worktree,
@@ -146,7 +157,9 @@ mod path_construction_validation {
         // Test global sync path construction
         let global_sync = config.get_sync_path(repo_name, true);
         let expected_global = config
+            .workspace_settings
             .root_path
+            .join(&config.workspace_settings.entity_id)
             .join(repo_name)
             .join(&config.sync_settings.user_sync_path);
 
@@ -159,7 +172,9 @@ mod path_construction_validation {
         // Test repo sync path construction
         let repo_sync = config.get_sync_path(repo_name, false);
         let expected_repo_sync = config
+            .workspace_settings
             .root_path
+            .join(&config.workspace_settings.entity_id)
             .join(repo_name)
             .join(&config.sync_settings.local_sync_path);
 
@@ -492,7 +507,7 @@ mod path_construction_validation {
 
                 // All paths should be properly constructed without doubling
                 let db_path_str = final_config.database_path.to_string_lossy();
-                let root_path_str = final_config.root_path.to_string_lossy();
+                let root_path_str = final_config.workspace_settings.root_path.to_string_lossy();
 
                 assert!(
                     !db_path_str.contains("//"),
@@ -507,7 +522,7 @@ mod path_construction_validation {
 
                 println!("✅ Final config paths validated:");
                 println!("   Database: {}", final_config.database_path.display());
-                println!("   Root: {}", final_config.root_path.display());
+                println!("   Root: {}", final_config.workspace_settings.root_path.display());
             }
             Err(e) => {
                 panic!("Init command failed: {}", e);

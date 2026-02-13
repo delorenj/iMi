@@ -74,7 +74,7 @@ mod database_creation_tests {
             .create_repository(
                 "test-repo",
                 "/path/to/test-repo",
-                "https://github.com/user/test-repo.git",
+                "git@github.com:user/test-repo.git",
                 "main",
             )
             .await
@@ -151,17 +151,16 @@ mod repository_operations_tests {
             .create_repository(
                 "test-repo",
                 "/path/to/repo",
-                "https://github.com/user/test-repo.git",
+                "git@github.com:user/test-repo.git",
                 "main",
             )
             .await
             .unwrap();
 
         // Verify all fields are correct
-        assert!(!repo.id.is_empty(), "Repository ID should not be empty");
         assert_eq!(repo.name, "test-repo");
         assert_eq!(repo.path, "/path/to/repo");
-        assert_eq!(repo.remote_url, "https://github.com/user/test-repo.git");
+        assert_eq!(repo.remote_url, "git@github.com:user/test-repo.git");
         assert_eq!(repo.default_branch, "main");
         assert!(repo.active, "Repository should be active by default");
 
@@ -184,7 +183,7 @@ mod repository_operations_tests {
             .create_repository(
                 "get-test-repo",
                 "/path/to/get-repo",
-                "https://github.com/user/get-repo.git",
+                "git@github.com:user/get-repo.git",
                 "develop",
             )
             .await
@@ -199,7 +198,7 @@ mod repository_operations_tests {
         assert_eq!(repo.id, created_repo.id);
         assert_eq!(repo.name, "get-test-repo");
         assert_eq!(repo.path, "/path/to/get-repo");
-        assert_eq!(repo.remote_url, "https://github.com/user/get-repo.git");
+        assert_eq!(repo.remote_url, "git@github.com:user/get-repo.git");
         assert_eq!(repo.default_branch, "develop");
         assert!(repo.active);
     }
@@ -229,7 +228,7 @@ mod repository_operations_tests {
                 .create_repository(
                     &repo_name,
                     &format!("/path/to/{}", repo_name),
-                    &format!("https://github.com/user/{}.git", repo_name),
+                    &format!("git@github.com:user/{}.git", repo_name),
                     branch,
                 )
                 .await
@@ -255,7 +254,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "test-repo",
                 "/path/to/test-repo",
-                "https://github.com/user/test-repo.git",
+                "git@github.com:user/test-repo.git",
                 "main",
             )
             .await
@@ -269,13 +268,12 @@ mod worktree_operations_tests {
                 "feat/authentication",
                 "feat",
                 "/path/to/worktree",
-                Some("agent-123"),
+                Some("agent-123".to_string()),
             )
             .await
             .unwrap();
 
         // Verify all fields
-        assert!(!worktree.id.is_empty(), "Worktree ID should not be empty");
         assert_eq!(worktree.repo_name, "test-repo");
         assert_eq!(worktree.worktree_name, "feat-auth");
         assert_eq!(worktree.branch_name, "feat/authentication");
@@ -300,7 +298,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "test-repo",
                 "/path/to/test-repo",
-                "https://github.com/user/test-repo.git",
+                "git@github.com:user/test-repo.git",
                 "main",
             )
             .await
@@ -333,7 +331,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "replace-repo",
                 "/path/to/replace-repo",
-                "https://github.com/user/replace-repo.git",
+                "git@github.com:user/replace-repo.git",
                 "main",
             )
             .await
@@ -394,7 +392,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "get-repo",
                 "/path/to/get-repo",
-                "https://github.com/user/get-repo.git",
+                "git@github.com:user/get-repo.git",
                 "main",
             )
             .await
@@ -407,7 +405,7 @@ mod worktree_operations_tests {
                 "get-repo",
                 "pr-123",
                 "pr/feature-branch",
-                "pr",
+                "review",
                 "/path/to/pr",
                 None,
             )
@@ -420,7 +418,7 @@ mod worktree_operations_tests {
         assert!(retrieved.is_some());
         let worktree = retrieved.unwrap();
         assert_eq!(worktree.id, created.id);
-        assert_eq!(worktree.worktree_type, "pr");
+        assert_eq!(worktree.worktree_type, "review");
     }
 
     #[tokio::test]
@@ -446,7 +444,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "repo-1",
                 "/path/to/repo-1",
-                "https://github.com/user/repo-1.git",
+                "git@github.com:user/repo-1.git",
                 "main",
             )
             .await
@@ -457,7 +455,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "repo-2",
                 "/path/to/repo-2",
-                "https://github.com/user/repo-2.git",
+                "git@github.com:user/repo-2.git",
                 "main",
             )
             .await
@@ -468,7 +466,7 @@ mod worktree_operations_tests {
             ("repo-1", "trunk-main", "trunk"),
             ("repo-1", "feat-auth", "feat"),
             ("repo-2", "trunk-main", "trunk"),
-            ("repo-2", "pr-456", "pr"),
+            ("repo-2", "pr-456", "review"),
         ];
 
         for (repo, name, wt_type) in &worktrees_data {
@@ -511,7 +509,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "filter-repo-1",
                 "/path/to/filter-repo-1",
-                "https://github.com/user/filter-repo-1.git",
+                "git@github.com:user/filter-repo-1.git",
                 "main",
             )
             .await
@@ -522,7 +520,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "filter-repo-2",
                 "/path/to/filter-repo-2",
-                "https://github.com/user/filter-repo-2.git",
+                "git@github.com:user/filter-repo-2.git",
                 "main",
             )
             .await
@@ -600,7 +598,7 @@ mod worktree_operations_tests {
             .create_repository(
                 "deactivate-repo",
                 "/path/to/deactivate-repo",
-                "https://github.com/user/deactivate-repo.git",
+                "git@github.com:user/deactivate-repo.git",
                 "main",
             )
             .await
@@ -669,7 +667,7 @@ mod agent_activity_tests {
             .create_repository(
                 "activity-repo",
                 "/path/to/activity-repo",
-                "https://github.com/user/activity-repo.git",
+                "git@github.com:user/activity-repo.git",
                 "main",
             )
             .await
@@ -703,7 +701,6 @@ mod agent_activity_tests {
             .unwrap();
 
         // Verify activity fields
-        assert!(!activity.id.is_empty());
         assert_eq!(activity.agent_id, "test-agent");
         assert_eq!(activity.worktree_id, worktree.id);
         assert_eq!(activity.activity_type, "created");
@@ -726,7 +723,7 @@ mod agent_activity_tests {
             .create_repository(
                 "activity-repo",
                 "/path/to/activity-repo",
-                "https://github.com/user/activity-repo.git",
+                "git@github.com:user/activity-repo.git",
                 "main",
             )
             .await
@@ -772,7 +769,7 @@ mod agent_activity_tests {
             .create_repository(
                 "repo1",
                 "/path/to/repo1",
-                "https://github.com/user/repo1.git",
+                "git@github.com:user/repo1.git",
                 "main",
             )
             .await
@@ -783,7 +780,7 @@ mod agent_activity_tests {
             .create_repository(
                 "repo2",
                 "/path/to/repo2",
-                "https://github.com/user/repo2.git",
+                "git@github.com:user/repo2.git",
                 "main",
             )
             .await
@@ -861,7 +858,7 @@ mod agent_activity_tests {
             .create_repository(
                 "limit-repo",
                 "/path/to/limit-repo",
-                "https://github.com/user/limit-repo.git",
+                "git@github.com:user/limit-repo.git",
                 "main",
             )
             .await
@@ -924,7 +921,7 @@ mod worktree_types_tests {
             .create_repository(
                 "types-repo",
                 "/path/to/types-repo",
-                "https://github.com/user/types-repo.git",
+                "git@github.com:user/types-repo.git",
                 "main",
             )
             .await
@@ -933,7 +930,7 @@ mod worktree_types_tests {
         let worktree_types = vec![
             ("trunk", "trunk-main"),
             ("feat", "feat-auth"),
-            ("pr", "pr-123"),
+            ("review", "pr-123"),
             ("fix", "fix-bug"),
             ("aiops", "aiops-deploy"),
             ("devops", "devops-ci"),
@@ -997,7 +994,7 @@ mod error_handling_tests {
             .create_repository(
                 "测试-repo",
                 "/路径/到/测试-repo",
-                "https://github.com/用户/测试-repo.git",
+                "git@github.com:用户/测试-repo.git",
                 "main",
             )
             .await
@@ -1012,7 +1009,7 @@ mod error_handling_tests {
                 "feat/测试-功能",
                 "feat",
                 "/路径/到/工作树",
-                Some("代理-123"),
+                Some("代理-123".to_string()),
             )
             .await
             .unwrap();
@@ -1045,7 +1042,7 @@ mod error_handling_tests {
             .create_repository(
                 &long_repo_name,
                 "/path/to/very/long/repo",
-                "https://github.com/user/very-long-repo.git",
+                "git@github.com:user/very-long-repo.git",
                 "main",
             )
             .await
@@ -1097,7 +1094,7 @@ mod database_edge_cases_tests {
             .create_repository(
                 "concurrent-repo",
                 "/path/to/concurrent-repo",
-                "https://github.com/user/concurrent-repo.git",
+                "git@github.com:user/concurrent-repo.git",
                 "main",
             )
             .await
@@ -1114,7 +1111,7 @@ mod database_edge_cases_tests {
                         "main",
                         "feat",
                         &format!("/path/{}", i),
-                        Some(&format!("agent-{}", i)),
+                        Some(format!("agent-{}", i)),
                     )
                     .await
                 })
@@ -1153,7 +1150,7 @@ mod database_edge_cases_tests {
             .create_repository(
                 "",
                 "/path/to/empty-repo",
-                "https://github.com/user/empty-repo.git",
+                "git@github.com:user/empty-repo.git",
                 "main",
             )
             .await
@@ -1162,7 +1159,7 @@ mod database_edge_cases_tests {
         // Test with empty strings (should work but may not be practical)
         let worktree = helper
             .db
-            .create_worktree("", "", "", "", "", Some(""))
+            .create_worktree("", "", "", "", "", Some("".to_string()))
             .await
             .unwrap();
 

@@ -44,10 +44,8 @@ async fn test_close_command_basic() -> Result<()> {
         .output()?;
 
     // Setup config and database
-    let config = Config {
-        database_path: temp_dir.path().join("imi.db"),
-        ..Default::default()
-    };
+    let mut config = Config::default();
+    config.database_path = temp_dir.path().join("imi.db");
 
     let db = Database::new(&config.database_path).await?;
     let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
@@ -131,10 +129,8 @@ async fn test_close_command_with_name_variations() -> Result<()> {
         .output()?;
 
     // Setup config and database
-    let config = Config {
-        database_path: temp_dir.path().join("imi.db"),
-        ..Default::default()
-    };
+    let mut config = Config::default();
+    config.database_path = temp_dir.path().join("imi.db");
 
     let db = Database::new(&config.database_path).await?;
     let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
@@ -196,10 +192,8 @@ async fn test_close_nonexistent_worktree() -> Result<()> {
         .output()?;
 
     // Setup config and database
-    let config = Config {
-        database_path: temp_dir.path().join("imi.db"),
-        ..Default::default()
-    };
+    let mut config = Config::default();
+    config.database_path = temp_dir.path().join("imi.db");
 
     let db = Database::new(&config.database_path).await?;
     let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);
@@ -243,10 +237,8 @@ async fn test_close_vs_remove_difference() -> Result<()> {
         .output()?;
 
     // Setup config and database
-    let config = Config {
-        database_path: temp_dir.path().join("imi.db"),
-        ..Default::default()
-    };
+    let mut config = Config::default();
+    config.database_path = temp_dir.path().join("imi.db");
 
     let db = Database::new(&config.database_path).await?;
     let worktree_manager = WorktreeManager::new(git_manager, db.clone(), config.clone(), None);

@@ -259,7 +259,7 @@ mod repository_information_tests {
         let helper = GitTestHelper::new()?;
 
         // Add origin remote
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
 
@@ -285,7 +285,7 @@ mod repository_information_tests {
     fn test_get_repository_name_without_git_extension() -> Result<()> {
         let helper = GitTestHelper::new()?;
 
-        helper.add_remote("origin", "https://github.com/user/no-extension")?;
+        helper.add_remote("origin", "git@github.com:user/no-extension")?;
 
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
 
@@ -298,8 +298,8 @@ mod repository_information_tests {
     fn test_get_repository_name_with_multiple_remotes() -> Result<()> {
         let helper = GitTestHelper::new()?;
 
-        helper.add_remote("upstream", "https://github.com/original/upstream-repo.git")?;
-        helper.add_remote("origin", "https://github.com/fork/forked-repo.git")?;
+        helper.add_remote("upstream", "git@github.com:original/upstream-repo.git")?;
+        helper.add_remote("origin", "git@github.com:fork/forked-repo.git")?;
 
         let repo_name = helper.git_manager.get_repository_name(&helper.repo)?;
 
@@ -383,7 +383,7 @@ mod worktree_operations_tests {
         let helper = GitTestHelper::new()?;
 
         // Add a remote to enable fetching
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let worktree_path = helper.get_temp_path().join("test-worktree");
 
@@ -422,7 +422,7 @@ mod worktree_operations_tests {
 
         // Create a branch first
         helper.create_branch("existing-branch")?;
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let worktree_path = helper.get_temp_path().join("existing-worktree");
 
@@ -744,7 +744,7 @@ mod fetch_operations_tests {
         let helper = GitTestHelper::new()?;
 
         // Add a remote (won't actually fetch from fake URL)
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let result = helper.git_manager.fetch_all(&helper.repo);
 
@@ -765,7 +765,7 @@ mod pr_checkout_tests {
     #[test]
     fn test_checkout_pr_without_gh_cli() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let worktree_path = helper.get_temp_path().join("pr-worktree");
 
@@ -789,7 +789,7 @@ mod pr_checkout_tests {
     #[test]
     fn test_create_worktree_for_pr_fallback() -> Result<()> {
         let helper = GitTestHelper::new()?;
-        helper.add_remote("origin", "https://github.com/user/test-repo.git")?;
+        helper.add_remote("origin", "git@github.com:user/test-repo.git")?;
 
         let worktree_path = helper.get_temp_path().join("pr-fallback");
 

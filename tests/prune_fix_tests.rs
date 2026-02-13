@@ -85,7 +85,7 @@ impl PruneTestFixture {
         let mut config = Config::default();
         let db_path = temp_dir.path().join("test.db");
         config.database_path = db_path.clone();
-        config.root_path = imi_path.clone();
+        config.workspace_settings.root_path = imi_path.clone();
 
         // Initialize database
         let db = Database::new(&db_path).await?;

@@ -28,7 +28,7 @@ impl GitTestUtils {
         // Create test config with temp paths
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().to_path_buf();
+        config.workspace_settings.root_path = temp_dir.path().to_path_buf();
 
         let git_manager = GitManager::new();
         let repo_path = temp_dir.path().join("test-repo");
@@ -431,7 +431,7 @@ async fn test_remote_url_validation() -> Result<()> {
 
     // Test various remote URL formats
     let valid_urls = vec![
-        "https://github.com/user/repo.git",
+        "git@github.com:user/repo.git",
         "git@github.com:user/repo.git",
         "https://gitlab.com/user/repo.git",
         "git@gitlab.com:user/repo.git",

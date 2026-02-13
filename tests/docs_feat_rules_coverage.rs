@@ -71,7 +71,7 @@ impl FeatRulesTestHelper {
 
         let mut config = Config::default();
         config.database_path = temp_dir.path().join("test.db");
-        config.root_path = temp_dir.path().to_path_buf();
+        config.workspace_settings.root_path = temp_dir.path().to_path_buf();
 
         let db = Database::new(&config.database_path).await?;
         let git_manager = GitManager::new();
@@ -113,7 +113,7 @@ impl FeatRulesTestHelper {
             .create_repository(
                 repo_name,
                 &imi_path.to_string_lossy(),
-                &format!("https://github.com/test/{}.git", repo_name),
+                &format!("git@github.com:test/{}.git", repo_name),
                 "main",
             )
             .await?;

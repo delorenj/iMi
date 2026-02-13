@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use colored::*;
 use dialoguer::{Confirm, Select};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -31,6 +32,28 @@ impl InitResult {
             message,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfficeMigrationResult {
+    pub repo_name: String,
+    pub source_trunk: String,
+    pub target_trunk: String,
+    pub moved_worktrees: usize,
+    pub updated_worktrees: usize,
+    pub status: String,
+    pub message: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfficeMigrationSummary {
+    pub dry_run: bool,
+    pub processed: usize,
+    pub migrated: usize,
+    pub skipped: usize,
+    pub failed: usize,
+    pub results: Vec<OfficeMigrationResult>,
 }
 
 /// Project metadata written to .iMi/project.json
@@ -108,6 +131,388 @@ impl InitCommand {
             }
 
             self.handle_outside_repo().await
+        }
+    }
+
+    pub async fn migrate_office_layout(
+        &self,
+        repo_filter: Option<&str>,
+        dry_run: bool,
+    ) -> Result<OfficeMigrationSummary> {
+        let repositories = if let Some(repo_name) = repo_filter {
+            match self.db.get_repository(repo_name).await? {
+                Some(repo) => vec![repo],
+                None => {
+                    return Err(anyhow!(
+                        "Repository '{}' is not registered in iMi",
+                        repo_name
+                    ));
+                }
+            }
+        } else {
+            self.db.list_repositories().await?
+        };
+
+        let mut summary = OfficeMigrationSummary {
+            dry_run,
+            processed: 0,
+            migrated: 0,
+            skipped: 0,
+            failed: 0,
+            results: Vec::new(),
+        };
+
+        for repo in repositories {
+            summary.processed += 1;
+            match self.migrate_single_repository(&repo, dry_run).await {
+                Ok(result) => {
+                    match result.status.as_str() {
+                        "migrated" => summary.migrated += 1,
+                        "skipped" => summary.skipped += 1,
+                        _ => {}
+                    }
+                    summary.results.push(result);
+                }
+                Err(err) => {
+                    summary.failed += 1;
+                    summary.results.push(OfficeMigrationResult {
+                        repo_name: repo.name.clone(),
+                        source_trunk: repo.path.clone(),
+                        target_trunk: self.config.get_trunk_path(&repo.name).display().to_string(),
+                        moved_worktrees: 0,
+                        updated_worktrees: 0,
+                        status: "failed".to_string(),
+                        message: err.to_string(),
+                        warnings: Vec::new(),
+                    });
+                }
+            }
+        }
+
+        Ok(summary)
+    }
+
+    async fn migrate_single_repository(
+        &self,
+        repo: &crate::database::Project,
+        dry_run: bool,
+    ) -> Result<OfficeMigrationResult> {
+        let source_trunk = PathBuf::from(&repo.path);
+        let target_container = self.config.get_repo_path(&repo.name);
+        let target_trunk = self.config.get_trunk_path(&repo.name);
+        let worktrees = self.db.list_worktrees(Some(&repo.name)).await?;
+        let tracked_worktree_names: Vec<String> =
+            worktrees.iter().map(|wt| wt.name.clone()).collect();
+
+        let trunk_needs_move = !Self::paths_match(&source_trunk, &target_trunk);
+        let mut planned_worktree_moves = 0usize;
+
+        for worktree in &worktrees {
+            let source = PathBuf::from(&worktree.path);
+            let target = target_container.join(&worktree.name);
+            if !Self::paths_match(&source, &target) {
+                planned_worktree_moves += 1;
+            }
+        }
+
+        if !trunk_needs_move && planned_worktree_moves == 0 {
+            return Ok(OfficeMigrationResult {
+                repo_name: repo.name.clone(),
+                source_trunk: source_trunk.display().to_string(),
+                target_trunk: target_trunk.display().to_string(),
+                moved_worktrees: 0,
+                updated_worktrees: 0,
+                status: "skipped".to_string(),
+                message: "Already in office layout".to_string(),
+                warnings: Vec::new(),
+            });
+        }
+
+        if dry_run {
+            return Ok(OfficeMigrationResult {
+                repo_name: repo.name.clone(),
+                source_trunk: source_trunk.display().to_string(),
+                target_trunk: target_trunk.display().to_string(),
+                moved_worktrees: planned_worktree_moves,
+                updated_worktrees: 0,
+                status: "migrated".to_string(),
+                message: format!(
+                    "Dry run: trunk move={} planned worktree moves={}",
+                    trunk_needs_move, planned_worktree_moves
+                ),
+                warnings: Vec::new(),
+            });
+        }
+
+        fs::create_dir_all(&target_container)
+            .await
+            .context("Failed to create office container directory")?;
+
+        let mut warnings = Vec::new();
+        let mut moved_worktrees = 0usize;
+        let mut updated_worktrees = 0usize;
+
+        if trunk_needs_move {
+            let source_exists = source_trunk.exists();
+            let target_exists = target_trunk.exists();
+
+            match (source_exists, target_exists) {
+                (true, true) => {
+                    if self.force {
+                        warnings.push(format!(
+                            "Target trunk already exists at '{}'; keeping target path",
+                            target_trunk.display()
+                        ));
+                    } else {
+                        return Err(anyhow!(
+                            "Target trunk already exists at '{}'. Re-run with --force to keep the target path.",
+                            target_trunk.display()
+                        ));
+                    }
+                }
+                (true, false) => {
+                    if Self::paths_match(&source_trunk, &target_container) {
+                        self.move_container_contents_to_trunk(
+                            &target_container,
+                            &target_trunk,
+                            &tracked_worktree_names,
+                        )
+                        .await?;
+                    } else {
+                        if let Some(parent) = target_trunk.parent() {
+                            fs::create_dir_all(parent).await?;
+                        }
+
+                        std::fs::rename(&source_trunk, &target_trunk).with_context(|| {
+                            format!(
+                                "Failed to move trunk from '{}' to '{}'",
+                                source_trunk.display(),
+                                target_trunk.display()
+                            )
+                        })?;
+                    }
+                }
+                (false, true) => {
+                    warnings.push(format!(
+                        "Source trunk missing at '{}'; using existing target '{}'",
+                        source_trunk.display(),
+                        target_trunk.display()
+                    ));
+                }
+                (false, false) => {
+                    return Err(anyhow!(
+                        "Neither source trunk '{}' nor target trunk '{}' exists",
+                        source_trunk.display(),
+                        target_trunk.display()
+                    ));
+                }
+            }
+
+            let target_trunk_str = target_trunk.to_string_lossy().to_string();
+            self.db
+                .update_repository_path(&repo.name, &target_trunk_str)
+                .await?;
+        }
+
+        for worktree in &worktrees {
+            let source = PathBuf::from(&worktree.path);
+            let target = target_container.join(&worktree.name);
+
+            if Self::paths_match(&source, &target) {
+                continue;
+            }
+
+            let source_exists = source.exists();
+            let target_exists = target.exists();
+
+            match (source_exists, target_exists) {
+                (true, true) => {
+                    if self.force {
+                        warnings.push(format!(
+                            "Worktree '{}' exists at both '{}' and '{}'; keeping target path",
+                            worktree.name,
+                            source.display(),
+                            target.display()
+                        ));
+                    } else {
+                        return Err(anyhow!(
+                            "Worktree '{}' exists at both '{}' and '{}'. Re-run with --force to keep target path.",
+                            worktree.name,
+                            source.display(),
+                            target.display()
+                        ));
+                    }
+                }
+                (true, false) => {
+                    if let Some(parent) = target.parent() {
+                        fs::create_dir_all(parent).await?;
+                    }
+
+                    std::fs::rename(&source, &target).with_context(|| {
+                        format!(
+                            "Failed to move worktree '{}' from '{}' to '{}'",
+                            worktree.name,
+                            source.display(),
+                            target.display()
+                        )
+                    })?;
+                    moved_worktrees += 1;
+                }
+                (false, true) => {
+                    warnings.push(format!(
+                        "Worktree '{}' source missing at '{}'; using existing target '{}'",
+                        worktree.name,
+                        source.display(),
+                        target.display()
+                    ));
+                }
+                (false, false) => {
+                    let message = format!(
+                        "Worktree '{}' not found at '{}' or '{}'",
+                        worktree.name,
+                        source.display(),
+                        target.display()
+                    );
+                    if self.force {
+                        warnings.push(message);
+                        continue;
+                    }
+                    return Err(anyhow!(message));
+                }
+            }
+
+            if target.exists() {
+                let target_str = target.to_string_lossy().to_string();
+                self.db
+                    .update_worktree_path(&repo.name, &worktree.name, &target_str)
+                    .await?;
+                updated_worktrees += 1;
+            }
+        }
+
+        self.write_project_metadata_file(repo, &target_trunk)
+            .await?;
+
+        let mut message = format!(
+            "Office layout migration completed (moved {} worktrees, updated {} worktree path entries)",
+            moved_worktrees, updated_worktrees
+        );
+        if !warnings.is_empty() {
+            message.push_str(&format!(" with {} warning(s)", warnings.len()));
+        }
+
+        Ok(OfficeMigrationResult {
+            repo_name: repo.name.clone(),
+            source_trunk: source_trunk.display().to_string(),
+            target_trunk: target_trunk.display().to_string(),
+            moved_worktrees,
+            updated_worktrees,
+            status: "migrated".to_string(),
+            message,
+            warnings,
+        })
+    }
+
+    async fn move_container_contents_to_trunk(
+        &self,
+        container: &Path,
+        trunk_path: &Path,
+        tracked_worktrees: &[String],
+    ) -> Result<()> {
+        if trunk_path.exists() {
+            return Err(anyhow!(
+                "Target trunk directory already exists: {}",
+                trunk_path.display()
+            ));
+        }
+
+        fs::create_dir_all(trunk_path)
+            .await
+            .context("Failed to create trunk directory")?;
+
+        let mut reserved_names: HashSet<String> = tracked_worktrees.iter().cloned().collect();
+        reserved_names.insert(".iMi".to_string());
+        reserved_names.insert("sync".to_string());
+        if let Some(name) = trunk_path.file_name().and_then(|n| n.to_str()) {
+            reserved_names.insert(name.to_string());
+        }
+
+        let mut entries = fs::read_dir(container).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            let file_name = entry.file_name();
+            let file_name_str = file_name.to_string_lossy().to_string();
+
+            if path == trunk_path || reserved_names.contains(&file_name_str) {
+                continue;
+            }
+
+            let looks_like_worktree = file_name_str.starts_with("feat-")
+                || file_name_str.starts_with("fix-")
+                || file_name_str.starts_with("aiops-")
+                || file_name_str.starts_with("devops-")
+                || file_name_str.starts_with("pr-")
+                || file_name_str.starts_with("review-");
+
+            if looks_like_worktree {
+                continue;
+            }
+
+            let target = trunk_path.join(&file_name);
+            std::fs::rename(&path, &target).with_context(|| {
+                format!(
+                    "Failed to move '{}' into trunk directory '{}'",
+                    path.display(),
+                    trunk_path.display()
+                )
+            })?;
+        }
+
+        Ok(())
+    }
+
+    async fn write_project_metadata_file(
+        &self,
+        project: &crate::database::Project,
+        trunk_path: &Path,
+    ) -> Result<()> {
+        let container = trunk_path.parent().ok_or_else(|| {
+            anyhow!(
+                "Invalid trunk path (missing parent directory): {}",
+                trunk_path.display()
+            )
+        })?;
+        let imi_dir = container.join(".iMi");
+        fs::create_dir_all(&imi_dir)
+            .await
+            .context("Failed to create .iMi directory in office container")?;
+
+        let metadata = ProjectMetadata {
+            project_id: project.id,
+            name: project.name.clone(),
+            remote_origin: project.remote_url.clone(),
+            default_branch: project.default_branch.clone(),
+            trunk_path: trunk_path.display().to_string(),
+            description: project.description.clone(),
+        };
+
+        let json_content = serde_json::to_string_pretty(&metadata)
+            .context("Failed to serialize project metadata")?;
+        fs::write(imi_dir.join("project.json"), json_content)
+            .await
+            .context("Failed to write office project metadata")?;
+
+        Ok(())
+    }
+
+    fn paths_match(left: &Path, right: &Path) -> bool {
+        if left == right {
+            return true;
+        }
+
+        match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
         }
     }
 
@@ -194,38 +599,31 @@ impl InitCommand {
             .to_path_buf();
         let repo_name = git_manager.get_repository_name(&repo)?;
 
-        // Check if we're in a trunk-* directory (proper structure)
-        let dir_name = repo_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let trunk_dir = format!("trunk-{}", self.config.git_settings.default_branch);
+        let repo_container = self.config.get_repo_path(&repo_name);
+        let trunk_path = repo_container.join(&trunk_dir);
 
-        let is_trunk = dir_name.starts_with("trunk-");
-
-        // If not in trunk directory, offer automated restructuring
-        if !is_trunk && !self.force {
+        if repo_path != trunk_path {
             println!();
             println!(
                 "{} {}",
                 "⚠️".bright_yellow(),
-                "Current directory:".bright_yellow()
+                "Current repository path does not match office layout:".bright_yellow()
             );
             println!("   {}", repo_path.display().to_string().bright_white());
             println!();
-            println!("{}", "iMi works best with this structure:".bright_cyan());
-
-            // Determine parent directory and trunk path
-            let parent = repo_path
-                .parent()
-                .context("Cannot determine parent directory")?;
-            let repo_container = parent.join(&repo_name);
-            let trunk_path = repo_container.join("trunk-main");
-
+            println!(
+                "{}",
+                "Target agent office layout (Anthropic-style isolation):".bright_cyan()
+            );
             println!(
                 "   {}/",
                 repo_container.display().to_string().bright_white()
             );
             println!(
                 "     ├── {}/ {}",
-                "trunk-main".bright_green(),
-                "(your main branch)".dimmed()
+                trunk_dir.bright_green(),
+                "(trunk clone for this entity)".dimmed()
             );
             println!(
                 "     ├── {}/ {}",
@@ -239,69 +637,63 @@ impl InitCommand {
             );
             println!();
 
-            // Check if target structure already exists
+            // Check if target structure already exists and is not the current source
             if repo_container.exists() && repo_container != repo_path {
                 return Err(anyhow!(
-                    "Target directory already exists: {}\nPlease manually resolve the conflict.",
+                    "Target directory already exists: {}\nPlease manually resolve the conflict before migration.",
                     repo_container.display()
                 ));
             }
 
-            println!("{}", "This will:".bright_cyan());
-            println!(
-                "  1. Create parent directory: {}",
-                repo_container.display().to_string().bright_white()
-            );
-            println!(
-                "  2. Move current repo to: {}",
-                trunk_path.display().to_string().bright_green()
-            );
-            println!("  3. Register with iMi");
-            println!();
+            if !self.force {
+                println!("{}", "This will:".bright_cyan());
+                println!(
+                    "  1. Create office directory: {}",
+                    repo_container.display().to_string().bright_white()
+                );
+                println!(
+                    "  2. Move current repo to: {}",
+                    trunk_path.display().to_string().bright_green()
+                );
+                println!("  3. Register with iMi");
+                println!();
 
-            let should_restructure = Confirm::new()
-                .with_prompt("Would you like to restructure automatically?")
-                .default(false)
-                .interact()?;
+                let should_restructure = Confirm::new()
+                    .with_prompt("Would you like to migrate to office layout now?")
+                    .default(false)
+                    .interact()?;
 
-            if !should_restructure {
-                return Ok(InitResult::failure(
-                    "Initialization cancelled. Run 'iMi init' again after manual restructuring."
-                        .to_string(),
-                ));
+                if !should_restructure {
+                    return Ok(InitResult::failure(
+                        "Initialization cancelled. Re-run 'iMi init' to migrate into office layout."
+                            .to_string(),
+                    ));
+                }
             }
 
-            // Perform the restructuring
             println!();
-            println!("{} Restructuring directory...", "🔄".bright_cyan());
-
-            // Create the rollback point
+            println!(
+                "{} Migrating repository to office layout...",
+                "🔄".bright_cyan()
+            );
             let temp_backup = std::env::temp_dir().join(format!("imi_backup_{}", repo_name));
 
-            // Execute restructuring with rollback capability
             match self
                 .restructure_directory(&repo_path, &repo_container, &trunk_path, &temp_backup)
                 .await
             {
                 Ok(_) => {
-                    println!(
-                        "{} Directory restructured successfully",
-                        "✅".bright_green()
-                    );
+                    println!("{} Office migration completed", "✅".bright_green());
 
-                    // Clean up backup
                     if temp_backup.exists() {
                         let _ = fs::remove_dir_all(&temp_backup).await;
                     }
 
-                    // Update current_dir for registration
-                    let new_repo_path = trunk_path;
-                    return self.register_repository(&new_repo_path, &repo_name).await;
+                    return self.register_repository(&trunk_path, &repo_name).await;
                 }
                 Err(e) => {
-                    println!("{} Restructuring failed: {}", "❌".bright_red(), e);
+                    println!("{} Migration failed: {}", "❌".bright_red(), e);
 
-                    // Attempt rollback
                     if temp_backup.exists() {
                         println!("{} Attempting rollback...", "🔄".bright_yellow());
                         if let Err(rollback_err) =
@@ -324,7 +716,6 @@ impl InitCommand {
             }
         }
 
-        // Standard registration for trunk-* directories or forced init
         self.register_repository(&repo_path, &repo_name).await
     }
 
@@ -346,10 +737,39 @@ impl InitCommand {
             .await
             .context("Failed to create container directory")?;
 
-        // Step 3: Move source to trunk_path inside container
-        // We need to use std::fs::rename for atomic move
-        std::fs::rename(source, trunk_path)
-            .context("Failed to move repository to trunk directory")?;
+        // Step 3: Move source to trunk_path inside container.
+        // Handle in-place migration when source already equals container.
+        if source == container {
+            if trunk_path.exists() {
+                return Err(anyhow!(
+                    "Target trunk directory already exists: {}",
+                    trunk_path.display()
+                ));
+            }
+
+            fs::create_dir_all(trunk_path)
+                .await
+                .context("Failed to create trunk directory during in-place migration")?;
+
+            let mut entries = fs::read_dir(source).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                let file_name = entry.file_name();
+                let file_name_str = file_name.to_string_lossy();
+
+                // Keep existing iMi metadata at container root and skip new trunk dir.
+                if path == trunk_path || file_name_str == ".iMi" {
+                    continue;
+                }
+
+                let target = trunk_path.join(&file_name);
+                std::fs::rename(&path, &target)
+                    .context("Failed to move repository content into trunk directory")?;
+            }
+        } else {
+            std::fs::rename(source, trunk_path)
+                .context("Failed to move repository to trunk directory")?;
+        }
 
         Ok(())
     }
@@ -409,6 +829,8 @@ impl InitCommand {
     async fn register_repository(&self, repo_path: &Path, repo_name: &str) -> Result<InitResult> {
         let git_manager = GitManager::new();
 
+        self.validate_office_layout(repo_path, repo_name)?;
+
         if let Some(existing_repo) = self.db.get_repository(repo_name).await? {
             if !self.force {
                 return Ok(InitResult::failure(format!(
@@ -427,7 +849,8 @@ impl InitCommand {
             .await
             .unwrap_or_else(|_| "main".to_string());
 
-        let project = self.db
+        let project = self
+            .db
             .create_repository(
                 repo_name,
                 repo_path.to_str().unwrap(),
@@ -483,6 +906,32 @@ impl InitCommand {
         )))
     }
 
+    fn validate_office_layout(&self, repo_path: &Path, repo_name: &str) -> Result<()> {
+        let expected_container = self.config.get_repo_path(repo_name);
+        let expected_trunk_name = format!("trunk-{}", self.config.git_settings.default_branch);
+        let expected_trunk_path = expected_container.join(&expected_trunk_name);
+
+        let actual_trunk_name = repo_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+
+        let in_expected_container = repo_path
+            .parent()
+            .map(|p| p == expected_container.as_path())
+            .unwrap_or(false);
+
+        if !in_expected_container || actual_trunk_name != expected_trunk_name {
+            return Err(anyhow!(
+                "Repository path does not match office layout.\nExpected: {}\nActual: {}\nEach entity must operate from its own office clone before creating worktrees.",
+                expected_trunk_path.display(),
+                repo_path.display()
+            ));
+        }
+
+        Ok(())
+    }
+
     fn detect_paths(&self, current_dir: &Path) -> Result<(PathBuf, String)> {
         let git_manager = GitManager::new();
         let repo = git_manager.find_repository(Some(current_dir))?;
@@ -517,15 +966,15 @@ impl InitCommand {
 
         let repo_name = parts[1];
 
-        // Determine clone location
-        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
-        let code_dir = home_dir.join("code");
-        fs::create_dir_all(&code_dir)
+        // Determine clone location in the entity office
+        let entity_workspace = self.config.get_entity_workspace_path();
+        fs::create_dir_all(&entity_workspace)
             .await
-            .context("Failed to create code directory")?;
+            .context("Failed to create entity workspace directory")?;
 
-        let repo_container = code_dir.join(repo_name);
-        let trunk_path = repo_container.join("trunk-main");
+        let trunk_dir = format!("trunk-{}", self.config.git_settings.default_branch);
+        let repo_container = entity_workspace.join(repo_name);
+        let trunk_path = repo_container.join(&trunk_dir);
 
         // Check if already exists
         if trunk_path.exists() {

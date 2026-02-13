@@ -65,6 +65,7 @@ iMi list
 
 | Command | Description | Example |
 |---------|-------------|---------|
+| `iMi add <type> <name>` | Create typed worktree (preferred) | `iMi add feat user-login` |
 | `iMi feat <name>` | Create feature worktree | `iMi feat user-login` |
 | `iMi review <pr>` | Create PR review worktree | `iMi review 123` |
 | `iMi fix <name>` | Create bugfix worktree | `iMi fix auth-bug` |
@@ -74,6 +75,9 @@ iMi list
 | `iMi status` | Show worktree status | `iMi status` |
 | `iMi list` | List all worktrees | `iMi list` |
 | `iMi remove <name>` | Remove a worktree | `iMi remove feat-old` |
+| `iMi metadata set ...` | Set worktree metadata key/value | `iMi metadata set --worktree feat-auth --key plane.ticket_id --value PROJ-123` |
+| `iMi metadata get ...` | Read worktree metadata | `iMi metadata get --worktree feat-auth --key plane.ticket_id` |
+| `iMi migrate-office` | Migrate registered repos into office layout | `iMi migrate-office --dry-run` |
 | `iMi monitor` | Start real-time monitoring | `iMi monitor` |
 
 ## 🏗️ Workspace Structure
@@ -96,6 +100,25 @@ iMi uses entity-based workspace isolation for true multi-agent collaboration:
 # Cross-entity access requires explicit ticket reference
 ```
 
+## 🏢 Office Layout Rules
+
+Worktrees are now enforced to live in each entity's dedicated office clone layout:
+
+```bash
+${IMI_WORKSPACE_ROOT:-~/33GOD/workspaces}/${IMI_ENTITY_ID:-$USER}/<repo>/
+├── trunk-main/
+├── feat-*
+├── fix-*
+├── aiops-*
+└── devops-*
+```
+
+Rules:
+- No shared master clone across entities.
+- Every entity has its own full repo clone (`trunk-*`) and sibling worktrees.
+- `iMi init` migrates non-office repos into this layout before registration.
+- Worktree operations are rejected when a repository is outside the current entity office.
+
 ## ⚙️ Configuration
 
 iMi uses convention over configuration but allows customization via `~/.config/iMi/config.toml`:
@@ -117,6 +140,10 @@ enabled = true
 refresh_interval_ms = 1000
 watch_file_changes = true
 track_agent_activity = true
+
+[workspace_settings]
+root_path = "/home/you/33GOD/workspaces"
+entity_id = "delorenj"
 
 # Files to symlink across worktrees
 symlink_files = [

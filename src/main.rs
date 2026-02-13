@@ -19,7 +19,7 @@ mod local;
 mod monitor;
 mod worktree;
 
-use cli::{Cli, Commands, ProjectCommands, RegistryCommands, TypeCommands};
+use cli::{Cli, Commands, MetadataCommands, ProjectCommands, RegistryCommands, TypeCommands};
 use commands::project::{ProjectConfig, ProjectCreator};
 use config::Config;
 use database::Database;
@@ -71,6 +71,13 @@ async fn main() -> Result<()> {
             Commands::Init { repo, force } => {
                 handle_init_command(repo, force, json_mode).await?;
             }
+            Commands::MigrateOffice {
+                repo,
+                dry_run,
+                force,
+            } => {
+                handle_migrate_office_command(repo, dry_run, force, json_mode).await?;
+            }
             _ => {
                 // Load configuration
                 let config = Config::load()
@@ -86,8 +93,12 @@ async fn main() -> Result<()> {
                 let git_manager = GitManager::new();
 
                 // Initialize worktree manager
-                let worktree_manager =
-                    WorktreeManager::new(git_manager, db.clone(), config.clone(), config.repo_path.clone());
+                let worktree_manager = WorktreeManager::new(
+                    git_manager,
+                    db.clone(),
+                    config.clone(),
+                    config.repo_path.clone(),
+                );
 
                 match command {
                     Commands::Add {
@@ -221,8 +232,13 @@ async fn main() -> Result<()> {
                             .await?;
                     }
                     Commands::Merge { name, repo } => {
-                        handle_merge_command(&worktree_manager, name.as_deref(), repo.as_deref(), json_mode)
-                            .await?;
+                        handle_merge_command(
+                            &worktree_manager,
+                            name.as_deref(),
+                            repo.as_deref(),
+                            json_mode,
+                        )
+                        .await?;
                     }
                     Commands::Go {
                         query,
@@ -249,24 +265,41 @@ async fn main() -> Result<()> {
                         repo,
                         force,
                     } => {
-                        handle_claim_command(&worktree_manager, &name, &yi_id, repo.as_deref(), force, json_mode)
-                            .await?;
+                        handle_claim_command(
+                            &worktree_manager,
+                            &name,
+                            &yi_id,
+                            repo.as_deref(),
+                            force,
+                            json_mode,
+                        )
+                        .await?;
                     }
-                    Commands::VerifyLock {
-                        name,
-                        yi_id,
-                        repo,
-                    } => {
-                        handle_verify_lock_command(&worktree_manager, &name, &yi_id, repo.as_deref(), json_mode)
-                            .await?;
+                    Commands::VerifyLock { name, yi_id, repo } => {
+                        handle_verify_lock_command(
+                            &worktree_manager,
+                            &name,
+                            &yi_id,
+                            repo.as_deref(),
+                            json_mode,
+                        )
+                        .await?;
                     }
-                    Commands::Release {
-                        name,
-                        yi_id,
-                        repo,
-                    } => {
-                        handle_release_command(&worktree_manager, &name, &yi_id, repo.as_deref(), json_mode)
-                            .await?;
+                    Commands::Release { name, yi_id, repo } => {
+                        handle_release_command(
+                            &worktree_manager,
+                            &name,
+                            &yi_id,
+                            repo.as_deref(),
+                            json_mode,
+                        )
+                        .await?;
+                    }
+                    Commands::Metadata(cmd) => {
+                        handle_metadata_command(&worktree_manager, cmd, json_mode).await?;
+                    }
+                    Commands::MigrateOffice { .. } => {
+                        // Already handled before loading repository-scoped managers
                     }
                 }
             }
@@ -669,7 +702,7 @@ async fn handle_repair_command(manager: &WorktreeManager) -> Result<()> {
 }
 
 async fn handle_doctor_command(db: &Database, network: bool, verbose: bool) -> Result<()> {
-    use commands::doctor::{run_doctor, print_report, DoctorOpts};
+    use commands::doctor::{print_report, run_doctor, DoctorOpts};
 
     let opts = DoctorOpts { network, verbose };
     let checks = run_doctor(db.pool(), opts).await?;
@@ -683,18 +716,35 @@ async fn handle_registry_command(db: &Database, cmd: &RegistryCommands) -> Resul
 
     match cmd {
         RegistryCommands::Sync { scan_root } => {
-            let path = scan_root
-                .as_ref()
-                .map(|s| std::path::Path::new(s));
+            let path = scan_root.as_ref().map(|s| std::path::Path::new(s));
 
             registry::sync_filesystem(db.pool(), path).await?;
         }
         RegistryCommands::Stats => {
             // Query registry stats
-            let stats = sqlx::query!(
+            let stats = sqlx::query_as::<
+                _,
+                (
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<i64>,
+                ),
+            >(
                 r#"
-                SELECT * FROM get_registry_stats()
-                "#
+                SELECT
+                    total_projects,
+                    active_projects,
+                    total_worktrees,
+                    active_worktrees,
+                    in_flight_worktrees,
+                    total_activities,
+                    activities_last_24h
+                FROM get_registry_stats()
+                "#,
             )
             .fetch_one(db.pool())
             .await?;
@@ -702,13 +752,34 @@ async fn handle_registry_command(db: &Database, cmd: &RegistryCommands) -> Resul
             println!("\n{}", "━".repeat(60).bright_black());
             println!("{}", "iMi Registry Statistics".bold().bright_white());
             println!("{}\n", "━".repeat(60).bright_black());
-            println!("Total projects: {}", stats.total_projects.unwrap_or(0).to_string().green());
-            println!("Active projects: {}", stats.active_projects.unwrap_or(0).to_string().green());
-            println!("Total worktrees: {}", stats.total_worktrees.unwrap_or(0).to_string().cyan());
-            println!("Active worktrees: {}", stats.active_worktrees.unwrap_or(0).to_string().cyan());
-            println!("In-flight worktrees: {}", stats.in_flight_worktrees.unwrap_or(0).to_string().yellow());
-            println!("Total activities: {}", stats.total_activities.unwrap_or(0).to_string().bright_black());
-            println!("Activities (24h): {}", stats.activities_last_24h.unwrap_or(0).to_string().bright_black());
+            println!(
+                "Total projects: {}",
+                stats.0.unwrap_or(0).to_string().green()
+            );
+            println!(
+                "Active projects: {}",
+                stats.1.unwrap_or(0).to_string().green()
+            );
+            println!(
+                "Total worktrees: {}",
+                stats.2.unwrap_or(0).to_string().cyan()
+            );
+            println!(
+                "Active worktrees: {}",
+                stats.3.unwrap_or(0).to_string().cyan()
+            );
+            println!(
+                "In-flight worktrees: {}",
+                stats.4.unwrap_or(0).to_string().yellow()
+            );
+            println!(
+                "Total activities: {}",
+                stats.5.unwrap_or(0).to_string().bright_black()
+            );
+            println!(
+                "Activities (24h): {}",
+                stats.6.unwrap_or(0).to_string().bright_black()
+            );
             println!();
         }
     }
@@ -790,6 +861,181 @@ async fn handle_init_command(repo: Option<String>, force: bool, json_mode: bool)
             println!("{}", result.message.green());
         } else {
             println!("{}", result.message.red());
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_migrate_office_command(
+    repo: Option<String>,
+    dry_run: bool,
+    force: bool,
+    json_mode: bool,
+) -> Result<()> {
+    let config = Config::load().await?;
+    let db = Database::new(&config.database_path).await?;
+    let init_cmd = InitCommand::new(force, config, db);
+
+    let summary = init_cmd
+        .migrate_office_layout(repo.as_deref(), dry_run)
+        .await?;
+
+    if json_mode {
+        JsonResponse::success(serde_json::json!({
+            "processed": summary.processed,
+            "migrated": summary.migrated,
+            "skipped": summary.skipped,
+            "failed": summary.failed,
+            "dry_run": summary.dry_run,
+            "results": summary.results
+        }))
+        .print();
+    } else {
+        println!();
+        println!(
+            "{} {}",
+            "🏢".bright_cyan(),
+            "Office migration summary".bright_cyan().bold()
+        );
+        println!(
+            "   processed={} migrated={} skipped={} failed={} dry_run={}",
+            summary.processed, summary.migrated, summary.skipped, summary.failed, summary.dry_run
+        );
+
+        for result in &summary.results {
+            let status = match result.status.as_str() {
+                "migrated" => "migrated".bright_green(),
+                "skipped" => "skipped".bright_yellow(),
+                "failed" => "failed".bright_red(),
+                _ => result.status.bright_black(),
+            };
+
+            println!(
+                "   [{}] {}: {} -> {}",
+                status, result.repo_name, result.source_trunk, result.target_trunk
+            );
+            println!("      {}", result.message);
+            for warning in &result.warnings {
+                println!("      warning: {}", warning);
+            }
+        }
+    }
+
+    if summary.failed > 0 {
+        return Err(anyhow::anyhow!(
+            "Office migration finished with {} failed repository migrations",
+            summary.failed
+        ));
+    }
+
+    Ok(())
+}
+
+fn parse_metadata_value(raw: &str) -> serde_json::Value {
+    serde_json::from_str(raw).unwrap_or_else(|_| serde_json::Value::String(raw.to_string()))
+}
+
+async fn handle_metadata_command(
+    manager: &WorktreeManager,
+    command: MetadataCommands,
+    json_mode: bool,
+) -> Result<()> {
+    match command {
+        MetadataCommands::Set {
+            worktree,
+            key,
+            value,
+            repo,
+        } => {
+            let worktree_entry = match manager
+                .get_worktree_by_name(&worktree, repo.as_deref())
+                .await?
+            {
+                Some(wt) => wt,
+                None => {
+                    let error_msg = format!("Worktree '{}' not found", worktree);
+                    if json_mode {
+                        JsonResponse::error(error_msg.clone()).print();
+                    } else {
+                        eprintln!("{}", error_msg.red());
+                    }
+                    return Err(anyhow::anyhow!(error_msg));
+                }
+            };
+
+            let parsed_value = parse_metadata_value(&value);
+            manager
+                .db
+                .set_worktree_metadata(&worktree_entry.id, &key, parsed_value.clone())
+                .await?;
+
+            let stored_value = manager
+                .db
+                .get_worktree_metadata(&worktree_entry.id, Some(&key))
+                .await?;
+
+            if json_mode {
+                JsonResponse::success(serde_json::json!({
+                    "worktree_id": worktree_entry.id,
+                    "worktree_name": worktree_entry.name,
+                    "key": key,
+                    "value": stored_value,
+                    "message": "Metadata updated"
+                }))
+                .print();
+            } else {
+                println!(
+                    "{} Metadata updated for '{}': {}",
+                    "✅".bright_green(),
+                    worktree_entry.name.bright_cyan(),
+                    key.bright_yellow()
+                );
+                println!("   {}", serde_json::to_string_pretty(&stored_value)?);
+            }
+        }
+        MetadataCommands::Get {
+            worktree,
+            key,
+            repo,
+        } => {
+            let worktree_entry = match manager
+                .get_worktree_by_name(&worktree, repo.as_deref())
+                .await?
+            {
+                Some(wt) => wt,
+                None => {
+                    let error_msg = format!("Worktree '{}' not found", worktree);
+                    if json_mode {
+                        JsonResponse::error(error_msg.clone()).print();
+                    } else {
+                        eprintln!("{}", error_msg.red());
+                    }
+                    return Err(anyhow::anyhow!(error_msg));
+                }
+            };
+
+            let metadata = manager
+                .db
+                .get_worktree_metadata(&worktree_entry.id, key.as_deref())
+                .await?;
+
+            if json_mode {
+                JsonResponse::success(serde_json::json!({
+                    "worktree_id": worktree_entry.id,
+                    "worktree_name": worktree_entry.name,
+                    "key": key,
+                    "value": metadata
+                }))
+                .print();
+            } else {
+                println!(
+                    "{} Metadata for '{}'",
+                    "📌".bright_cyan(),
+                    worktree_entry.name.bright_cyan()
+                );
+                println!("{}", serde_json::to_string_pretty(&metadata)?);
+            }
         }
     }
 
@@ -1304,7 +1550,13 @@ async fn handle_claim_command(
     // Log activity
     manager
         .db
-        .log_agent_activity(yi_id, &worktree.id, "claimed", None, "Agent claimed worktree")
+        .log_agent_activity(
+            yi_id,
+            &worktree.id,
+            "claimed",
+            None,
+            "Agent claimed worktree",
+        )
         .await?;
 
     if json_mode {
@@ -1322,7 +1574,11 @@ async fn handle_claim_command(
             "✅".bright_green(),
             name
         );
-        println!("   {} Agent ID: {}", "🔑".bright_black(), yi_id.bright_cyan());
+        println!(
+            "   {} Agent ID: {}",
+            "🔑".bright_black(),
+            yi_id.bright_cyan()
+        );
         println!(
             "   {} Worktree ID: {}",
             "🆔".bright_black(),
@@ -1361,7 +1617,9 @@ async fn handle_verify_lock_command(
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Invalid worktree path"))?;
 
-    let lock_file = repo_root.join(".iMi/presence").join(format!("{}.lock", name));
+    let lock_file = repo_root
+        .join(".iMi/presence")
+        .join(format!("{}.lock", name));
 
     // Check if lock file exists
     if !lock_file.exists() {
@@ -1375,11 +1633,7 @@ async fn handle_verify_lock_command(
             }))
             .print();
         } else {
-            println!(
-                "{} Worktree '{}' is not locked",
-                "✅".bright_green(),
-                name
-            );
+            println!("{} Worktree '{}' is not locked", "✅".bright_green(), name);
         }
         std::process::exit(0);
     }
@@ -1511,9 +1765,7 @@ async fn handle_release_command(
                 JsonResponse::error(error_msg.clone()).print();
             } else {
                 eprintln!("{}", error_msg.red());
-                eprintln!(
-                    "   Only the owning agent can release this worktree"
-                );
+                eprintln!("   Only the owning agent can release this worktree");
             }
             return Err(anyhow::anyhow!(error_msg));
         }
@@ -1587,7 +1839,13 @@ async fn handle_release_command(
     // Log activity
     manager
         .db
-        .log_agent_activity(yi_id, &worktree.id, "released", None, "Agent released worktree")
+        .log_agent_activity(
+            yi_id,
+            &worktree.id,
+            "released",
+            None,
+            "Agent released worktree",
+        )
         .await?;
 
     // Output success
@@ -1606,7 +1864,11 @@ async fn handle_release_command(
             "✅".bright_green(),
             name
         );
-        println!("   {} Agent ID: {}", "🔓".bright_black(), yi_id.bright_cyan());
+        println!(
+            "   {} Agent ID: {}",
+            "🔓".bright_black(),
+            yi_id.bright_cyan()
+        );
         println!(
             "   {} Worktree ID: {}",
             "🆔".bright_black(),

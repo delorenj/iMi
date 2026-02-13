@@ -231,7 +231,9 @@ impl LocalContext {
 
     /// Remove a lock file (for agent release operations)
     pub async fn remove_lock_file(&self, imi_dir: &Path, worktree_name: &str) -> Result<()> {
-        let lock_file = imi_dir.join("presence").join(format!("{}.lock", worktree_name));
+        let lock_file = imi_dir
+            .join("presence")
+            .join(format!("{}.lock", worktree_name));
         if lock_file.exists() {
             fs::remove_file(&lock_file)
                 .with_context(|| format!("Failed to remove lock file for {}", worktree_name))?;
@@ -245,11 +247,13 @@ impl LocalContext {
         imi_dir: &Path,
         worktree_name: &str,
     ) -> Result<serde_json::Value> {
-        let lock_file = imi_dir.join("presence").join(format!("{}.lock", worktree_name));
+        let lock_file = imi_dir
+            .join("presence")
+            .join(format!("{}.lock", worktree_name));
         let content = fs::read_to_string(&lock_file)
             .with_context(|| format!("Failed to read lock file for {}", worktree_name))?;
-        let data: serde_json::Value = serde_json::from_str(&content)
-            .context("Failed to parse lock file data")?;
+        let data: serde_json::Value =
+            serde_json::from_str(&content).context("Failed to parse lock file data")?;
         Ok(data)
     }
 }

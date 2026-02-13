@@ -10,7 +10,12 @@ pub async fn sync_filesystem(pool: &PgPool, scan_root: Option<&Path>) -> Result<
     let scan_path = scan_root.unwrap_or(&default_scan);
 
     println!("{}", "━".repeat(60).bright_black());
-    println!("{}", "iMi Registry Sync - Filesystem Discovery".bold().bright_white());
+    println!(
+        "{}",
+        "iMi Registry Sync - Filesystem Discovery"
+            .bold()
+            .bright_white()
+    );
     println!("{}\n", "━".repeat(60).bright_black());
 
     let mut stats = SyncStats::default();
@@ -22,13 +27,21 @@ pub async fn sync_filesystem(pool: &PgPool, scan_root: Option<&Path>) -> Result<
 
     for hub in hubs {
         println!("{} Processing: {}", "📦".bright_black(), hub.name.bold());
-        println!("   {} Trunk: {}", "📂".bright_black(), hub.trunk_path.display());
+        println!(
+            "   {} Trunk: {}",
+            "📂".bright_black(),
+            hub.trunk_path.display()
+        );
         println!("   {} Remote: {}", "🔗".bright_black(), hub.remote_url);
 
         // Register project (idempotent via ON CONFLICT)
         match register_project(pool, &hub).await {
             Ok(project_id) => {
-                println!("   {} Registered: {}", "✅".green(), project_id.to_string().bright_black());
+                println!(
+                    "   {} Registered: {}",
+                    "✅".green(),
+                    project_id.to_string().bright_black()
+                );
                 stats.projects_registered += 1;
 
                 // Discover and register worktrees
@@ -40,7 +53,12 @@ pub async fn sync_filesystem(pool: &PgPool, scan_root: Option<&Path>) -> Result<
                                 stats.worktrees_registered += 1;
                             }
                             Err(e) => {
-                                println!("      {} Worktree '{}' skipped: {}", "⚠".yellow(), wt.name, e);
+                                println!(
+                                    "      {} Worktree '{}' skipped: {}",
+                                    "⚠".yellow(),
+                                    wt.name,
+                                    e
+                                );
                             }
                         }
                     }
@@ -58,9 +76,18 @@ pub async fn sync_filesystem(pool: &PgPool, scan_root: Option<&Path>) -> Result<
     println!("{}", "━".repeat(60).bright_black());
     println!("{}", "Summary".bold());
     println!("{}", "━".repeat(60).bright_black());
-    println!("Projects registered: {}", stats.projects_registered.to_string().green());
-    println!("Projects skipped: {}", stats.projects_skipped.to_string().yellow());
-    println!("Worktrees registered: {}", stats.worktrees_registered.to_string().green());
+    println!(
+        "Projects registered: {}",
+        stats.projects_registered.to_string().green()
+    );
+    println!(
+        "Projects skipped: {}",
+        stats.projects_skipped.to_string().yellow()
+    );
+    println!(
+        "Worktrees registered: {}",
+        stats.worktrees_registered.to_string().green()
+    );
     println!();
 
     Ok(stats)
@@ -116,10 +143,7 @@ fn discover_cluster_hubs(scan_root: &Path, max_depth: usize) -> Result<Vec<Clust
                 .flatten()
                 .filter_map(|e| e.ok())
                 .filter(|e| {
-                    e.file_name()
-                        .to_string_lossy()
-                        .starts_with("trunk-")
-                        && e.path().is_dir()
+                    e.file_name().to_string_lossy().starts_with("trunk-") && e.path().is_dir()
                 })
                 .collect();
 
@@ -216,10 +240,7 @@ async fn register_project(pool: &PgPool, hub: &ClusterHub) -> Result<Uuid> {
 }
 
 /// Discover worktrees in a cluster hub
-async fn discover_worktrees(
-    project_path: &Path,
-    project_id: &Uuid,
-) -> Result<Vec<WorktreeInfo>> {
+async fn discover_worktrees(project_path: &Path, project_id: &Uuid) -> Result<Vec<WorktreeInfo>> {
     let mut worktrees = Vec::new();
 
     for entry in std::fs::read_dir(project_path)? {
